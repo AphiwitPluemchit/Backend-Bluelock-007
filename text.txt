@@ -1,0 +1,5 @@
+ คำสั่งใช้รัน
+ go run src/main.go
+
+path database
+ mongodb+srv://aphiwitrr:8bZ24ie8b7oTYoRk@cluster0.2sydc.mongodb.net/
