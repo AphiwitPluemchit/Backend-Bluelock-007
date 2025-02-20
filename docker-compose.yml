@@ -1,66 +1,51 @@
 version: '3.8'
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: prod
-    restart: unless-stopped
+  mongodb:
+    image: mongo:latest
+    container_name: BluelockDB
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - backend_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      retries: 5
+      start_period: 10s
+      timeout: 10s
+
+  # backend:
+  #   build: .
+  #   container_name: backend
+  #   depends_on:
+  #     - mongodb
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - MONGO_URI=mongodb+srv://aphiwitrr:8bZ24ie8b7oTYoRk@cluster0.2sydc.mongodb.net/
+  #   networks:
+  #     - backend_network
+  #   restart: always
+  backend:
+    build: .
+    container_name: backend
     ports:
       - "8080:8080"
     environment:
-      - APP_ENV=${APP_ENV}
-      - PORT=${PORT}
-      - BLUEPRINT_DB_HOST=${BLUEPRINT_DB_HOST}
-      - BLUEPRINT_DB_PORT=${BLUEPRINT_DB_PORT}
-      - BLUEPRINT_DB_DATABASE=${BLUEPRINT_DB_DATABASE}
-      - BLUEPRINT_DB_USERNAME=${BLUEPRINT_DB_USERNAME}
-      - BLUEPRINT_DB_PASSWORD=${BLUEPRINT_DB_PASSWORD}
-    depends_on:
-      mysql_bp:
-        condition: service_healthy
+      - MONGO_URI=mongodb+srv://aphiwitrr:8bZ24ie8b7oTYoRk@cluster0.2sydc.mongodb.net/
     networks:
-      - blueprint
-
-  mysql_bp:
-    image: mysql:latest
-    restart: unless-stopped
-    environment:
-      - MYSQL_DATABASE=${BLUEPRINT_DB_DATABASE}
-      - MYSQL_USER=${BLUEPRINT_DB_USERNAME}
-      - MYSQL_PASSWORD=${BLUEPRINT_DB_PASSWORD}
-      - MYSQL_ROOT_PASSWORD=${BLUEPRINT_DB_ROOT_PASSWORD}
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_volume_bp:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "${BLUEPRINT_DB_USERNAME}", "--password=${BLUEPRINT_DB_PASSWORD}"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-    networks:
-      - blueprint
-
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
-    restart: unless-stopped
-    ports:
-      - "8081:80"  # เข้า phpMyAdmin ผ่าน http://localhost:8081
-    environment:
-      - PMA_HOST=mysql_bp
-      - PMA_PORT=3306
-      - PMA_USER=${BLUEPRINT_DB_USERNAME}
-      - PMA_PASSWORD=${BLUEPRINT_DB_PASSWORD}
-    depends_on:
-      - mysql_bp
-    networks:
-      - blueprint
-
-volumes:
-  mysql_volume_bp:
+      - backend_network
+    restart: always
 
 networks:
-  blueprint:
+  backend_network:
+    driver: bridge
+
+volumes:
+  mongo-data:
