@@ -15,7 +15,7 @@ var client *mongo.Client
 
 // ConnectMongoDB เชื่อมต่อกับ MongoDB และแสดงข้อมูลใน Database
 func ConnectMongoDB() error {
-	clientOptions := options.Client().ApplyURI("mongodb+srv://aphiwitrr:8bZ24ie8b7oTYoRk@cluster0.2sydc.mongodb.net/")
+	clientOptions := options.Client().ApplyURI("mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/")
 
 	var err error
 	client, err = mongo.Connect(context.TODO(), clientOptions)
