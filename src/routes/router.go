@@ -7,7 +7,6 @@ import (
 func InitRoutes(app *fiber.App) {
 	// เรียกใช้ฟังก์ชัน InitUserRoutes และ InitOrderRoutes
 	activityRoutes(app)
-	activityItemRoutes(app)
 	activityStateRoutes(app)
 	adminRoutes(app)
 	checkInOutRoutes(app)

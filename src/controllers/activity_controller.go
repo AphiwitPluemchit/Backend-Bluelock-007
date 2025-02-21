@@ -7,28 +7,31 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// CreateActivity - สร้างกิจกรรมใหม่
 func CreateActivity(c *fiber.Ctx) error {
 	var activity models.Activity
+
+	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&activity); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid input",
 		})
 	}
 
-	err := services.CreateActivity(&activity)
+	// บันทึก Activity + Items
+	err := services.CreateActivity(activity)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error creating activity",
+			"error": "Failed to create activity and items",
 		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message":  "Activity created successfully",
-		"activity": activity,
+		"message": "Activity and items created successfully",
 	})
 }
 
-// GetActivitys - ดึงข้อมูลผู้ใช้ทั้งหมด
+// GetActivitys - ดึงกิจกรรมทั้งหมด
 func GetActivitys(c *fiber.Ctx) error {
 	activitys, err := services.GetAllActivitys()
 	if err != nil {
@@ -40,7 +43,7 @@ func GetActivitys(c *fiber.Ctx) error {
 	return c.JSON(activitys)
 }
 
-// GetActivityByID - ดึงข้อมูลผู้ใช้ตาม ID
+// GetActivityByID - ดึงข้อมูลกิจกรรมตาม ID
 func GetActivityByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	activity, err := services.GetActivityByID(id)
@@ -53,7 +56,7 @@ func GetActivityByID(c *fiber.Ctx) error {
 	return c.JSON(activity)
 }
 
-// UpdateActivity - อัปเดตข้อมูลผู้ใช้
+// UpdateActivity - อัปเดตข้อมูลกิจกรรม
 func UpdateActivity(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var activity models.Activity
@@ -76,7 +79,7 @@ func UpdateActivity(c *fiber.Ctx) error {
 	})
 }
 
-// DeleteActivity - ลบผู้ใช้
+// DeleteActivity - ลบกิจกรรม
 func DeleteActivity(c *fiber.Ctx) error {
 	id := c.Params("id")
 	err := services.DeleteActivity(id)

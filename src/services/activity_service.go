@@ -14,66 +14,119 @@ import (
 )
 
 var activityCollection *mongo.Collection
+var activityItemCollection *mongo.Collection
 
 func init() {
-	// เชื่อมต่อกับ MongoDB
+	// เชื่อมต่อ MongoDB
 	if err := database.ConnectMongoDB(); err != nil {
 		log.Fatal("MongoDB connection error:", err)
 	}
 
 	activityCollection = database.GetCollection("BluelockDB", "activitys")
-	if activityCollection == nil {
-		log.Fatal("Failed to get the activitys collection")
+	activityItemCollection = database.GetCollection("BluelockDB", "activityItems")
+
+	if activityCollection == nil || activityItemCollection == nil {
+		log.Fatal("Failed to get collections")
 	}
 }
 
-// CreateActivity - เพิ่มข้อมูลผู้ใช้ใน MongoDB
-func CreateActivity(activity *models.Activity) error {
-	activity.ID = primitive.NewObjectID() // กำหนด ID อัตโนมัติ
-	_, err := activityCollection.InsertOne(context.Background(), activity)
-	return err
-}
-
-// GetAllActivitys - ดึงข้อมูลผู้ใช้ทั้งหมด
-func GetAllActivitys() ([]models.Activity, error) {
-	var activitys []models.Activity
+// CreateActivity - เพิ่มกิจกรรมใหม่
+func CreateActivity(activity models.Activity) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cursor, err := activityCollection.Find(ctx, bson.M{})
+	activity.ID = primitive.NewObjectID()
+	_, err := activityCollection.InsertOne(ctx, activity)
 	if err != nil {
-		return nil, err
+		return errors.New("failed to create activity")
 	}
-	defer cursor.Close(ctx)
 
-	for cursor.Next(ctx) {
-		var activity models.Activity
-		if err := cursor.Decode(&activity); err != nil {
-			return nil, err
+	if len(activity.ActivityItem) > 0 {
+		var activityItems []interface{}
+		for _, item := range activity.ActivityItem {
+			item.ID = primitive.NewObjectID()
+			item.ActivityID = activity.ID
+			activityItems = append(activityItems, item)
 		}
-		activitys = append(activitys, activity)
+
+		_, err := activityItemCollection.InsertMany(ctx, activityItems)
+		if err != nil {
+			return errors.New("failed to create activity items")
+		}
 	}
 
-	return activitys, nil
+	return nil
 }
 
-// GetActivityByID - ดึงข้อมูลผู้ใช้ตาม ID
-func GetActivityByID(id string) (*models.Activity, error) {
+// GetAllActivitys - ดึงข้อมูลกิจกรรมทั้งหมด
+func GetAllActivitys() ([]bson.M, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
+	}
+
+	cursor, err := activityCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		log.Println("Error fetching activities:", err)
+		return nil, err
+	}
+
+	var activities []bson.M
+	if err := cursor.All(ctx, &activities); err != nil {
+		log.Println("Error decoding activities:", err)
+		return nil, err
+	}
+
+	return activities, nil
+}
+
+// GetActivityByID - ดึงข้อมูลกิจกรรมตาม ID
+func GetActivityByID(id string) (bson.M, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, errors.New("invalid activity ID")
 	}
 
-	var activity models.Activity
-	err = activityCollection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&activity)
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "_id", Value: objID}}}},
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
+	}
+
+	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
+		log.Println("Error fetching activity:", err)
 		return nil, err
 	}
 
-	return &activity, nil
+	var activities []bson.M
+	if err := cursor.All(ctx, &activities); err != nil {
+		log.Println("Error decoding activity:", err)
+		return nil, err
+	}
+
+	if len(activities) == 0 {
+		return nil, errors.New("activity not found")
+	}
+
+	return activities[0], nil
 }
 
-// UpdateActivity - อัปเดตข้อมูลผู้ใช้
+// UpdateActivity - อัปเดตข้อมูลกิจกรรม
 func UpdateActivity(id string, activity *models.Activity) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -87,7 +140,7 @@ func UpdateActivity(id string, activity *models.Activity) error {
 	return err
 }
 
-// DeleteActivity - ลบข้อมูลผู้ใช้
+// DeleteActivity - ลบกิจกรรม
 func DeleteActivity(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -95,5 +148,14 @@ func DeleteActivity(id string) error {
 	}
 
 	_, err = activityCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
-	return err
+	if err != nil {
+		return err
+	}
+
+	_, err = activityItemCollection.DeleteMany(context.Background(), bson.M{"activityId": objID})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
