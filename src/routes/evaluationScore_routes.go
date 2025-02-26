@@ -9,9 +9,9 @@ import (
 // EvaluationScoreRoutes กำหนดเส้นทางสำหรับ EvaluationScore API
 func evaluationScoreRoutes(app *fiber.App) {
 	evaluationScoreRoutes := app.Group("/evaluationScores")
-	evaluationScoreRoutes.Get("/", controllers.GetActivitys)         // ดึงผู้ใช้ทั้งหมด
-	evaluationScoreRoutes.Post("/", controllers.CreateActivity)      // สร้างผู้ใช้ใหม่
-	evaluationScoreRoutes.Get("/:id", controllers.GetActivityByID)   // ดึงข้อมูลผู้ใช้ตาม ID
-	evaluationScoreRoutes.Put("/:id", controllers.UpdateActivity)    // อัปเดตข้อมูลผู้ใช้
-	evaluationScoreRoutes.Delete("/:id", controllers.DeleteActivity) // ลบผู้ใช้
+	// evaluationScoreRoutes.Get("/", controllers.GetEvaluationScores)         // ดึงผู้ใช้ทั้งหมด
+	evaluationScoreRoutes.Post("/", controllers.CreateEvaluationScore)      // สร้างผู้ใช้ใหม่
+	evaluationScoreRoutes.Get("/:id", controllers.GetEvaluationScoreByID)   // ดึงข้อมูลผู้ใช้ตาม ID
+	evaluationScoreRoutes.Put("/:id", controllers.UpdateEvaluationScore)    // อัปเดตข้อมูลผู้ใช้
+	evaluationScoreRoutes.Delete("/:id", controllers.DeleteEvaluationScore) // ลบผู้ใช้
 }

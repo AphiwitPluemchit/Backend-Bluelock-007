@@ -9,10 +9,10 @@ type Student struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty"`
 	Code      string             `bson:"code"`
 	Name      string             `bson:"name"`
-	Email     string             `bson:"email"`
+	Email     string             `bson:"email,omitempty"`
 	Status    string             `bson:"status"`
-	Password  string             `bson:"password"`
-	SoftSkill int                `bson:"softSkill"`
-	HardSkill int                `bson:"hardSkill"`
-	MajorID   int                `bson:"majorId"`
+	Password  string             `bson:"password,omitempty"`
+	SoftSkill int                `bson:"softSkill,omitempty"`
+	HardSkill int                `bson:"hardSkill,omitempty"`
+	MajorID   primitive.ObjectID `bson:"majorId"`
 }

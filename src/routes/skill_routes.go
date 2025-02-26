@@ -9,9 +9,9 @@ import (
 // SkillRoutes กำหนดเส้นทางสำหรับ Skill API
 func skillRoutes(app *fiber.App) {
 	skillRoutes := app.Group("/skills")
-	skillRoutes.Get("/", controllers.GetActivitys)         // ดึงผู้ใช้ทั้งหมด
-	skillRoutes.Post("/", controllers.CreateActivity)      // สร้างผู้ใช้ใหม่
-	skillRoutes.Get("/:id", controllers.GetActivityByID)   // ดึงข้อมูลผู้ใช้ตาม ID
-	skillRoutes.Put("/:id", controllers.UpdateActivity)    // อัปเดตข้อมูลผู้ใช้
-	skillRoutes.Delete("/:id", controllers.DeleteActivity) // ลบผู้ใช้
+	skillRoutes.Get("/", controllers.GetSkills)         // ดึงผู้ใช้ทั้งหมด
+	skillRoutes.Post("/", controllers.CreateSkill)      // สร้างผู้ใช้ใหม่
+	skillRoutes.Get("/:id", controllers.GetSkillByID)   // ดึงข้อมูลผู้ใช้ตาม ID
+	skillRoutes.Put("/:id", controllers.UpdateSkill)    // อัปเดตข้อมูลผู้ใช้
+	skillRoutes.Delete("/:id", controllers.DeleteSkill) // ลบผู้ใช้
 }

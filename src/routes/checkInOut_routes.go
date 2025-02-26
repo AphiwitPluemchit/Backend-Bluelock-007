@@ -9,9 +9,9 @@ import (
 // CheckInOutRoutes กำหนดเส้นทางสำหรับ CheckInOut API
 func checkInOutRoutes(app *fiber.App) {
 	checkInOutRoutes := app.Group("/checkInOuts")
-	checkInOutRoutes.Get("/", controllers.GetActivitys)         // ดึงผู้ใช้ทั้งหมด
-	checkInOutRoutes.Post("/", controllers.CreateActivity)      // สร้างผู้ใช้ใหม่
-	checkInOutRoutes.Get("/:id", controllers.GetActivityByID)   // ดึงข้อมูลผู้ใช้ตาม ID
-	checkInOutRoutes.Put("/:id", controllers.UpdateActivity)    // อัปเดตข้อมูลผู้ใช้
-	checkInOutRoutes.Delete("/:id", controllers.DeleteActivity) // ลบผู้ใช้
+	// checkInOutRoutes.Get("/", controllers.GetCheckInOuts)         // ดึงผู้ใช้ทั้งหมด
+	checkInOutRoutes.Post("/", controllers.CreateCheckInOut)      // สร้างผู้ใช้ใหม่
+	checkInOutRoutes.Get("/:id", controllers.GetCheckInOutByID)   // ดึงข้อมูลผู้ใช้ตาม ID
+	checkInOutRoutes.Put("/:id", controllers.UpdateCheckInOut)    // อัปเดตข้อมูลผู้ใช้
+	checkInOutRoutes.Delete("/:id", controllers.DeleteCheckInOut) // ลบผู้ใช้
 }
