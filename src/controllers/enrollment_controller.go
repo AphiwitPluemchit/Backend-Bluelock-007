@@ -3,37 +3,54 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 )
 
+// CreateEnrollment - ลงทะเบียนกิจกรรม
 func CreateEnrollment(c *fiber.Ctx) error {
 	var enrollment models.Enrollment
+	log.Println("Enrollment:", enrollment)
+
+	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&enrollment); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid input",
 		})
 	}
 
-	err := services.CreateEnrollment(&enrollment)
+	if !services.IsValidActivityItem(enrollment.ActivityItemID) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "ActivityItem not found",
+		})
+	}
+
+	if !services.IsValidStudent(enrollment.StudentID) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Student not found",
+		})
+	}
+
+	// บันทึกการลงทะเบียนกิจกรรม
+	err := services.CreateEnrollment(enrollment)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error creating enrollment",
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error": err.Error(),
 		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message":    "Enrollment created successfully",
-		"enrollment": enrollment,
+		"message": "Enrollment created successfully",
 	})
 }
 
 // GetEnrollments - ดึงข้อมูลผู้ใช้ทั้งหมด
-func GetEnrollments(c *fiber.Ctx) error {
+func GetAllEnrollments(c *fiber.Ctx) error {
 	enrollments, err := services.GetAllEnrollments()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error fetching enrollments",
+			"error": err.Error(),
 		})
 	}
 
