@@ -1,0 +1,18 @@
+# ตั้งค่า Root ของโปรเจค
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # รัน swag init ก่อน build
+  cmd_pre = "swag init -g src/main.go"
+  # คำสั่ง build สำหรับ Windows (ถ้าใช้ Linux/Mac ให้เปลี่ยนเป็น `tmp/main`)
+  cmd = "go build -o tmp/main.exe src/main.go"
+  bin = "tmp/main.exe"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "vendor", "node_modules"]
+
+[log]
+  level = "debug"
+
+[debug]
+  open = false
