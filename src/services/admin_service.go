@@ -29,9 +29,16 @@ func init() {
 
 // CreateAdmin - เพิ่มข้อมูลผู้ใช้ใน MongoDB
 func CreateAdmin(admin *models.Admin) error {
-	admin.ID = primitive.NewObjectID() // กำหนด ID อัตโนมัติ
-	_, err := adminCollection.InsertOne(context.Background(), admin)
-	return err
+	admin.ID = primitive.NewObjectID()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := adminCollection.InsertOne(ctx, admin)
+	if err != nil {
+		log.Println("❌ Error inserting admin:", err)
+		return errors.New("failed to insert admin")
+	}
+	return nil
 }
 
 // GetAllAdmins - ดึงข้อมูลผู้ใช้ทั้งหมด
@@ -64,9 +71,15 @@ func GetAdminByID(id string) (*models.Admin, error) {
 		return nil, errors.New("invalid admin ID")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	var admin models.Admin
-	err = adminCollection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&admin)
-	if err != nil {
+	err = adminCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&admin)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, errors.New("admin not found")
+	} else if err != nil {
+		log.Println("❌ Error finding admin:", err)
 		return nil, err
 	}
 

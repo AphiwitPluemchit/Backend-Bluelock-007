@@ -1,6 +1,9 @@
 package models
 
-// ErrorResponse ใช้สำหรับตอบกลับเมื่อเกิดข้อผิดพลาด
+// ErrorResponse โครงสร้างมาตรฐานสำหรับการส่ง Error
 type ErrorResponse struct {
-	Message string `json:"message" example:"Error description"`
+	Status  int    `json:"status"`  // HTTP Status Code
+	Message string `json:"message"` // รายละเอียดของ Error
 }
+
+// ErrorResponse โครงสร้างมาตรฐานสำหรับการส่ง Error 
