@@ -6,11 +6,14 @@ import (
 	"context"
 	"errors"
 	"log"
+	"math"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var adminCollection *mongo.Collection
@@ -41,27 +44,65 @@ func CreateAdmin(admin *models.Admin) error {
 	return nil
 }
 
-// GetAllAdmins - ดึงข้อมูลผู้ใช้ทั้งหมด
-func GetAllAdmins() ([]models.Admin, error) {
+// GetAllAdmins - ดึงข้อมูล Admin พร้อม Pagination, Search, Sort
+func GetAllAdmins(params models.PaginationParams) ([]models.Admin, int64, int, error) {
 	var admins []models.Admin
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cursor, err := adminCollection.Find(ctx, bson.M{})
+	// คำนวณค่าการ Skip
+	skip := int64((params.Page - 1) * params.Limit)
+
+	// กำหนดค่าเริ่มต้นของการ Sort
+	sortField := params.SortBy
+	if sortField == "" {
+		sortField = "id" // ค่าเริ่มต้น sort ด้วย ID
+	}
+	sortOrder := 1 // ค่าเริ่มต้นเป็น ascending (1)
+	if strings.ToLower(params.Order) == "desc" {
+		sortOrder = -1
+	}
+
+	// ค้นหาเฉพาะที่มีข้อความตรงกับ search
+	filter := bson.M{}
+	if params.Search != "" {
+		filter["$or"] = []bson.M{
+			{"name": bson.M{"$regex": params.Search, "$options": "i"}},
+			{"email": bson.M{"$regex": params.Search, "$options": "i"}},
+		}
+	}
+
+	// นับจำนวนทั้งหมดก่อน
+	total, err := adminCollection.CountDocuments(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
+	}
+
+	// Query MongoDB พร้อมตัวเลือก
+	findOptions := options.Find().
+		SetSkip(skip).
+		SetLimit(int64(params.Limit)).
+		SetSort(bson.D{{Key: sortField, Value: sortOrder}})
+
+	cursor, err := adminCollection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
 	for cursor.Next(ctx) {
 		var admin models.Admin
 		if err := cursor.Decode(&admin); err != nil {
-			return nil, err
+			log.Println("Error decoding admin:", err)
+			continue
 		}
 		admins = append(admins, admin)
 	}
 
-	return admins, nil
+	// คำนวณจำนวนหน้าทั้งหมด
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+
+	return admins, total, totalPages, nil
 }
 
 // GetAdminByID - ดึงข้อมูลผู้ใช้ตาม ID
