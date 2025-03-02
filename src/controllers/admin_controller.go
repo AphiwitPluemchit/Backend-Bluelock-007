@@ -7,6 +7,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// CreateAdmin godoc
+// @Summary      Create a new admin
+// @Description  Create a new admin
+// @Tags         admins
+// @Accept       json
+// @Produce      json
+// @Param        admin  body  models.Admin  true  "Admin object"
+// @Success      201  {object}  models.Admin
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /admins [post]
 func CreateAdmin(c *fiber.Ctx) error {
 	var admin models.Admin
 	if err := c.BodyParser(&admin); err != nil {

@@ -1,12 +1,13 @@
 package main
 
 import (
+	_ "Backend-Bluelock-007/docs"
 	"Backend-Bluelock-007/src/database"
-	_ "Backend-Bluelock-007/src/docs"
 	"Backend-Bluelock-007/src/routes"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/swagger"
 )
 
 func main() {
@@ -21,7 +22,7 @@ func main() {
 	app := fiber.New()
 
 	// เปิดใช้งาน Swagger ที่ URL /swagger
-	// app.Get("/swagger/*", swagger.HandlerDefault)
+	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// รวม routes จากแต่ละ module
 	routes.InitRoutes(app)

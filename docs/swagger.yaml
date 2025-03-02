@@ -1,0 +1,52 @@
+definitions:
+  models.Admin:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  models.ErrorResponse:
+    properties:
+      message:
+        example: Error description
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /admins:
+    post:
+      consumes:
+      - application/json
+      description: Create a new admin
+      parameters:
+      - description: Admin object
+        in: body
+        name: admin
+        required: true
+        schema:
+          $ref: '#/definitions/models.Admin'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Admin'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create a new admin
+      tags:
+      - admins
+swagger: "2.0"
