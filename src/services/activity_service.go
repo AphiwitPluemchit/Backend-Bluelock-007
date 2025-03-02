@@ -31,13 +31,16 @@ func init() {
 	}
 }
 
-// CreateActivity - สร้าง Activity พร้อม ActivityItems
-func CreateActivity(activity *models.Activity) error {
+// CreateActivity - สร้าง Activity และ ActivityItems
+func CreateActivity(activity models.Activity, activityItems []models.ActivityItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// ตรวจสอบ ID และแปลงเป็น ObjectID
-	adminID, err := primitive.ObjectIDFromHex(activity.AdminID)
+	// สร้าง ID สำหรับ Activity ก่อน
+	activity.ID = primitive.NewObjectID()
+
+	// แปลงค่า ObjectID ที่เกี่ยวข้อง
+	adminID, err := primitive.ObjectIDFromHex(activity.AdminID.Hex())
 	if err != nil {
 		return errors.New("invalid adminId")
 	}
@@ -50,7 +53,6 @@ func CreateActivity(activity *models.Activity) error {
 		return errors.New("invalid skillId")
 	}
 
-	// แปลง MajorIDs เป็น ObjectID
 	var majorIDs []primitive.ObjectID
 	for _, id := range activity.MajorIDs {
 		objID, err := primitive.ObjectIDFromHex(id.Hex())
@@ -60,26 +62,27 @@ func CreateActivity(activity *models.Activity) error {
 		majorIDs = append(majorIDs, objID)
 	}
 
-	// กำหนดค่าให้ Activity
-	activity.ID = primitive.NewObjectID()
-	activity.AdminID = adminID.Hex()
-	activity.ActivityStateID = activityStateID.Hex()
-	activity.SkillID = skillID.Hex()
-	activity.MajorIDs = nil // ล้างค่า string ก่อนบันทึก
-	for _, id := range majorIDs {
-		activity.MajorIDs = append(activity.MajorIDs, id.Hex())
-	}
+	// อัปเดตค่าก่อนบันทึก
+	activity.AdminID = adminID
+	activity.ActivityStateID = activityStateID
+	activity.SkillID = skillID
+	activity.MajorIDs = majorIDs
 
-	// **บันทึก ActivityItems**
-	for i := range activity.ActivityItems {
-		activity.ActivityItems[i].ID = primitive.NewObjectID()
-		activity.ActivityItems[i].ActivityID = activity.ID
-	}
-
-	// **บันทึก Activity ลง MongoDB**
+	// บันทึก Activity ก่อน
 	_, err = activityCollection.InsertOne(ctx, activity)
 	if err != nil {
 		return err
+	}
+
+	// บันทึก ActivityItems และตั้งค่า ActivityID
+	for i := range activityItems {
+		activityItems[i].ID = primitive.NewObjectID()
+		activityItems[i].ActivityID = activity.ID
+
+		_, err := activityItemCollection.InsertOne(ctx, activityItems[i])
+		if err != nil {
+			return err
+		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
@@ -197,18 +200,13 @@ func UpdateActivity(id primitive.ObjectID, activity models.Activity, activityIte
 
 // DeleteActivity - ลบกิจกรรมและ ActivityItems ที่เกี่ยวข้อง
 func DeleteActivity(id primitive.ObjectID) error {
-	_, err := activityCollection.DeleteOne(ctx, bson.M{"_id": id})
-	return err
-}
-
-// CreateActivityItem - เพิ่มรายการกิจกรรม
-func AddActivityItem(id primitive.ObjectID, activityItem models.ActivityItem) error {
-	update := bson.M{
-		"$push": bson.M{
-			"activityItems": activityItem,
-		},
+	// ลบ ActivityItems ที่เชื่อมโยงกับ Activity
+	_, err := activityItemCollection.DeleteMany(ctx, bson.M{"activityId": id})
+	if err != nil {
+		return err
 	}
 
-	_, err := activityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
+	// ลบ Activity
+	_, err = activityCollection.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
