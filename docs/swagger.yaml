@@ -1,4 +1,56 @@
 definitions:
+  models.Activity:
+    properties:
+      activityItems:
+        items:
+          $ref: '#/definitions/models.ActivityItem'
+        type: array
+      activityStateId:
+        description: รับเป็น string
+        type: string
+      adminId:
+        description: รับเป็น string
+        type: string
+      id:
+        type: string
+      majorIds:
+        description: รับเป็น []string
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      skillId:
+        description: รับเป็น string
+        type: string
+      type:
+        type: string
+    type: object
+  models.ActivityItem:
+    properties:
+      activityId:
+        type: string
+      description:
+        type: string
+      duration:
+        type: integer
+      endDate:
+        type: string
+      hour:
+        type: integer
+      id:
+        type: string
+      maxParticipants:
+        type: integer
+      name:
+        type: string
+      operator:
+        type: string
+      room:
+        type: string
+      startDate:
+        type: string
+    type: object
   models.Admin:
     properties:
       email:
@@ -22,6 +74,41 @@ definitions:
 info:
   contact: {}
 paths:
+  /activities:
+    post:
+      consumes:
+      - application/json
+      description: Create a new activity and its associated activity items
+      parameters:
+      - description: Activity object with items
+        in: body
+        name: activity
+        required: true
+        schema:
+          $ref: '#/definitions/models.Activity'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new activity with activity items
+      tags:
+      - activities
   /admins:
     get:
       description: Get admins with pagination, search, and sorting

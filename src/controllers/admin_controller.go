@@ -3,18 +3,11 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
+	"Backend-Bluelock-007/src/utils"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
-
-// HandleError ฟังก์ชันช่วยเหลือในการส่ง Error Response
-func HandleError(c *fiber.Ctx, status int, message string) error {
-	return c.Status(status).JSON(models.ErrorResponse{
-		Status:  status,
-		Message: message,
-	})
-}
 
 // CreateAdmin godoc
 // @Summary      Create a new admin
@@ -30,12 +23,12 @@ func HandleError(c *fiber.Ctx, status int, message string) error {
 func CreateAdmin(c *fiber.Ctx) error {
 	var admin models.Admin
 	if err := c.BodyParser(&admin); err != nil {
-		return HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error())
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error())
 	}
 
 	err := services.CreateAdmin(&admin)
 	if err != nil {
-		return HandleError(c, fiber.StatusInternalServerError, "Error creating admin: "+err.Error())
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Error creating admin: "+err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -72,9 +65,7 @@ func GetAdmins(c *fiber.Ctx) error {
 	// ดึงข้อมูลจาก Service
 	admins, total, totalPages, err := services.GetAllAdmins(params)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error fetching admins",
-		})
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Error getting admins: "+err.Error())
 	}
 
 	// ส่ง Response กลับไป
@@ -104,7 +95,7 @@ func GetAdminByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	admin, err := services.GetAdminByID(id)
 	if err != nil {
-		return HandleError(c, fiber.StatusNotFound, "Admin not found")
+		return utils.HandleError(c, fiber.StatusNotFound, "Admin not found")
 	}
 
 	return c.JSON(admin)
@@ -159,7 +150,7 @@ func DeleteAdmin(c *fiber.Ctx) error {
 	id := c.Params("id")
 	err := services.DeleteAdmin(id)
 	if err != nil {
-		return HandleError(c, fiber.StatusInternalServerError, "Error deleting admin: "+err.Error())
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Error deleting admin: "+err.Error())
 	}
 
 	return c.JSON(fiber.Map{

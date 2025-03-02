@@ -31,12 +31,12 @@ func init() {
 	}
 }
 
-// CreateActivity - สร้างกิจกรรมใหม่
-func CreateActivity(activity models.Activity) error {
+// CreateActivity - สร้าง Activity พร้อม ActivityItems
+func CreateActivity(activity *models.Activity) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// แปลง string เป็น ObjectID
+	// ตรวจสอบ ID และแปลงเป็น ObjectID
 	adminID, err := primitive.ObjectIDFromHex(activity.AdminID)
 	if err != nil {
 		return errors.New("invalid adminId")
@@ -50,6 +50,7 @@ func CreateActivity(activity models.Activity) error {
 		return errors.New("invalid skillId")
 	}
 
+	// แปลง MajorIDs เป็น ObjectID
 	var majorIDs []primitive.ObjectID
 	for _, id := range activity.MajorIDs {
 		objID, err := primitive.ObjectIDFromHex(id)
@@ -59,7 +60,7 @@ func CreateActivity(activity models.Activity) error {
 		majorIDs = append(majorIDs, objID)
 	}
 
-	// กำหนดค่าใหม่ให้ activity
+	// กำหนดค่าให้ Activity
 	activity.ID = primitive.NewObjectID()
 	activity.AdminID = adminID.Hex()
 	activity.ActivityStateID = activityStateID.Hex()
@@ -69,13 +70,19 @@ func CreateActivity(activity models.Activity) error {
 		activity.MajorIDs = append(activity.MajorIDs, id.Hex())
 	}
 
-	// บันทึกกิจกรรม
+	// **บันทึก ActivityItems**
+	for i := range activity.ActivityItems {
+		activity.ActivityItems[i].ID = primitive.NewObjectID()
+		activity.ActivityItems[i].ActivityID = activity.ID
+	}
+
+	// **บันทึก Activity ลง MongoDB**
 	_, err = activityCollection.InsertOne(ctx, activity)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Activity created successfully")
+	log.Println("Activity and ActivityItems created successfully")
 	return nil
 }
 
@@ -134,5 +141,17 @@ func UpdateActivity(id primitive.ObjectID, activity models.Activity) (models.Act
 // DeleteActivity - ลบกิจกรรม
 func DeleteActivity(id primitive.ObjectID) error {
 	_, err := activityCollection.DeleteOne(ctx, bson.M{"_id": id})
+	return err
+}
+
+// CreateActivityItem - เพิ่มรายการกิจกรรม
+func AddActivityItem(id primitive.ObjectID, activityItem models.ActivityItem) error {
+	update := bson.M{
+		"$push": bson.M{
+			"activityItems": activityItem,
+		},
+	}
+
+	_, err := activityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
 	return err
 }

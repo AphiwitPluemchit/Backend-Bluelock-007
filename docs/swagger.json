@@ -4,6 +4,59 @@
         "contact": {}
     },
     "paths": {
+        "/activities": {
+            "post": {
+                "description": "Create a new activity and its associated activity items",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activities"
+                ],
+                "summary": "Create a new activity with activity items",
+                "parameters": [
+                    {
+                        "description": "Activity object with items",
+                        "name": "activity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admins": {
             "get": {
                 "description": "Get admins with pagination, search, and sorting",
@@ -237,6 +290,83 @@
         }
     },
     "definitions": {
+        "models.Activity": {
+            "type": "object",
+            "properties": {
+                "activityItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItem"
+                    }
+                },
+                "activityStateId": {
+                    "description": "รับเป็น string",
+                    "type": "string"
+                },
+                "adminId": {
+                    "description": "รับเป็น string",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "majorIds": {
+                    "description": "รับเป็น []string",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "skillId": {
+                    "description": "รับเป็น string",
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ActivityItem": {
+            "type": "object",
+            "properties": {
+                "activityId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "endDate": {
+                    "type": "string"
+                },
+                "hour": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "maxParticipants": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "room": {
+                    "type": "string"
+                },
+                "startDate": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Admin": {
             "type": "object",
             "properties": {
