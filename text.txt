@@ -1,5 +1,5 @@
 คำสั่งใช้รัน
 go run src/main.go
-
+air -c .air.toml
 path database
 mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
