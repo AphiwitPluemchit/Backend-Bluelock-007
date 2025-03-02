@@ -15,7 +15,6 @@ import (
 )
 
 var enrollmentCollection *mongo.Collection
-var activityItemCollection *mongo.Collection
 
 func init() {
 	// เชื่อมต่อกับ MongoDB
