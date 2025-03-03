@@ -6,13 +6,13 @@ import (
 
 // Student นิสิต
 type Student struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty"`
-	Code      string             `bson:"code"`
-	Name      string             `bson:"name"`
-	Email     string             `bson:"email,omitempty"`
-	Status    string             `bson:"status"`
-	Password  string             `bson:"password,omitempty"`
-	SoftSkill int                `bson:"softSkill,omitempty"`
-	HardSkill int                `bson:"hardSkill,omitempty"`
-	MajorID   primitive.ObjectID `bson:"majorId"`
+	ID        primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	Code      string             `json:"code" bson:"code"`
+	Name      string             `json:"name" bson:"name"`
+	Email     string             `json:"email,omitempty" bson:"email,omitempty"`
+	Status    string             `json:"status" bson:"status"`
+	Password  string             `json:"-" bson:"password,omitempty"` // ไม่ให้ส่ง Password ออกไป
+	SoftSkill int                `json:"softSkill,omitempty" bson:"softSkill,omitempty"`
+	HardSkill int                `json:"hardSkill,omitempty" bson:"hardSkill,omitempty"`
+	MajorID   primitive.ObjectID `json:"majorId,omitempty" bson:"majorId,omitempty"`
 }

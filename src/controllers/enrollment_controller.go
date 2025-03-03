@@ -1,144 +1,87 @@
 package controllers
 
 import (
-	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
+	"net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// CreateEnrollment - ลงทะเบียนกิจกรรม
+// ✅ 1. Student ลงทะเบียนกิจกรรม
 func CreateEnrollment(c *fiber.Ctx) error {
 	var req struct {
-		FoodVoteID     string `json:"foodVoteId"`
 		ActivityItemID string `json:"activityItemId"`
 		StudentID      string `json:"studentId"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
 	}
 
-	foodVoteID, err := primitive.ObjectIDFromHex(req.FoodVoteID)
+	activityItemID, _ := primitive.ObjectIDFromHex(req.ActivityItemID)
+	studentID, _ := primitive.ObjectIDFromHex(req.StudentID)
+
+	err := services.RegisterStudent(activityItemID, studentID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid foodVoteId format"})
+		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	activityItemID, err := primitive.ObjectIDFromHex(req.ActivityItemID)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid activityItemId format"})
-	}
-
-	studentID, err := primitive.ObjectIDFromHex(req.StudentID)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid studentId format"})
-	}
-
-	err = services.RegisterActivityItem(foodVoteID, activityItemID, studentID)
-	if err != nil {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Enrollment created or updated successfully"})
+	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Enrollment successful"})
 }
 
-// GetAllEnrollments - ดึงข้อมูลทั้งหมด
-func GetAllEnrollments(c *fiber.Ctx) error {
-	enrollments, err := services.GetAllEnrollments()
+// ✅ 2. Student ดูกิจกรรมที่ลงทะเบียนไปแล้ว
+func GetEnrollmentsByStudent(c *fiber.Ctx) error {
+	studentID, err := primitive.ObjectIDFromHex(c.Params("studentId"))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid studentId format"})
+	}
+
+	enrollments, err := services.GetEnrollmentsByStudent(studentID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(enrollments)
 }
 
-// GetEnrollmentByID - ดึงข้อมูลจาก ID
-func GetEnrollmentByID(c *fiber.Ctx) error {
-	id := c.Params("id")
-	enrollment, err := services.GetEnrollmentByID(id)
+// ✅ 3. Student ยกเลิกการลงทะเบียน
+func DeleteEnrollment(c *fiber.Ctx) error {
+	activityItemID, _ := primitive.ObjectIDFromHex(c.Params("activityItemId"))
+	studentID, _ := primitive.ObjectIDFromHex(c.Params("studentId"))
+
+	err := services.UnregisterStudent(activityItemID, studentID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Enrollment not found"})
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"message": "Enrollment deleted"})
+}
+
+// ✅ 4. Admin ดู Student ที่ลงทะเบียนในกิจกรรม
+func GetStudentsByActivity(c *fiber.Ctx) error {
+	activityItemID, err := primitive.ObjectIDFromHex(c.Params("activityItemId"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid activityItemId format"})
+	}
+
+	enrollmentData, err := services.GetStudentsByActivity(activityItemID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(enrollmentData)
+}
+
+// ✅ 5. Student ดูกิจกรรมที่ลงทะเบียนไว้ (1 ตัว)
+func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
+	studentID, _ := primitive.ObjectIDFromHex(c.Params("studentId"))
+	activityItemID, _ := primitive.ObjectIDFromHex(c.Params("activityItemId"))
+
+	enrollment, err := services.GetEnrollmentByStudentAndActivity(studentID, activityItemID)
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Enrollment not found"})
 	}
 
 	return c.JSON(enrollment)
-}
-
-// GetEnrollmentsByStudent - ดึงข้อมูลกิจกรรมทั้งหมดที่นิสิตเข้าร่วม
-func GetEnrollmentsByStudent(c *fiber.Ctx) error {
-	studentID := c.Params("studentId")
-
-	// ตรวจสอบว่า studentId เป็น ObjectID ที่ถูกต้อง
-	if !primitive.IsValidObjectID(studentID) {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid studentId format"})
-	}
-
-	studentObjectID, _ := primitive.ObjectIDFromHex(studentID)
-
-	// เรียกใช้ Service
-	enrollments, err := services.GetEnrollmentsByStudent(studentObjectID)
-	if err != nil {
-		if err.Error() == "no enrollments found for the student" {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No enrollments found for the student"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(enrollments)
-}
-
-// GetEnrollmentByStudentAndActivity - ดึงข้อมูลกิจกรรมที่นิสิตเลือก
-func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
-	studentID := c.Params("studentId")
-	activityItemID := c.Params("activityItemId")
-
-	// ตรวจสอบ ObjectID
-	studentObjectID, err := primitive.ObjectIDFromHex(studentID)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid studentId format"})
-	}
-
-	activityItemObjectID, err := primitive.ObjectIDFromHex(activityItemID)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid activityItemId format"})
-	}
-
-	// เรียกใช้ Service
-	enrollment, err := services.GetEnrollmentByStudentAndActivity(studentObjectID, activityItemObjectID)
-	if err != nil {
-		if err.Error() == "enrollment not found" || err.Error() == "activity item not found" {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(enrollment)
-}
-
-// UpdateEnrollment - อัปเดตข้อมูล
-func UpdateEnrollment(c *fiber.Ctx) error {
-	id := c.Params("id")
-	var enrollment models.Enrollment
-
-	if err := c.BodyParser(&enrollment); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
-	}
-
-	err := services.UpdateEnrollment(id, &enrollment)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error updating enrollment"})
-	}
-
-	return c.JSON(fiber.Map{"message": "Enrollment updated successfully"})
-}
-
-// DeleteEnrollment - ลบข้อมูล
-func DeleteEnrollment(c *fiber.Ctx) error {
-	id := c.Params("id")
-	err := services.DeleteEnrollment(id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error deleting enrollment"})
-	}
-
-	return c.JSON(fiber.Map{"message": "Enrollment deleted successfully"})
 }
