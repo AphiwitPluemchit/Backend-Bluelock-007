@@ -1,30 +1,34 @@
 package models
 
-import (
-	"go.mongodb.org/mongo-driver/bson/primitive"
-)
+import "go.mongodb.org/mongo-driver/bson/primitive"
 
+// Activity กิจกรรมหลัก
 type Activity struct {
 	ID              primitive.ObjectID   `json:"id,omitempty" bson:"_id,omitempty"`
-	Name            *string              `json:"name" bson:"name"`
-	Type            string               `json:"type" bson:"type"`
-	AdminID         primitive.ObjectID   `json:"adminId" bson:"adminId"`                 // รับเป็น string
-	ActivityStateID primitive.ObjectID   `json:"activityStateId" bson:"activityStateId"` // รับเป็น string
-	SkillID         primitive.ObjectID   `json:"skillId" bson:"skillId"`                 // รับเป็น string
-	MajorIDs        []primitive.ObjectID `json:"majorIds" bson:"majorIds"`               // รับเป็น []string
-	ActivityItems   *[]ActivityItem      `json:"activityItems" bson:"activityItems"`
+	Name            *string              `json:"name" bson:"name" validate:"required" example:"Football Tournament"`
+	Type            string               `json:"type" bson:"type" validate:"required" example:"one"`
+	ActivityStateID primitive.ObjectID   `json:"activityStateId" bson:"activityStateId" validate:"required" example:"67bf1cdd95fb769b3ded079e"`
+	SkillID         primitive.ObjectID   `json:"skillId" bson:"skillId" validate:"required" example:"67bf18532b62df84b60d95a2"`
+	MajorIDs        []primitive.ObjectID `json:"majorIds" bson:"majorIds" validate:"required" example:"67bf0bd48873e448798fed34,67bf0bda8873e448798fed35"`
 }
 
+// ActivityItem รายละเอียดกิจกรรมย่อย
 type ActivityItem struct {
 	ID              primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	ActivityID      primitive.ObjectID `json:"activityId,omitempty" bson:"activityId,omitempty"`
-	Name            *string            `json:"name" bson:"name"`
-	MaxParticipants *int               `json:"maxParticipants" bson:"maxParticipants"`
-	Description     *string            `json:"description" bson:"description"`
-	Room            *string            `json:"room" bson:"room"`
-	StartDate       *string            `json:"startDate" bson:"startDate"`
-	EndDate         *string            `json:"endDate" bson:"endDate"`
-	Duration        *int               `json:"duration" bson:"duration"`
-	Operator        *string            `json:"operator" bson:"operator"`
-	Hour            *int               `json:"hour" bson:"hour"`
+	Name            *string            `json:"name" bson:"name" validate:"required" example:"Quarter Final"`
+	MaxParticipants *int               `json:"maxParticipants" bson:"maxParticipants" validate:"required,min=1" example:"22"`
+	Room            *string            `json:"room" bson:"room" validate:"required" example:"Stadium A"`
+	StartDate       *string            `json:"startDate" bson:"startDate" validate:"required" example:"2025-03-10"`
+	EndDate         *string            `json:"endDate" bson:"endDate" validate:"required" example:"2025-03-11"`
+	Duration        *int               `json:"duration" bson:"duration" validate:"required,min=1" example:"2"`
+	Hour            *int               `json:"hour" bson:"hour" validate:"required,min=1" example:"4"`
+}
+
+// validate ยังไม่ถูกใช้งาน เพราะยังไม่อยากให้มันยังไม่ติด validate
+
+// RequestCreateActivity ใช้สำหรับ CreateActivity API
+type RequestCreateActivity struct {
+	Activity      Activity      `json:"activity"`
+	ActivityItems []ActivityItem `json:"activityItems"`
 }

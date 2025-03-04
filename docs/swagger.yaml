@@ -1,55 +1,72 @@
 definitions:
   models.Activity:
     properties:
-      activityItems:
-        items:
-          $ref: '#/definitions/models.ActivityItem'
-        type: array
       activityStateId:
-        description: รับเป็น string
-        type: string
-      adminId:
-        description: รับเป็น string
+        example: 67bf1cdd95fb769b3ded079e
         type: string
       id:
         type: string
       majorIds:
-        description: รับเป็น []string
+        example:
+        - 67bf0bd48873e448798fed34
+        - 67bf0bda8873e448798fed35
         items:
           type: string
         type: array
       name:
+        example: Football Tournament
         type: string
       skillId:
-        description: รับเป็น string
+        example: 67bf18532b62df84b60d95a2
         type: string
       type:
+        example: one
         type: string
+    required:
+    - activityStateId
+    - majorIds
+    - name
+    - skillId
+    - type
     type: object
   models.ActivityItem:
     properties:
       activityId:
         type: string
-      description:
-        type: string
       duration:
+        example: 2
+        minimum: 1
         type: integer
       endDate:
+        example: "2025-03-11"
         type: string
       hour:
+        example: 4
+        minimum: 1
         type: integer
       id:
         type: string
       maxParticipants:
+        example: 22
+        minimum: 1
         type: integer
       name:
-        type: string
-      operator:
+        example: Quarter Final
         type: string
       room:
+        example: Stadium A
         type: string
       startDate:
+        example: "2025-03-10"
         type: string
+    required:
+    - duration
+    - endDate
+    - hour
+    - maxParticipants
+    - name
+    - room
+    - startDate
     type: object
   models.Admin:
     properties:
@@ -71,44 +88,90 @@ definitions:
         description: HTTP Status Code
         type: integer
     type: object
+  models.RequestCreateActivity:
+    properties:
+      activity:
+        $ref: '#/definitions/models.Activity'
+      activityItems:
+        items:
+          $ref: '#/definitions/models.ActivityItem'
+        type: array
+    type: object
 info:
   contact: {}
 paths:
-  /activities:
+  /activitys:
+    get:
+      description: Get all activities
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      - default: name
+        description: Field to sort by
+        in: query
+        name: sortBy
+        type: string
+      - default: asc
+        description: Sort order (asc or desc)
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all activities
+      tags:
+      - activitys
     post:
       consumes:
       - application/json
-      description: Create a new activity and its associated activity items
+      description: Create a new activity
       parameters:
-      - description: Activity object with items
+      - description: Activity and ActivityItems
         in: body
-        name: activity
+        name: body
         required: true
         schema:
-          $ref: '#/definitions/models.Activity'
+          $ref: '#/definitions/models.RequestCreateActivity'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.Activity'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Create a new activity with activity items
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create a new activity
       tags:
-      - activities
+      - activitys
   /admins:
     get:
       description: Get admins with pagination, search, and sorting
