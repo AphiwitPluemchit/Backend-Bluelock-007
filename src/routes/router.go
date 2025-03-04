@@ -10,7 +10,7 @@ func InitRoutes(app *fiber.App) {
 	activityStateRoutes(app)
 	adminRoutes(app)
 	checkInOutRoutes(app)
-	enrollmentRoutes(app)
+
 	evaluationScoreRoutes(app)
 	foodRoutes(app)
 	foodVoteRoutes(app)

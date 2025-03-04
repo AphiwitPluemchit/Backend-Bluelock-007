@@ -15,9 +15,70 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/activities": {
+        "/activitys": {
+            "get": {
+                "description": "Get all activities",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get all activities",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "name",
+                        "description": "Field to sort by",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort order (asc or desc)",
+                        "name": "order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
             "post": {
-                "description": "Create a new activity and its associated activity items",
+                "description": "Create a new activity",
                 "consumes": [
                     "application/json"
                 ],
@@ -25,17 +86,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "activities"
+                    "activitys"
                 ],
-                "summary": "Create a new activity with activity items",
+                "summary": "Create a new activity",
                 "parameters": [
                     {
-                        "description": "Activity object with items",
-                        "name": "activity",
+                        "description": "Activity and ActivityItems",
+                        "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.Activity"
+                            "$ref": "#/definitions/models.RequestCreateActivity"
                         }
                     }
                 ],
@@ -43,26 +104,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.Activity"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     }
                 }
@@ -303,78 +357,93 @@ const docTemplate = `{
     "definitions": {
         "models.Activity": {
             "type": "object",
+            "required": [
+                "activityStateId",
+                "majorIds",
+                "name",
+                "skillId",
+                "type"
+            ],
             "properties": {
-                "activityItems": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.ActivityItem"
-                    }
-                },
                 "activityStateId": {
-                    "description": "รับเป็น string",
-                    "type": "string"
-                },
-                "adminId": {
-                    "description": "รับเป็น string",
-                    "type": "string"
+                    "type": "string",
+                    "example": "67bf1cdd95fb769b3ded079e"
                 },
                 "id": {
                     "type": "string"
                 },
                 "majorIds": {
-                    "description": "รับเป็น []string",
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "67bf0bd48873e448798fed34",
+                        "67bf0bda8873e448798fed35"
+                    ]
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Football Tournament"
                 },
                 "skillId": {
-                    "description": "รับเป็น string",
-                    "type": "string"
+                    "type": "string",
+                    "example": "67bf18532b62df84b60d95a2"
                 },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "one"
                 }
             }
         },
         "models.ActivityItem": {
             "type": "object",
+            "required": [
+                "duration",
+                "endDate",
+                "hour",
+                "maxParticipants",
+                "name",
+                "room",
+                "startDate"
+            ],
             "properties": {
                 "activityId": {
                     "type": "string"
                 },
-                "description": {
-                    "type": "string"
-                },
                 "duration": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 2
                 },
                 "endDate": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-03-11"
                 },
                 "hour": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 4
                 },
                 "id": {
                     "type": "string"
                 },
                 "maxParticipants": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 22
                 },
                 "name": {
-                    "type": "string"
-                },
-                "operator": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Quarter Final"
                 },
                 "room": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Stadium A"
                 },
                 "startDate": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-03-10"
                 }
             }
         },
@@ -405,6 +474,20 @@ const docTemplate = `{
                 "status": {
                     "description": "HTTP Status Code",
                     "type": "integer"
+                }
+            }
+        },
+        "models.RequestCreateActivity": {
+            "type": "object",
+            "properties": {
+                "activity": {
+                    "$ref": "#/definitions/models.Activity"
+                },
+                "activityItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItem"
+                    }
                 }
             }
         }
