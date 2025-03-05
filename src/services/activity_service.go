@@ -34,67 +34,64 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.Activity, activityItems []models.ActivityItem) error {
-	log.Print(activity)
+func CreateActivity(activity *models.ActivityDto) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// แปลง ID ของ ActivityState และ Skill ถ้ามีค่า
-	// ตรวจสอบค่า ActivityStateID
-	if activity.ActivityStateID.IsZero() || activity.ActivityStateID == primitive.NilObjectID {
-		activity.ActivityStateID = primitive.NilObjectID // ตั้งเป็น NilObjectID ถ้าไม่มีค่า
+	// ✅ แปลง ActivityState ID
+	if activity.ActivityState.ID.IsZero() {
+		activity.ActivityState.ID = primitive.NilObjectID
 	} else {
-		// ตรวจสอบว่าเป็น ObjectID ที่ถูกต้อง
-		_, err := primitive.ObjectIDFromHex(activity.ActivityStateID.Hex())
+		_, err := primitive.ObjectIDFromHex(activity.ActivityState.ID.Hex())
 		if err != nil {
 			return errors.New("invalid activityStateId")
 		}
 	}
 
-	// ตรวจสอบค่า SkillID
-	if activity.SkillID.IsZero() || activity.SkillID == primitive.NilObjectID {
-		// log skillId
-		log.Println("SkillID:", activity.SkillID)
-		activity.SkillID = primitive.NilObjectID // ตั้งเป็น NilObjectID ถ้าไม่มีค่า
+	// ✅ แปลง Skill ID
+	if activity.Skill.ID.IsZero() {
+		activity.Skill.ID = primitive.NilObjectID
 	} else {
-		// ตรวจสอบว่าเป็น ObjectID ที่ถูกต้อง
-		_, err := primitive.ObjectIDFromHex(activity.SkillID.Hex())
+		_, err := primitive.ObjectIDFromHex(activity.Skill.ID.Hex())
 		if err != nil {
 			return errors.New("invalid skillId")
 		}
 	}
 
-	// แปลง MajorIDs เป็น []primitive.ObjectID
-	var majorObjectIDs []primitive.ObjectID
-	if activity.MajorIDs != nil {
-		for _, id := range activity.MajorIDs {
-			objID, err := primitive.ObjectIDFromHex(id.Hex())
-			if err != nil {
-				return errors.New("invalid majorId")
-			}
-			majorObjectIDs = append(majorObjectIDs, objID)
-		}
+	// ✅ แปลง Majors เป็น ObjectID List
+	var majorIDs []primitive.ObjectID
+	for _, major := range activity.Majors {
+		majorIDs = append(majorIDs, major.ID)
 	}
-	activity.MajorIDs = majorObjectIDs
 
-	// สร้าง ID สำหรับ Activity
+	// ✅ สร้าง ID สำหรับ Activity
 	activity.ID = primitive.NewObjectID()
 
-	// บันทึก Activity และรับค่า InsertedID กลับมา
-	res, err := activityCollection.InsertOne(ctx, activity)
+	// ✅ สร้าง Activity ที่ต้องบันทึกลง MongoDB
+	activityToInsert := models.Activity{
+		ID:              activity.ID,
+		Name:            activity.Name,
+		Type:            activity.Type,
+		ActivityStateID: activity.ActivityState.ID,
+		SkillID:         activity.Skill.ID,
+		MajorIDs:        majorIDs,
+	}
+
+	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
+	res, err := activityCollection.InsertOne(ctx, activityToInsert)
 	if err != nil {
 		return err
 	}
 
-	// อัปเดต activity.ID ให้เป็นค่าจริงจาก MongoDB
+	// ✅ อัปเดต activity.ID จาก MongoDB
 	activity.ID = res.InsertedID.(primitive.ObjectID)
 
-	// บันทึก ActivityItems
-	for i := range activityItems {
-		activityItems[i].ID = primitive.NewObjectID()
-		activityItems[i].ActivityID = activity.ID
+	// ✅ บันทึก ActivityItems
+	for i := range activity.ActivityItems {
+		activity.ActivityItems[i].ID = primitive.NewObjectID()
+		activity.ActivityItems[i].ActivityID = activity.ID
 
-		_, err := activityItemCollection.InsertOne(ctx, activityItems[i])
+		_, err := activityItemCollection.InsertOne(ctx, activity.ActivityItems[i])
 		if err != nil {
 			return err
 		}
@@ -105,8 +102,8 @@ func CreateActivity(activity *models.Activity, activityItems []models.ActivityIt
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
-func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64, int, error) {
-	var activities []models.Activity
+func GetAllActivities(params models.PaginationParams) ([]models.ActivityDto, int64, int, error) {
+	var results []models.ActivityDto
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -137,16 +134,51 @@ func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64,
 
 	// ใช้ `$lookup` ดึง ActivityItems ที่เชื่อมโยงกับ Activity
 	pipeline := mongo.Pipeline{
+		// 🔍 Match เฉพาะ Activity ที่ต้องการ
 		{{Key: "$match", Value: filter}},
+
+		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
 		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "activityItems"}, // เชื่อม ActivityItems
+			{Key: "from", Value: "activityItems"},
 			{Key: "localField", Value: "_id"},
 			{Key: "foreignField", Value: "activityId"},
 			{Key: "as", Value: "activityItems"},
 		}}},
-		{{Key: "$addFields", Value: bson.D{
-			{Key: "activityItems", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$activityItems", bson.A{}}}}},
+
+		// 🔗 Lookup ActivityState
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityStates"},
+			{Key: "localField", Value: "activityStateId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "activityState"},
 		}}},
+		// ✅ Unwind เพื่อให้ activityState เป็น object เดียว ไม่ใช่ array
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$activityState"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+		// 🔗 Lookup Skill
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "skills"},
+			{Key: "localField", Value: "skillId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "skill"},
+		}}},
+		// ✅ Unwind เพื่อให้ skill เป็น object เดียว
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$skill"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+
+		// 🔗 Lookup Majors (เนื่องจากเป็นอาร์เรย์ ต้องใช้ `$lookup` + `$unwind` + `$group`)
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "majors"},
+			{Key: "localField", Value: "majorIds"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "majors"},
+		}}},
+
+		// 🏷 Sorting และ Pagination
 		{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}},
 		{{Key: "$skip", Value: skip}},
 		{{Key: "$limit", Value: int64(params.Limit)}},
@@ -161,7 +193,8 @@ func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64,
 	defer cursor.Close(ctx)
 
 	// Decode ข้อมูลลงใน Struct
-	if err = cursor.All(ctx, &activities); err != nil {
+
+	if err = cursor.All(ctx, &results); err != nil {
 		log.Println("Error decoding activities:", err)
 		return nil, 0, 0, err
 	}
@@ -169,7 +202,7 @@ func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64,
 	// คำนวณจำนวนหน้าทั้งหมด
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 
-	return activities, total, totalPages, nil
+	return results, total, totalPages, nil
 }
 
 func GetActivityByID(activityID string) (*models.Activity, error) {

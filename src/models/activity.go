@@ -1,6 +1,22 @@
 package models
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"encoding/json"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+// ObjectIDNullable รองรับ `null` ถ้า ObjectID เป็นค่าที่ว่าง
+type ObjectIDNullable primitive.ObjectID
+
+// MarshalJSON ปรับ ObjectID ให้เป็น `null` ถ้าเป็น `000000000000000000000000`
+func (o ObjectIDNullable) MarshalJSON() ([]byte, error) {
+	oid := primitive.ObjectID(o)
+	if oid.IsZero() {
+		return json.Marshal(nil) // ส่ง `null` แทน
+	}
+	return json.Marshal(oid.Hex()) // ส่งเป็น String ปกติ
+}
 
 // Activity กิจกรรมหลัก
 type Activity struct {
@@ -28,7 +44,12 @@ type ActivityItem struct {
 // validate ยังไม่ถูกใช้งาน เพราะยังไม่อยากให้มันยังไม่ติด validate
 
 // RequestCreateActivity ใช้สำหรับ CreateActivity API
-type RequestCreateActivity struct {
-	Activity      Activity      `json:"activity"`
-	ActivityItems []ActivityItem `json:"activityItems"`
+type ActivityDto struct {
+	ID            primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	Name          *string            `json:"name" bson:"name" validate:"required" example:"Football Tournament"`
+	Type          string             `json:"type" bson:"type" validate:"required" example:"one"`
+	ActivityState ActivityState      `json:"activityState" bson:"activityState" validate:"required"`
+	Skill         Skill              `json:"skill" bson:"skill" validate:"required"`
+	Majors        []Major            `json:"majors" bson:"majors" validate:"required"`
+	ActivityItems []ActivityItem     `json:"activityItems"`
 }

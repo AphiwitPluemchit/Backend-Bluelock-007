@@ -16,41 +16,40 @@ import (
 // @Tags         activitys
 // @Accept       json
 // @Produce      json
-// @Param        body body models.RequestCreateActivity true "Activity and ActivityItems"
+// @Param        body body models.ActivityDto true "Activity and ActivityItems"
 // @Success      201  {object}  models.Activity
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [post]
 // CreateActivity - สร้างกิจกรรมใหม่
 func CreateActivity(c *fiber.Ctx) error {
-	var request models.RequestCreateActivity
+	var request models.ActivityDto
 
 	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
-		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error() )
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error())
 	}
 
 	// บันทึก Activity + Items
-	err := services.CreateActivity(&request.Activity, request.ActivityItems)
+	err := services.CreateActivity(&request)
 	if err != nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"error": err.Error(),
-		}) 
+		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Activity and ActivityItems created successfully",
 		"data": map[string]any{
-			"activity":      request.Activity,
+			// "activity":      request.Activity,
 			"activityItems": request.ActivityItems,
 		},
 	})
 }
 
-
 // GetAllActivities godoc
-// @Summary      Get all activities
-// @Description  Get all activities
+// @Summary      Get all activities with pagination, search, and sorting
+// @Description  Get all activities with pagination, search, and sorting
 // @Tags         activitys
 // @Produce      json
 // @Param        page   query  int  false  "Page number" default(1)
@@ -62,15 +61,15 @@ func CreateActivity(c *fiber.Ctx) error {
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [get]
 func GetAllActivities(c *fiber.Ctx) error {
-		// ใช้ DTO Default แล้วอัปเดตค่าจาก Query Parameter
-		params := models.DefaultPagination()
+	// ใช้ DTO Default แล้วอัปเดตค่าจาก Query Parameter
+	params := models.DefaultPagination()
 
-		// อ่านค่า Query Parameter และแปลงเป็น int
-		params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
-		params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
-		params.Search = c.Query("search", params.Search)
-		params.SortBy = c.Query("sortBy", params.SortBy)
-		params.Order = c.Query("order", params.Order)
+	// อ่านค่า Query Parameter และแปลงเป็น int
+	params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
+	params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
+	params.Search = c.Query("search", params.Search)
+	params.SortBy = c.Query("sortBy", params.SortBy)
+	params.Order = c.Query("order", params.Order)
 
 	// ดึงข้อมูลจาก Service
 	activities, total, totalPages, err := services.GetAllActivities(params)
@@ -82,7 +81,7 @@ func GetAllActivities(c *fiber.Ctx) error {
 
 	// ส่ง Response กลับไป
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"activities": activities,
+		"data":       activities,
 		"total":      total,
 		"totalPages": totalPages,
 		"page":       params.Page,
@@ -91,6 +90,16 @@ func GetAllActivities(c *fiber.Ctx) error {
 }
 
 // GetActivityByID - ดึงข้อมูลกิจกรรมตาม ID พร้อม ActivityItems
+// GetActivityByID - godoc
+// @Summary      Get an activity by ID
+// @Description  Get an activity by ID
+// @Tags         activitys
+// @Produce      json
+// @Param        id   path  string  true  "Activity ID"
+// @Success      200  {object}  models.Activity
+// @Failure      404  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id} [get]
 func GetActivityByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	activityID, err := primitive.ObjectIDFromHex(id)
@@ -106,11 +115,22 @@ func GetActivityByID(c *fiber.Ctx) error {
 
 	// ส่งข้อมูลกลับรวมทั้ง ActivityItems
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"activity":      activity,
+		"activity": activity,
 	})
 }
 
 // UpdateActivity - อัพเดตข้อมูลกิจกรรม พร้อม ActivityItems
+// UpdateActivity - godoc
+// @Summary      Update an activity
+// @Description  Update an activity
+// @Tags         activitys
+// @Produce      json
+// @Param        id   path  string  true  "Activity ID"
+// @Param        request  body  models.Activity  true  "Activity data"
+// @Success      200  {object}  models.Activity
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id} [put]
 func UpdateActivity(c *fiber.Ctx) error {
 	id := c.Params("id")
 	activityID, err := primitive.ObjectIDFromHex(id)
@@ -140,6 +160,16 @@ func UpdateActivity(c *fiber.Ctx) error {
 }
 
 // DeleteActivity - ลบกิจกรรม พร้อม ActivityItems ที่เกี่ยวข้อง
+// DeleteActivity - godoc
+// @Summary      Delete an activity
+// @Description  Delete an activity
+// @Tags         activitys
+// @Produce      json
+// @Param        id   path  string  true  "Activity ID"
+// @Success      200
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id} [delete]
 func DeleteActivity(c *fiber.Ctx) error {
 	id := c.Params("id")
 	activityID, err := primitive.ObjectIDFromHex(id)

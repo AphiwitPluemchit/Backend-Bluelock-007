@@ -17,14 +17,14 @@ const docTemplate = `{
     "paths": {
         "/activitys": {
             "get": {
-                "description": "Get all activities",
+                "description": "Get all activities with pagination, search, and sorting",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "activitys"
                 ],
-                "summary": "Get all activities",
+                "summary": "Get all activities with pagination, search, and sorting",
                 "parameters": [
                     {
                         "type": "integer",
@@ -96,7 +96,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.RequestCreateActivity"
+                            "$ref": "#/definitions/models.ActivityDto"
                         }
                     }
                 ],
@@ -106,6 +106,131 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/models.Activity"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/activitys/{id}": {
+            "get": {
+                "description": "Get an activity by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get an activity by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update an activity",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Update an activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Activity data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an activity",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Delete an activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -396,6 +521,47 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ActivityDto": {
+            "type": "object",
+            "required": [
+                "activityState",
+                "majors",
+                "name",
+                "skill",
+                "type"
+            ],
+            "properties": {
+                "activityItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItem"
+                    }
+                },
+                "activityState": {
+                    "$ref": "#/definitions/models.ActivityState"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "majors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Major"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Football Tournament"
+                },
+                "skill": {
+                    "$ref": "#/definitions/models.Skill"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "one"
+                }
+            }
+        },
         "models.ActivityItem": {
             "type": "object",
             "required": [
@@ -447,6 +613,17 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ActivityState": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Admin": {
             "type": "object",
             "properties": {
@@ -477,17 +654,25 @@ const docTemplate = `{
                 }
             }
         },
-        "models.RequestCreateActivity": {
+        "models.Major": {
             "type": "object",
             "properties": {
-                "activity": {
-                    "$ref": "#/definitions/models.Activity"
+                "id": {
+                    "type": "string"
                 },
-                "activityItems": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.ActivityItem"
-                    }
+                "majorName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Skill": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         }

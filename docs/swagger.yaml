@@ -29,6 +29,35 @@ definitions:
     - skillId
     - type
     type: object
+  models.ActivityDto:
+    properties:
+      activityItems:
+        items:
+          $ref: '#/definitions/models.ActivityItem'
+        type: array
+      activityState:
+        $ref: '#/definitions/models.ActivityState'
+      id:
+        type: string
+      majors:
+        items:
+          $ref: '#/definitions/models.Major'
+        type: array
+      name:
+        example: Football Tournament
+        type: string
+      skill:
+        $ref: '#/definitions/models.Skill'
+      type:
+        example: one
+        type: string
+    required:
+    - activityState
+    - majors
+    - name
+    - skill
+    - type
+    type: object
   models.ActivityItem:
     properties:
       activityId:
@@ -68,6 +97,13 @@ definitions:
     - room
     - startDate
     type: object
+  models.ActivityState:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   models.Admin:
     properties:
       email:
@@ -88,21 +124,26 @@ definitions:
         description: HTTP Status Code
         type: integer
     type: object
-  models.RequestCreateActivity:
+  models.Major:
     properties:
-      activity:
-        $ref: '#/definitions/models.Activity'
-      activityItems:
-        items:
-          $ref: '#/definitions/models.ActivityItem'
-        type: array
+      id:
+        type: string
+      majorName:
+        type: string
+    type: object
+  models.Skill:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
     type: object
 info:
   contact: {}
 paths:
   /activitys:
     get:
-      description: Get all activities
+      description: Get all activities with pagination, search, and sorting
       parameters:
       - default: 1
         description: Page number
@@ -140,7 +181,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Get all activities
+      summary: Get all activities with pagination, search, and sorting
       tags:
       - activitys
     post:
@@ -153,7 +194,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/models.RequestCreateActivity'
+          $ref: '#/definitions/models.ActivityDto'
       produces:
       - application/json
       responses:
@@ -170,6 +211,89 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Create a new activity
+      tags:
+      - activitys
+  /activitys/{id}:
+    delete:
+      description: Delete an activity
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete an activity
+      tags:
+      - activitys
+    get:
+      description: Get an activity by ID
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Activity'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get an activity by ID
+      tags:
+      - activitys
+    put:
+      description: Update an activity
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Activity data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Activity'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Activity'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update an activity
       tags:
       - activitys
   /admins:
