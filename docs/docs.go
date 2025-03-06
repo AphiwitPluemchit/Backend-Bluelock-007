@@ -59,6 +59,12 @@ const docTemplate = `{
                         "description": "Sort order (asc or desc)",
                         "name": "order",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Status of the activity",
+                        "name": "status",
+                        "in": "query"
                     }
                 ],
                 "responses": {

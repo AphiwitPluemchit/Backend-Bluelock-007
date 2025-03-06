@@ -54,6 +54,7 @@ func CreateActivity(c *fiber.Ctx) error {
 // @Param        search query  string  false  "Search term"
 // @Param        sortBy query  string  false  "Field to sort by" default(name)
 // @Param        order  query  string  false  "Sort order (asc or desc)" default(asc)
+// @Param        status query  string  false  "Status of the activity"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [get]
@@ -67,9 +68,10 @@ func GetAllActivities(c *fiber.Ctx) error {
 	params.Search = c.Query("search", params.Search)
 	params.SortBy = c.Query("sortBy", params.SortBy)
 	params.Order = c.Query("order", params.Order)
+	status := c.Query("status")
 
 	// ดึงข้อมูลจาก Service
-	activities, total, totalPages, err := services.GetAllActivities(params)
+	activities, total, totalPages, err := services.GetAllActivities(params, status)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch activities",

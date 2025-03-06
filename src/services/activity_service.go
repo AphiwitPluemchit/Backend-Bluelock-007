@@ -103,7 +103,7 @@ func CreateActivity(activity *models.ActivityDto) error {
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
-func GetAllActivities(params models.PaginationParams) ([]models.ActivityDto, int64, int, error) {
+func GetAllActivities(params models.PaginationParams, status string) ([]models.ActivityDto, int64, int, error) {
 	var results []models.ActivityDto
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
