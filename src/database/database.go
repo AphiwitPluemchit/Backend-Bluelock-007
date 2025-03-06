@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -11,30 +12,35 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-var client *mongo.Client
+var (
+	client     *mongo.Client
+	once       sync.Once // ✅ ป้องกันการรัน ConnectMongoDB() ซ้ำ
+	connectErr error
+)
 
-// ConnectMongoDB เชื่อมต่อกับ MongoDB และแสดงข้อมูลใน Database
+// ConnectMongoDB เชื่อมต่อกับ MongoDB แค่ครั้งเดียว
 func ConnectMongoDB() error {
-	clientOptions := options.Client().ApplyURI("mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/")
+	once.Do(func() { // ✅ Run only once
+		clientOptions := options.Client().ApplyURI("mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/")
 
-	var err error
-	client, err = mongo.Connect(context.TODO(), clientOptions)
-	if err != nil {
-		return err
-	}
+		client, connectErr = mongo.Connect(context.TODO(), clientOptions)
+		if connectErr != nil {
+			log.Fatal("❌ Failed to connect to MongoDB:", connectErr)
+			return
+		}
 
-	// ตรวจสอบการเชื่อมต่อ
-	err = client.Ping(context.TODO(), readpref.Primary())
-	if err != nil {
-		return err
-	}
+		// ตรวจสอบการเชื่อมต่อ
+		connectErr = client.Ping(context.TODO(), readpref.Primary())
+		if connectErr != nil {
+			log.Fatal("❌ MongoDB ping failed:", connectErr)
+			return
+		}
 
-	log.Println("✅ MongoDB connected successfully")
+		log.Println("✅ MongoDB connected successfully")
+		ListDatabases()
+	})
 
-	// เรียกใช้ฟังก์ชันแสดงข้อมูล Database
-	ListDatabases()
-
-	return nil
+	return connectErr
 }
 
 // ListDatabases แสดงรายการ Database ทั้งหมด
@@ -43,7 +49,6 @@ func ListDatabases() {
 		log.Fatal("❌ MongoDB client is nil")
 	}
 
-	// ดึงรายการ Database
 	dbs, err := client.ListDatabaseNames(context.TODO(), bson.M{})
 	if err != nil {
 		log.Fatal("❌ Error listing databases:", err)
