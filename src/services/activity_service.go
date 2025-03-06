@@ -107,6 +107,16 @@ func GetAllActivities(params models.PaginationParams, status string) ([]models.A
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"} // ค้นหาแบบ Case-Insensitive
 	}
 
+	// ✅ กำหนดเงื่อนไข `status`
+	switch strings.ToLower(status) {
+	case "planning":
+		filter["activityState"] = "planning"
+	case "open":
+		filter["activityState"] = bson.M{"$in": []string{"open", "close"}}
+	case "success":
+		filter["activityState"] = bson.M{"$in": []string{"success", "cancel"}}
+	}
+
 	// นับจำนวนเอกสารทั้งหมด
 	total, err := activityCollection.CountDocuments(ctx, filter)
 	if err != nil {
