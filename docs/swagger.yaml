@@ -1,8 +1,8 @@
 definitions:
   models.Activity:
     properties:
-      activityStateId:
-        example: 67bf1cdd95fb769b3ded079e
+      activityState:
+        example: planning
         type: string
       id:
         type: string
@@ -16,17 +16,17 @@ definitions:
       name:
         example: Football Tournament
         type: string
-      skillId:
-        example: 67bf18532b62df84b60d95a2
+      skill:
+        example: hard
         type: string
       type:
         example: one
         type: string
     required:
-    - activityStateId
+    - activityState
     - majorIds
     - name
-    - skillId
+    - skill
     - type
     type: object
   models.ActivityDto:
@@ -36,7 +36,8 @@ definitions:
           $ref: '#/definitions/models.ActivityItem'
         type: array
       activityState:
-        $ref: '#/definitions/models.ActivityState'
+        example: planning
+        type: string
       id:
         type: string
       majors:
@@ -47,7 +48,8 @@ definitions:
         example: Football Tournament
         type: string
       skill:
-        $ref: '#/definitions/models.Skill'
+        example: hard
+        type: string
       type:
         example: one
         type: string
@@ -97,13 +99,6 @@ definitions:
     - room
     - startDate
     type: object
-  models.ActivityState:
-    properties:
-      id:
-        type: string
-      name:
-        type: string
-    type: object
   models.Admin:
     properties:
       email:
@@ -129,13 +124,6 @@ definitions:
       id:
         type: string
       majorName:
-        type: string
-    type: object
-  models.Skill:
-    properties:
-      id:
-        type: string
-      name:
         type: string
     type: object
 info:
@@ -276,19 +264,19 @@ paths:
         name: id
         required: true
         type: string
-      - description: Activity data
+      - description: Activity object
         in: body
-        name: request
+        name: activity
         required: true
         schema:
-          $ref: '#/definitions/models.Activity'
+          $ref: '#/definitions/models.ActivityDto'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Activity'
+            $ref: '#/definitions/models.ActivityDto'
         "400":
           description: Bad Request
           schema:

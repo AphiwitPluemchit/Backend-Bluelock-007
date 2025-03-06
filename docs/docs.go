@@ -186,12 +186,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Activity data",
-                        "name": "request",
+                        "description": "Activity object",
+                        "name": "activity",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.Activity"
+                            "$ref": "#/definitions/models.ActivityDto"
                         }
                     }
                 ],
@@ -199,7 +199,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.Activity"
+                            "$ref": "#/definitions/models.ActivityDto"
                         }
                     },
                     "400": {
@@ -489,16 +489,16 @@ const docTemplate = `{
         "models.Activity": {
             "type": "object",
             "required": [
-                "activityStateId",
+                "activityState",
                 "majorIds",
                 "name",
-                "skillId",
+                "skill",
                 "type"
             ],
             "properties": {
-                "activityStateId": {
+                "activityState": {
                     "type": "string",
-                    "example": "67bf1cdd95fb769b3ded079e"
+                    "example": "planning"
                 },
                 "id": {
                     "type": "string"
@@ -517,9 +517,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Football Tournament"
                 },
-                "skillId": {
+                "skill": {
                     "type": "string",
-                    "example": "67bf18532b62df84b60d95a2"
+                    "example": "hard"
                 },
                 "type": {
                     "type": "string",
@@ -544,7 +544,8 @@ const docTemplate = `{
                     }
                 },
                 "activityState": {
-                    "$ref": "#/definitions/models.ActivityState"
+                    "type": "string",
+                    "example": "planning"
                 },
                 "id": {
                     "type": "string"
@@ -560,7 +561,8 @@ const docTemplate = `{
                     "example": "Football Tournament"
                 },
                 "skill": {
-                    "$ref": "#/definitions/models.Skill"
+                    "type": "string",
+                    "example": "hard"
                 },
                 "type": {
                     "type": "string",
@@ -619,17 +621,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ActivityState": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "models.Admin": {
             "type": "object",
             "properties": {
@@ -667,17 +658,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "majorName": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.Skill": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "name": {
                     "type": "string"
                 }
             }

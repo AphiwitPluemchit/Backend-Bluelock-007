@@ -4,7 +4,6 @@ import (
 	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -39,26 +38,6 @@ func CreateActivity(activity *models.ActivityDto) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// ✅ แปลง ActivityState ID
-	if activity.ActivityState.ID.IsZero() {
-		activity.ActivityState.ID = primitive.NilObjectID
-	} else {
-		_, err := primitive.ObjectIDFromHex(activity.ActivityState.ID.Hex())
-		if err != nil {
-			return errors.New("invalid activityStateId")
-		}
-	}
-
-	// ✅ แปลง Skill ID
-	if activity.Skill.ID.IsZero() {
-		activity.Skill.ID = primitive.NilObjectID
-	} else {
-		_, err := primitive.ObjectIDFromHex(activity.Skill.ID.Hex())
-		if err != nil {
-			return errors.New("invalid skillId")
-		}
-	}
-
 	// ✅ แปลง Majors เป็น ObjectID List
 	var majorIDs []primitive.ObjectID
 	for _, major := range activity.Majors {
@@ -70,12 +49,13 @@ func CreateActivity(activity *models.ActivityDto) error {
 
 	// ✅ สร้าง Activity ที่ต้องบันทึกลง MongoDB
 	activityToInsert := models.Activity{
-		ID:              activity.ID,
-		Name:            activity.Name,
-		Type:            activity.Type,
-		ActivityStateID: activity.ActivityState.ID,
-		SkillID:         activity.Skill.ID,
-		MajorIDs:        majorIDs,
+		ID:            activity.ID,
+		Name:          activity.Name,
+		Type:          activity.Type,
+		ActivityState: activity.ActivityState,
+		Skill:         activity.Skill,
+		File:          activity.File,
+		MajorIDs:      majorIDs,
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
@@ -211,33 +191,94 @@ func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.Activ
 	return activityItems, nil
 }
 
-// UpdateActivity - อัปเดตกิจกรรมและ ActivityItems
-func UpdateActivity(id primitive.ObjectID, activity models.Activity, activityItems []models.ActivityItem) (models.Activity, []models.ActivityItem, error) {
-	// อัปเดต Activity
-	update := bson.M{
-		"$set": activity,
+func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.ActivityDto, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// ✅ แปลง Majors เป็น ObjectID List
+	var majorIDs []primitive.ObjectID
+	for _, major := range activity.Majors {
+		majorIDs = append(majorIDs, major.ID)
 	}
+
+	// ✅ อัปเดต Activity หลัก
+	update := bson.M{
+		"$set": bson.M{
+			"name":          activity.Name,
+			"type":          activity.Type,
+			"activityState": activity.ActivityState,
+			"skill":         activity.Skill,
+			"file":          activity.File,
+			"majorIds":      majorIDs,
+		},
+	}
+
 	_, err := activityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
 	if err != nil {
-		return models.Activity{}, nil, err
+		return models.ActivityDto{}, err
 	}
 
-	// อัปเดต ActivityItems (ถ้ามีการเปลี่ยนแปลง)
-	var updatedActivityItems []models.ActivityItem
-	for _, item := range activityItems {
-		item.ActivityID = activity.ID // ตั้งค่า ActivityID ใหม่
-		item.ID = primitive.NewObjectID()
+	// ✅ ดึงรายการ `ActivityItems` ที่มีอยู่
+	var existingItems []models.ActivityItem
+	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": id})
+	if err != nil {
+		return models.ActivityDto{}, err
+	}
+	if err := cursor.All(ctx, &existingItems); err != nil {
+		return models.ActivityDto{}, err
+	}
 
-		// บันทึก ActivityItem ลง MongoDB
-		_, err := activityItemCollection.InsertOne(ctx, item)
-		if err != nil {
-			return models.Activity{}, nil, err
+	// ✅ สร้าง Map ของ `existingItems` เพื่อเช็คว่าตัวไหนมีอยู่แล้ว
+	existingItemMap := make(map[string]models.ActivityItem)
+	for _, item := range existingItems {
+		existingItemMap[item.ID.Hex()] = item
+	}
+
+	// ✅ สร้าง `Set` สำหรับเก็บ `ID` ของรายการใหม่
+	newItemIDs := make(map[string]bool)
+	for _, newItem := range activity.ActivityItems {
+		if newItem.ID.IsZero() {
+			// ✅ ถ้าไม่มี `_id` ให้สร้างใหม่
+			newItem.ID = primitive.NewObjectID()
+			newItem.ActivityID = id
+			_, err := activityItemCollection.InsertOne(ctx, newItem)
+			if err != nil {
+				return models.ActivityDto{}, err
+			}
+		} else {
+			// ✅ ถ้ามี `_id` → อัปเดต
+			newItemIDs[newItem.ID.Hex()] = true
+
+			_, err := activityItemCollection.UpdateOne(ctx,
+				bson.M{"_id": newItem.ID},
+				bson.M{"$set": bson.M{
+					"name":            newItem.Name,
+					"maxParticipants": newItem.MaxParticipants,
+					"room":            newItem.Room,
+					"startDate":       newItem.StartDate,
+					"endDate":         newItem.EndDate,
+					"duration":        newItem.Duration,
+					"hour":            newItem.Hour,
+				}},
+			)
+			if err != nil {
+				return models.ActivityDto{}, err
+			}
 		}
-		updatedActivityItems = append(updatedActivityItems, item)
 	}
 
-	// คืนค่าข้อมูลที่อัปเดต
-	return activity, updatedActivityItems, nil
+	// ✅ ลบ `ActivityItems` ที่ไม่มีในรายการใหม่
+	for existingID := range existingItemMap {
+		if !newItemIDs[existingID] {
+			_, err := activityItemCollection.DeleteOne(ctx, bson.M{"_id": existingID})
+			if err != nil {
+				return models.ActivityDto{}, err
+			}
+		}
+	}
+
+	// ✅ คืนค่า Activity ที่อัปเดต
+	return activity, nil
 }
 
 // DeleteActivity - ลบกิจกรรมและ ActivityItems ที่เกี่ยวข้อง
@@ -265,29 +306,6 @@ func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip in
 			{Key: "foreignField", Value: "activityId"},
 			{Key: "as", Value: "activityItems"},
 		}}},
-		// 🔗 Lookup ActivityState
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "activityStates"},
-			{Key: "localField", Value: "activityStateId"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "activityState"},
-		}}},
-		{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$activityState"},
-			{Key: "preserveNullAndEmptyArrays", Value: true},
-		}}},
-		// 🔗 Lookup Skill
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "skills"},
-			{Key: "localField", Value: "skillId"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "skill"},
-		}}},
-		{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$skill"},
-			{Key: "preserveNullAndEmptyArrays", Value: true},
-		}}},
-
 		// 🔗 Lookup Majors
 		{{Key: "$lookup", Value: bson.D{
 			{Key: "from", Value: "majors"},

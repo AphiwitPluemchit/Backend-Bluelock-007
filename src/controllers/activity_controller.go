@@ -4,6 +4,7 @@ import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/utils"
+	"fmt"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -80,11 +81,13 @@ func GetAllActivities(c *fiber.Ctx) error {
 
 	// ส่ง Response กลับไป
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data":       activities,
-		"total":      total,
-		"totalPages": totalPages,
-		"page":       params.Page,
-		"limit":      params.Limit,
+		"data": activities,
+		"meta": fiber.Map{
+			"page":       params.Page,
+			"limit":      params.Limit,
+			"total":      total,
+			"totalPages": totalPages,
+		},
 	})
 }
 
@@ -125,36 +128,33 @@ func GetActivityByID(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Param        request  body  models.Activity  true  "Activity data"
-// @Success      200  {object}  models.Activity
+// @Param        activity  body  models.ActivityDto  true  "Activity object"
+// @Success      200  {object}  models.ActivityDto
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id} [put]
 func UpdateActivity(c *fiber.Ctx) error {
 	id := c.Params("id")
+
 	activityID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	var request struct {
-		models.Activity
-		ActivityItems []models.ActivityItem `json:"activityItems"`
-	}
-	// แปลง JSON เป็น struct
+	var request models.ActivityDto
+	// ✅ แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
 	}
-
-	// อัปเดต Activity และ ActivityItems
-	updatedActivity, updatedItems, err := services.UpdateActivity(activityID, request.Activity, request.ActivityItems)
+	fmt.Println(request)
+	// ✅ อัปเดต Activity และ ActivityItems
+	updatedActivity, err := services.UpdateActivity(activityID, request)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"updatedActivity": updatedActivity,
-		"updatedItems":    updatedItems,
+		"data": updatedActivity,
 	})
 }
 

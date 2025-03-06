@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/swagger"
 )
 
@@ -23,6 +24,14 @@ func main() {
 
 	// เปิดใช้งาน Swagger ที่ URL /swagger
 	app.Get("/swagger/*", swagger.HandlerDefault)
+
+	// ✅ เปิดใช้งาน CORS Middleware
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "http://localhost:9000, https://your-frontend-domain.com", // ใส่โดเมนของ Frontend ที่อนุญาต
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowCredentials: true,
+	}))
 
 	// รวม routes จากแต่ละ module
 	routes.InitRoutes(app)
