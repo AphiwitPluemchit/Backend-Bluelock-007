@@ -40,10 +40,7 @@ func CreateActivity(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Activity and ActivityItems created successfully",
-		"data": map[string]any{
-			// "activity":      request.Activity,
-			"activityItems": request.ActivityItems,
-		},
+		"data":    request,
 	})
 }
 
@@ -115,7 +112,7 @@ func GetActivityByID(c *fiber.Ctx) error {
 
 	// ส่งข้อมูลกลับรวมทั้ง ActivityItems
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"activity": activity,
+		"data": activity,
 	})
 }
 

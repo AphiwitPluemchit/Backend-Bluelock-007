@@ -5,6 +5,7 @@ import (
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"strings"
@@ -132,57 +133,7 @@ func GetAllActivities(params models.PaginationParams) ([]models.ActivityDto, int
 		return nil, 0, 0, err
 	}
 
-	// ใช้ `$lookup` ดึง ActivityItems ที่เชื่อมโยงกับ Activity
-	pipeline := mongo.Pipeline{
-		// 🔍 Match เฉพาะ Activity ที่ต้องการ
-		{{Key: "$match", Value: filter}},
-
-		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "activityItems"},
-			{Key: "localField", Value: "_id"},
-			{Key: "foreignField", Value: "activityId"},
-			{Key: "as", Value: "activityItems"},
-		}}},
-
-		// 🔗 Lookup ActivityState
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "activityStates"},
-			{Key: "localField", Value: "activityStateId"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "activityState"},
-		}}},
-		// ✅ Unwind เพื่อให้ activityState เป็น object เดียว ไม่ใช่ array
-		{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$activityState"},
-			{Key: "preserveNullAndEmptyArrays", Value: true},
-		}}},
-		// 🔗 Lookup Skill
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "skills"},
-			{Key: "localField", Value: "skillId"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "skill"},
-		}}},
-		// ✅ Unwind เพื่อให้ skill เป็น object เดียว
-		{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$skill"},
-			{Key: "preserveNullAndEmptyArrays", Value: true},
-		}}},
-
-		// 🔗 Lookup Majors (เนื่องจากเป็นอาร์เรย์ ต้องใช้ `$lookup` + `$unwind` + `$group`)
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "majors"},
-			{Key: "localField", Value: "majorIds"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "majors"},
-		}}},
-
-		// 🏷 Sorting และ Pagination
-		{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}},
-		{{Key: "$skip", Value: skip}},
-		{{Key: "$limit", Value: int64(params.Limit)}},
-	}
+	pipeline := getActivityPipeline(filter, sortField, sortOrder, skip, int64(params.Limit))
 
 	// ✅ ต้องใช้ activityCollection แทน activityItemCollection
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
@@ -205,40 +156,35 @@ func GetAllActivities(params models.PaginationParams) ([]models.ActivityDto, int
 	return results, total, totalPages, nil
 }
 
-func GetActivityByID(activityID string) (*models.Activity, error) {
-	var activity models.Activity
+func GetActivityByID(activityID string) (*models.ActivityDto, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	// แปลง activityID จาก string เป็น ObjectID
-	objID, err := primitive.ObjectIDFromHex(activityID)
+	objectID, err := primitive.ObjectIDFromHex(activityID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid activity ID format")
 	}
 
-	// ใช้ `$match` และ `$lookup` ดึง Activity + ActivityItems ที่ตรงกับ activityID
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "_id", Value: objID}}}},
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "actividtyItems"},
-			{Key: "localField", Value: "_id"},
-			{Key: "foreignField", Value: "activityId"},
-			{Key: "as", Value: "activityItems"},
-		}}},
-	}
+	var result models.ActivityDto
 
-	// Query และ Decode ข้อมูล
+	pipeline := getActivityPipeline(bson.M{"_id": objectID}, "", 0, 0, 1)
+
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
+		log.Println("Error fetching activity by ID:", err)
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
 	if cursor.Next(ctx) {
-		if err := cursor.Decode(&activity); err != nil {
+		if err := cursor.Decode(&result); err != nil {
+			log.Println("Error decoding activity:", err)
 			return nil, err
 		}
+		return &result, nil
 	}
 
-	return &activity, nil
+	return nil, fmt.Errorf("activity not found")
 }
 
 // GetActivityItemsByActivityID - ดึง ActivityItems ตาม ActivityID
@@ -305,4 +251,64 @@ func DeleteActivity(id primitive.ObjectID) error {
 	// ลบ Activity
 	_, err = activityCollection.DeleteOne(ctx, bson.M{"_id": id})
 	return err
+}
+
+func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64) mongo.Pipeline {
+	pipeline := mongo.Pipeline{
+		// 🔍 Match เฉพาะ Activity ที่ต้องการ
+		{{Key: "$match", Value: filter}},
+
+		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
+		// 🔗 Lookup ActivityState
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityStates"},
+			{Key: "localField", Value: "activityStateId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "activityState"},
+		}}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$activityState"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+		// 🔗 Lookup Skill
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "skills"},
+			{Key: "localField", Value: "skillId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "skill"},
+		}}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$skill"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+
+		// 🔗 Lookup Majors
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "majors"},
+			{Key: "localField", Value: "majorIds"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "majors"},
+		}}},
+	}
+
+	// ✅ ตรวจสอบและเพิ่ม `$sort` เฉพาะกรณีที่ต้องใช้
+	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
+		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
+	}
+
+	// ✅ ตรวจสอบและเพิ่ม `$skip` และ `$limit` เฉพาะกรณีที่ต้องใช้
+	if skip > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}})
+	}
+	if limit > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$limit", Value: limit}})
+	}
+
+	return pipeline
 }
