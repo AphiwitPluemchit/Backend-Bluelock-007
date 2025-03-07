@@ -3,29 +3,56 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
+	"net/http"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// ✅ CreateStudent - เพิ่ม Student
 func CreateStudent(c *fiber.Ctx) error {
-	var student models.Student
-	if err := c.BodyParser(&student); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+	var req struct {
+		Code      string `json:"code"`
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		Password  string `json:"password"`
+		Status    string `json:"status"`
+		SoftSkill int    `json:"softSkill"`
+		HardSkill int    `json:"hardSkill"`
+		MajorID   string `json:"majorId"`
 	}
 
-	err := services.CreateStudent(&student)
+	// 1️⃣ ดึงค่าจาก Body
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
+	}
+
+	// 2️⃣ แปลง MajorID เป็น ObjectID
+	majorID, err := primitive.ObjectIDFromHex(req.MajorID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error creating student",
-		})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid majorId format"})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "Student created successfully",
-		"student": student,
-	})
+	// 3️⃣ สร้าง Student ใหม่
+	student := models.Student{
+		Code:      req.Code,
+		Name:      req.Name,
+		Email:     req.Email,
+		Password:  req.Password, // จะถูกเข้ารหัสใน Service
+		Status:    req.Status,
+		SoftSkill: req.SoftSkill,
+		HardSkill: req.HardSkill,
+		MajorID:   majorID,
+	}
+
+	// 4️⃣ เรียกใช้ Service เพื่อบันทึกข้อมูล
+	err = services.CreateStudent(&student)
+	if err != nil {
+		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// 5️⃣ ตอบกลับเมื่อสำเร็จ
+	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Student created successfully"})
 }
 
 // GetStudents - ดึงข้อมูลผู้ใช้ทั้งหมด

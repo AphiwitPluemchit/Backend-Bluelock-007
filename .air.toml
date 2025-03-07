@@ -4,9 +4,10 @@ tmp_dir = "tmp"
 
 [build]
   # รัน swag init ก่อน build
-  cmd_pre = "swag init -g src/main.go"
+  # cmd_pre = "swag init -g main.go -d src"
   # คำสั่ง build สำหรับ Windows (ถ้าใช้ Linux/Mac ให้เปลี่ยนเป็น `tmp/main`)
   cmd = "go build -o tmp/main.exe src/main.go"
+  # cmd = "CGO_ENABLED=0 go build -o tmp/main.exe src/main.go"
   bin = "tmp/main.exe"
   include_ext = ["go"]
   exclude_dir = ["tmp", "vendor", "node_modules"]

@@ -3,52 +3,91 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
-	"log"
+	"Backend-Bluelock-007/src/utils"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// CreateActivity godoc
+// @Summary      Create a new activity
+// @Description  Create a new activity
+// @Tags         activitys
+// @Accept       json
+// @Produce      json
+// @Param        body body models.RequestCreateActivity true "Activity and ActivityItems"
+// @Success      201  {object}  models.Activity
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys [post]
 // CreateActivity - สร้างกิจกรรมใหม่
 func CreateActivity(c *fiber.Ctx) error {
-	var request struct {
-		models.Activity
-		ActivityItems []models.ActivityItem `json:"activityItems"`
-	}
+	var request models.RequestCreateActivity
 
 	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error() )
 	}
 
 	// บันทึก Activity + Items
-	err := services.CreateActivity(request.Activity, request.ActivityItems)
+	err := services.CreateActivity(&request.Activity, request.ActivityItems)
 	if err != nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"error": err.Error(),
-		})
+		}) 
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Activity and ActivityItems created successfully",
+		"data": map[string]any{
+			"activity":      request.Activity,
+			"activityItems": request.ActivityItems,
+		},
 	})
 }
 
-// GetAllActivities - Controller สำหรับดึงข้อมูลกิจกรรมทั้งหมด พร้อม ActivityItems
+
+// GetAllActivities godoc
+// @Summary      Get all activities
+// @Description  Get all activities
+// @Tags         activitys
+// @Produce      json
+// @Param        page   query  int  false  "Page number" default(1)
+// @Param        limit  query  int  false  "Number of items per page" default(10)
+// @Param        search query  string  false  "Search term"
+// @Param        sortBy query  string  false  "Field to sort by" default(name)
+// @Param        order  query  string  false  "Sort order (asc or desc)" default(asc)
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys [get]
 func GetAllActivities(c *fiber.Ctx) error {
-	// เรียกใช้ service เพื่อดึงข้อมูลกิจกรรมทั้งหมด พร้อม ActivityItems
-	activities, err := services.GetAllActivities()
+		// ใช้ DTO Default แล้วอัปเดตค่าจาก Query Parameter
+		params := models.DefaultPagination()
+
+		// อ่านค่า Query Parameter และแปลงเป็น int
+		params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
+		params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
+		params.Search = c.Query("search", params.Search)
+		params.SortBy = c.Query("sortBy", params.SortBy)
+		params.Order = c.Query("order", params.Order)
+
+	// ดึงข้อมูลจาก Service
+	activities, total, totalPages, err := services.GetAllActivities(params)
 	if err != nil {
-		log.Println("Error retrieving activities:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Unable to fetch activities",
+			"error": "Failed to fetch activities",
 		})
 	}
 
-	// ส่งข้อมูลกิจกรรมทั้งหมดกลับ
-	return c.Status(fiber.StatusOK).JSON(activities)
+	// ส่ง Response กลับไป
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"activities": activities,
+		"total":      total,
+		"totalPages": totalPages,
+		"page":       params.Page,
+		"limit":      params.Limit,
+	})
 }
 
 // GetActivityByID - ดึงข้อมูลกิจกรรมตาม ID พร้อม ActivityItems
@@ -60,7 +99,7 @@ func GetActivityByID(c *fiber.Ctx) error {
 	}
 
 	// ดึงข้อมูล Activity พร้อม ActivityItems
-	activity, activityItems, err := services.GetActivityByID(activityID)
+	activity, err := services.GetActivityByID(activityID.Hex())
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Activity not found"})
 	}
@@ -68,7 +107,6 @@ func GetActivityByID(c *fiber.Ctx) error {
 	// ส่งข้อมูลกลับรวมทั้ง ActivityItems
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"activity":      activity,
-		"activityItems": activityItems,
 	})
 }
 

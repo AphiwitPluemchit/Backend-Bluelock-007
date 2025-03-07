@@ -27,14 +27,30 @@ func init() {
 	}
 }
 
-// CreateFood - เพิ่มข้อมูลผู้ใช้ใน MongoDB
-func CreateFood(food *models.Food) error {
-	food.ID = primitive.NewObjectID() // กำหนด ID อัตโนมัติ
-	_, err := foodCollection.InsertOne(context.Background(), food)
+// CreateFoods - ลบข้อมูลเก่าทั้งหมด และเพิ่มข้อมูลใหม่
+func CreateFoods(foods []models.Food) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 🔥 ลบข้อมูลเก่าทั้งหมด
+	_, err := foodCollection.DeleteMany(ctx, bson.M{})
+	if err != nil {
+		return err
+	}
+
+	// เตรียมข้อมูลใหม่
+	var foodDocs []interface{}
+	for i := range foods {
+		foods[i].ID = primitive.NewObjectID() // สร้าง ObjectID ใหม่
+		foodDocs = append(foodDocs, foods[i])
+	}
+
+	// ✅ เพิ่มข้อมูลใหม่ทั้งหมด
+	_, err = foodCollection.InsertMany(ctx, foodDocs)
 	return err
 }
 
-// GetAllFoods - ดึงข้อมูลผู้ใช้ทั้งหมด
+// GetAllFoods - ดึงข้อมูลอาหารทั้งหมดเป็น Array
 func GetAllFoods() ([]models.Food, error) {
 	var foods []models.Food
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

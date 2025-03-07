@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var studentCollection *mongo.Collection
@@ -27,10 +28,57 @@ func init() {
 	}
 }
 
-// CreateStudent - เพิ่มข้อมูลผู้ใช้ใน MongoDB
+// ✅ ฟังก์ชันเข้ารหัส Password
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+// ✅ ตรวจสอบว่ามี Student ที่ `code` หรือ `email` ซ้ำกันหรือไม่
+func isStudentExists(code, email string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	count, err := studentCollection.CountDocuments(ctx, bson.M{
+		"$or": []bson.M{
+			{"code": code},
+			{"email": email},
+		},
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// ✅ CreateStudent - เพิ่ม Student ลงใน MongoDB
 func CreateStudent(student *models.Student) error {
-	student.ID = primitive.NewObjectID() // กำหนด ID อัตโนมัติ
-	_, err := studentCollection.InsertOne(context.Background(), student)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1️⃣ ตรวจสอบว่ามี Student ที่ `code` หรือ `email` ซ้ำหรือไม่
+	exists, err := isStudentExists(student.Code, student.Email)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("student with the same code or email already exists")
+	}
+
+	// 2️⃣ เข้ารหัส Password ก่อนบันทึก
+	hashedPassword, err := hashPassword(student.Password)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+	student.Password = hashedPassword
+
+	// 3️⃣ กำหนดค่า `ID` อัตโนมัติ
+	student.ID = primitive.NewObjectID()
+
+	// 4️⃣ บันทึกข้อมูลลง MongoDB
+	_, err = studentCollection.InsertOne(ctx, student)
 	return err
 }
 
