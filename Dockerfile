@@ -1,28 +1,39 @@
-# ใช้ golang image
-FROM golang:1.24
+# Stage 1: Build Golang Application
+FROM golang:1.24.0 AS builder
 
-# ติดตั้ง MongoDB Client (mongosh)
-RUN apt-get update && \
-    apt-get install -y wget gnupg && \
-    wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | tee /etc/apt/trusted.gpg.d/mongodb.asc && \
-    echo "deb https://repo.mongodb.org/apt/debian bookworm/mongodb-org/6.0 main" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list && \
-    apt-get update && \
-    apt-get install -y mongodb-mongosh  # ติดตั้ง mongosh แทน mongodb-org-shell
-
-# ตั้งค่า working directory
+# ตั้งค่า Working Directory ใน Container
 WORKDIR /app
 
-# คัดลอก go mod และ go sum
-COPY go.mod go.sum ./ 
+# คัดลอก go.mod และ go.sum ไปก่อนเพื่อลดเวลาการ build
+COPY go.mod go.sum ./
 
-# ดาวน์โหลด dependencies
-RUN go mod download
+# Download dependencies
+RUN go mod tidy
 
-# คัดลอกไฟล์ทั้งหมดจาก src/
-COPY src/ /app/src/
+# คัดลอกโค้ดทั้งหมดเข้า Container
+COPY . .
 
-# สร้างโปรเจค
-RUN go build -o main /app/src/main.go
+# ติดตั้ง Swag CLI สำหรับสร้าง API Docs
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
+# สร้าง Swagger Docs
+RUN swag init -g src/main.go
+
+# คอมไพล์โปรเจกต์ Golang
+RUN go build -o main src/main.go
+
+# Stage 2: Run Application (ใช้ Image เล็กลง)
+FROM golang:1.24.0
+
+# ตั้งค่า Working Directory
+WORKDIR /app
+
+# คัดลอก Binary จาก Stage 1
+COPY --from=builder /app/main .
+COPY --from=builder /app/docs ./docs
+
+# เปิด Port 8080
+EXPOSE 8080
 
 # รันแอป
-CMD ["/app/main"]
+CMD ["./main"]
