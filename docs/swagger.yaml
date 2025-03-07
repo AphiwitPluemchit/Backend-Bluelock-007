@@ -4,6 +4,9 @@ definitions:
       activityState:
         example: planning
         type: string
+      file:
+        example: image.jpg
+        type: string
       id:
         type: string
       majorIds:
@@ -19,15 +22,18 @@ definitions:
       skill:
         example: hard
         type: string
+      studentYear:
+        example:
+        - 1
+        - 2
+        - 3
+        - 4
+        items:
+          type: integer
+        type: array
       type:
         example: one
         type: string
-    required:
-    - activityState
-    - majorIds
-    - name
-    - skill
-    - type
     type: object
   models.ActivityDto:
     properties:
@@ -37,6 +43,9 @@ definitions:
         type: array
       activityState:
         example: planning
+        type: string
+      file:
+        example: image.jpg
         type: string
       id:
         type: string
@@ -50,27 +59,27 @@ definitions:
       skill:
         example: hard
         type: string
+      studentYear:
+        example:
+        - 1
+        - 2
+        - 3
+        - 4
+        items:
+          type: integer
+        type: array
       type:
         example: one
         type: string
-    required:
-    - activityState
-    - majors
-    - name
-    - skill
-    - type
     type: object
   models.ActivityItem:
     properties:
       activityId:
         type: string
-      duration:
-        example: 2
-        minimum: 1
-        type: integer
-      endDate:
-        example: "2025-03-11"
-        type: string
+      date:
+        items:
+          $ref: '#/definitions/models.Date'
+        type: array
       hour:
         example: 4
         minimum: 1
@@ -87,17 +96,9 @@ definitions:
       room:
         example: Stadium A
         type: string
-      startDate:
-        example: "2025-03-10"
-        type: string
     required:
-    - duration
-    - endDate
     - hour
     - maxParticipants
-    - name
-    - room
-    - startDate
     type: object
   models.Admin:
     properties:
@@ -108,6 +109,18 @@ definitions:
       name:
         type: string
       password:
+        type: string
+    type: object
+  models.Date:
+    properties:
+      date:
+        example: "2025-03-11"
+        type: string
+      etime:
+        example: "12:00"
+        type: string
+      stime:
+        example: "10:00"
         type: string
     type: object
   models.ErrorResponse:

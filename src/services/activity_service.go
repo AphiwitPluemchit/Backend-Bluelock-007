@@ -220,7 +220,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 			"activityState": activity.ActivityState,
 			"skill":         activity.Skill,
 			"file":          activity.File,
-			"studentYear":   activity.StudentYears,
+			"studentYears":  activity.StudentYears,
 			"majorIds":      majorIDs,
 		},
 	}
@@ -267,7 +267,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 					"name":            newItem.Name,
 					"maxParticipants": newItem.MaxParticipants,
 					"room":            newItem.Room,
-					"date":            newItem.Date,
+					"dates":           newItem.Dates,
 					"hour":            newItem.Hour,
 				}},
 			)

@@ -488,17 +488,14 @@ const docTemplate = `{
     "definitions": {
         "models.Activity": {
             "type": "object",
-            "required": [
-                "activityState",
-                "majorIds",
-                "name",
-                "skill",
-                "type"
-            ],
             "properties": {
                 "activityState": {
                     "type": "string",
                     "example": "planning"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
                 },
                 "id": {
                     "type": "string"
@@ -521,6 +518,18 @@ const docTemplate = `{
                     "type": "string",
                     "example": "hard"
                 },
+                "studentYear": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
+                    ]
+                },
                 "type": {
                     "type": "string",
                     "example": "one"
@@ -529,13 +538,6 @@ const docTemplate = `{
         },
         "models.ActivityDto": {
             "type": "object",
-            "required": [
-                "activityState",
-                "majors",
-                "name",
-                "skill",
-                "type"
-            ],
             "properties": {
                 "activityItems": {
                     "type": "array",
@@ -546,6 +548,10 @@ const docTemplate = `{
                 "activityState": {
                     "type": "string",
                     "example": "planning"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
                 },
                 "id": {
                     "type": "string"
@@ -564,6 +570,18 @@ const docTemplate = `{
                     "type": "string",
                     "example": "hard"
                 },
+                "studentYear": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
+                    ]
+                },
                 "type": {
                     "type": "string",
                     "example": "one"
@@ -573,26 +591,18 @@ const docTemplate = `{
         "models.ActivityItem": {
             "type": "object",
             "required": [
-                "duration",
-                "endDate",
                 "hour",
-                "maxParticipants",
-                "name",
-                "room",
-                "startDate"
+                "maxParticipants"
             ],
             "properties": {
                 "activityId": {
                     "type": "string"
                 },
-                "duration": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "example": 2
-                },
-                "endDate": {
-                    "type": "string",
-                    "example": "2025-03-11"
+                "date": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Date"
+                    }
                 },
                 "hour": {
                     "type": "integer",
@@ -614,10 +624,6 @@ const docTemplate = `{
                 "room": {
                     "type": "string",
                     "example": "Stadium A"
-                },
-                "startDate": {
-                    "type": "string",
-                    "example": "2025-03-10"
                 }
             }
         },
@@ -635,6 +641,23 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                }
+            }
+        },
+        "models.Date": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "example": "2025-03-11"
+                },
+                "etime": {
+                    "type": "string",
+                    "example": "12:00"
+                },
+                "stime": {
+                    "type": "string",
+                    "example": "10:00"
                 }
             }
         },

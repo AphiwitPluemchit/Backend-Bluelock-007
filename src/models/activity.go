@@ -12,7 +12,7 @@ type Activity struct {
 	ActivityState string               `json:"activityState" bson:"activityState" example:"planning"`
 	Skill         string               `json:"skill" bson:"skill" example:"hard"`
 	File          string               `json:"file" bson:"file"  example:"image.jpg"`
-	StudentYears  []int                `json:"studentYear" bson:"studentYear" example:"1,2,3,4"`
+	StudentYears  []int                `json:"studentYears" bson:"studentYears" example:"1,2,3,4"`
 	MajorIDs      []primitive.ObjectID `json:"majorIds" bson:"majorIds" example:"67bf0bd48873e448798fed34,67bf0bda8873e448798fed35"`
 }
 
@@ -23,11 +23,11 @@ type ActivityItem struct {
 	Name            *string            `json:"name" bson:"name" example:"Quarter Final"`
 	MaxParticipants *int               `json:"maxParticipants" bson:"maxParticipants" validate:"required,min=1" example:"22"`
 	Room            *string            `json:"room" bson:"room" example:"Stadium A"`
-	Date            []Date             `json:"date" bson:"date"`
+	Dates           []Dates            `json:"dates" bson:"dates"`
 	Hour            *int               `json:"hour" bson:"hour" validate:"required,min=1" example:"4"`
 }
 
-type Date struct {
+type Dates struct {
 	Date  string `json:"date" bson:"date" example:"2025-03-11"`
 	Stime string `json:"stime" bson:"stime" example:"10:00"`
 	Etime string `json:"etime" bson:"etime" example:"12:00"`
@@ -43,7 +43,7 @@ type ActivityDto struct {
 	ActivityState string             `json:"activityState" bson:"activityState"  example:"planning"`
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
-	StudentYears  []int              `json:"studentYear" bson:"studentYear" example:"1,2,3,4"`
+	StudentYears  []int              `json:"studentYears" bson:"studentYears" example:"1,2,3,4"`
 	Majors        []Major            `json:"majors" bson:"majors"`
 	ActivityItems []ActivityItem     `json:"activityItems"`
 }
