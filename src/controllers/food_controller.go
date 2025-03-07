@@ -7,33 +7,33 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// CreateFood godoc
-// @Summary      เพิ่มข้อมูลอาหาร
-// @Description  สร้างข้อมูลอาหารใหม่ในระบบ
+// CreateFoods godoc
+// @Summary      เพิ่มข้อมูลอาหารหลายรายการ
+// @Description  สร้างข้อมูลอาหารเป็น array
 // @Tags         foods
 // @Accept       json
 // @Produce      json
-// @Param        body body models.Food true "ข้อมูลอาหาร"
-// @Success      201  {object}  models.Food
+// @Param        body body []models.Food true "รายการอาหาร"
+// @Success      201  {array}  models.Food
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /foods [post]
-func CreateFood(c *fiber.Ctx) error {
-	var food models.Food
-	if err := c.BodyParser(&food); err != nil {
+func CreateFoods(c *fiber.Ctx) error {
+	var foods []models.Food
+	if err := c.BodyParser(&foods); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid input",
 		})
 	}
 
-	err := services.CreateFood(&food)
+	err := services.CreateFoods(foods)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error creating food",
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(food)
+	return c.Status(fiber.StatusCreated).JSON(foods)
 }
 
 // GetFoods godoc
