@@ -32,7 +32,7 @@ func CreateActivity(c *fiber.Ctx) error {
 	}
 
 	// บันทึก Activity + Items
-	err := services.CreateActivity(&request)
+	activity, err := services.CreateActivity(&request)
 	if err != nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"error": err.Error(),
@@ -41,7 +41,7 @@ func CreateActivity(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Activity and ActivityItems created successfully",
-		"data":    request,
+		"data":    activity,
 	})
 }
 

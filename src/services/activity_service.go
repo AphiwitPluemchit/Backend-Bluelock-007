@@ -34,7 +34,7 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.ActivityDto) error {
+func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -55,13 +55,14 @@ func CreateActivity(activity *models.ActivityDto) error {
 		ActivityState: activity.ActivityState,
 		Skill:         activity.Skill,
 		File:          activity.File,
+		StudentYears:  activity.StudentYears,
 		MajorIDs:      majorIDs,
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
 	res, err := activityCollection.InsertOne(ctx, activityToInsert)
 	if err != nil {
-		return err
+		return activity, err
 	}
 
 	// ✅ อัปเดต activity.ID จาก MongoDB
@@ -74,12 +75,12 @@ func CreateActivity(activity *models.ActivityDto) error {
 
 		_, err := activityItemCollection.InsertOne(ctx, activity.ActivityItems[i])
 		if err != nil {
-			return err
+			return activity, err
 		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
-	return nil
+	return nil, err
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
@@ -219,6 +220,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 			"activityState": activity.ActivityState,
 			"skill":         activity.Skill,
 			"file":          activity.File,
+			"studentYear":   activity.StudentYears,
 			"majorIds":      majorIDs,
 		},
 	}
@@ -265,9 +267,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 					"name":            newItem.Name,
 					"maxParticipants": newItem.MaxParticipants,
 					"room":            newItem.Room,
-					"startDate":       newItem.StartDate,
-					"endDate":         newItem.EndDate,
-					"duration":        newItem.Duration,
+					"date":            newItem.Date,
 					"hour":            newItem.Hour,
 				}},
 			)
