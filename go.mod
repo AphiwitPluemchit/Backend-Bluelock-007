@@ -7,6 +7,8 @@ require (
 	go.mongodb.org/mongo-driver v1.17.2
 )
 
+require github.com/joho/godotenv v1.5.1 // indirect
+
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect

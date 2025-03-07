@@ -4,7 +4,7 @@ import (
 	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	"math"
 	"strings"
@@ -34,79 +34,58 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.Activity, activityItems []models.ActivityItem) error {
-	log.Print(activity)
+func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// แปลง ID ของ ActivityState และ Skill ถ้ามีค่า
-	// ตรวจสอบค่า ActivityStateID
-	if activity.ActivityStateID.IsZero() || activity.ActivityStateID == primitive.NilObjectID {
-		activity.ActivityStateID = primitive.NilObjectID // ตั้งเป็น NilObjectID ถ้าไม่มีค่า
-	} else {
-		// ตรวจสอบว่าเป็น ObjectID ที่ถูกต้อง
-		_, err := primitive.ObjectIDFromHex(activity.ActivityStateID.Hex())
-		if err != nil {
-			return errors.New("invalid activityStateId")
-		}
+	// ✅ แปลง Majors เป็น ObjectID List
+	var majorIDs []primitive.ObjectID
+	for _, major := range activity.Majors {
+		majorIDs = append(majorIDs, major.ID)
 	}
 
-	// ตรวจสอบค่า SkillID
-	if activity.SkillID.IsZero() || activity.SkillID == primitive.NilObjectID {
-		// log skillId
-		log.Println("SkillID:", activity.SkillID)
-		activity.SkillID = primitive.NilObjectID // ตั้งเป็น NilObjectID ถ้าไม่มีค่า
-	} else {
-		// ตรวจสอบว่าเป็น ObjectID ที่ถูกต้อง
-		_, err := primitive.ObjectIDFromHex(activity.SkillID.Hex())
-		if err != nil {
-			return errors.New("invalid skillId")
-		}
-	}
-
-	// แปลง MajorIDs เป็น []primitive.ObjectID
-	var majorObjectIDs []primitive.ObjectID
-	if activity.MajorIDs != nil {
-		for _, id := range activity.MajorIDs {
-			objID, err := primitive.ObjectIDFromHex(id.Hex())
-			if err != nil {
-				return errors.New("invalid majorId")
-			}
-			majorObjectIDs = append(majorObjectIDs, objID)
-		}
-	}
-	activity.MajorIDs = majorObjectIDs
-
-	// สร้าง ID สำหรับ Activity
+	// ✅ สร้าง ID สำหรับ Activity
 	activity.ID = primitive.NewObjectID()
 
-	// บันทึก Activity และรับค่า InsertedID กลับมา
-	res, err := activityCollection.InsertOne(ctx, activity)
-	if err != nil {
-		return err
+	// ✅ สร้าง Activity ที่ต้องบันทึกลง MongoDB
+	activityToInsert := models.Activity{
+		ID:            activity.ID,
+		Name:          activity.Name,
+		Type:          activity.Type,
+		ActivityState: activity.ActivityState,
+		Skill:         activity.Skill,
+		File:          activity.File,
+		StudentYears:  activity.StudentYears,
+		MajorIDs:      majorIDs,
 	}
 
-	// อัปเดต activity.ID ให้เป็นค่าจริงจาก MongoDB
+	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
+	res, err := activityCollection.InsertOne(ctx, activityToInsert)
+	if err != nil {
+		return activity, err
+	}
+
+	// ✅ อัปเดต activity.ID จาก MongoDB
 	activity.ID = res.InsertedID.(primitive.ObjectID)
 
-	// บันทึก ActivityItems
-	for i := range activityItems {
-		activityItems[i].ID = primitive.NewObjectID()
-		activityItems[i].ActivityID = activity.ID
+	// ✅ บันทึก ActivityItems
+	for i := range activity.ActivityItems {
+		activity.ActivityItems[i].ID = primitive.NewObjectID()
+		activity.ActivityItems[i].ActivityID = activity.ID
 
-		_, err := activityItemCollection.InsertOne(ctx, activityItems[i])
+		_, err := activityItemCollection.InsertOne(ctx, activity.ActivityItems[i])
 		if err != nil {
-			return err
+			return activity, err
 		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
-	return nil
+	return nil, err
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
-func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64, int, error) {
-	var activities []models.Activity
+func GetAllActivities(params models.PaginationParams, status string) ([]models.ActivityDto, int64, int, error) {
+	var results []models.ActivityDto
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -129,28 +108,23 @@ func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64,
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"} // ค้นหาแบบ Case-Insensitive
 	}
 
+	// ✅ กำหนดเงื่อนไข `status`
+	switch strings.ToLower(status) {
+	case "planning":
+		filter["activityState"] = "planning"
+	case "open":
+		filter["activityState"] = bson.M{"$in": []string{"open", "close"}}
+	case "success":
+		filter["activityState"] = bson.M{"$in": []string{"success", "cancel"}}
+	}
+
 	// นับจำนวนเอกสารทั้งหมด
 	total, err := activityCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	// ใช้ `$lookup` ดึง ActivityItems ที่เชื่อมโยงกับ Activity
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: filter}},
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "activityItems"}, // เชื่อม ActivityItems
-			{Key: "localField", Value: "_id"},
-			{Key: "foreignField", Value: "activityId"},
-			{Key: "as", Value: "activityItems"},
-		}}},
-		{{Key: "$addFields", Value: bson.D{
-			{Key: "activityItems", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$activityItems", bson.A{}}}}},
-		}}},
-		{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}},
-		{{Key: "$skip", Value: skip}},
-		{{Key: "$limit", Value: int64(params.Limit)}},
-	}
+	pipeline := getActivityPipeline(filter, sortField, sortOrder, skip, int64(params.Limit))
 
 	// ✅ ต้องใช้ activityCollection แทน activityItemCollection
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
@@ -161,7 +135,8 @@ func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64,
 	defer cursor.Close(ctx)
 
 	// Decode ข้อมูลลงใน Struct
-	if err = cursor.All(ctx, &activities); err != nil {
+
+	if err = cursor.All(ctx, &results); err != nil {
 		log.Println("Error decoding activities:", err)
 		return nil, 0, 0, err
 	}
@@ -169,43 +144,38 @@ func GetAllActivities(params models.PaginationParams) ([]models.Activity, int64,
 	// คำนวณจำนวนหน้าทั้งหมด
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 
-	return activities, total, totalPages, nil
+	return results, total, totalPages, nil
 }
 
-func GetActivityByID(activityID string) (*models.Activity, error) {
-	var activity models.Activity
+func GetActivityByID(activityID string) (*models.ActivityDto, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	// แปลง activityID จาก string เป็น ObjectID
-	objID, err := primitive.ObjectIDFromHex(activityID)
+	objectID, err := primitive.ObjectIDFromHex(activityID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid activity ID format")
 	}
 
-	// ใช้ `$match` และ `$lookup` ดึง Activity + ActivityItems ที่ตรงกับ activityID
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "_id", Value: objID}}}},
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "actividtyItems"},
-			{Key: "localField", Value: "_id"},
-			{Key: "foreignField", Value: "activityId"},
-			{Key: "as", Value: "activityItems"},
-		}}},
-	}
+	var result models.ActivityDto
 
-	// Query และ Decode ข้อมูล
+	pipeline := getActivityPipeline(bson.M{"_id": objectID}, "", 0, 0, 1)
+
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
+		log.Println("Error fetching activity by ID:", err)
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
 	if cursor.Next(ctx) {
-		if err := cursor.Decode(&activity); err != nil {
+		if err := cursor.Decode(&result); err != nil {
+			log.Println("Error decoding activity:", err)
 			return nil, err
 		}
+		return &result, nil
 	}
 
-	return &activity, nil
+	return nil, fmt.Errorf("activity not found")
 }
 
 // GetActivityItemsByActivityID - ดึง ActivityItems ตาม ActivityID
@@ -232,33 +202,93 @@ func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.Activ
 	return activityItems, nil
 }
 
-// UpdateActivity - อัปเดตกิจกรรมและ ActivityItems
-func UpdateActivity(id primitive.ObjectID, activity models.Activity, activityItems []models.ActivityItem) (models.Activity, []models.ActivityItem, error) {
-	// อัปเดต Activity
-	update := bson.M{
-		"$set": activity,
+func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.ActivityDto, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// ✅ แปลง Majors เป็น ObjectID List
+	var majorIDs []primitive.ObjectID
+	for _, major := range activity.Majors {
+		majorIDs = append(majorIDs, major.ID)
 	}
+
+	// ✅ อัปเดต Activity หลัก
+	update := bson.M{
+		"$set": bson.M{
+			"name":          activity.Name,
+			"type":          activity.Type,
+			"activityState": activity.ActivityState,
+			"skill":         activity.Skill,
+			"file":          activity.File,
+			"studentYears":  activity.StudentYears,
+			"majorIds":      majorIDs,
+		},
+	}
+
 	_, err := activityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
 	if err != nil {
-		return models.Activity{}, nil, err
+		return models.ActivityDto{}, err
 	}
 
-	// อัปเดต ActivityItems (ถ้ามีการเปลี่ยนแปลง)
-	var updatedActivityItems []models.ActivityItem
-	for _, item := range activityItems {
-		item.ActivityID = activity.ID // ตั้งค่า ActivityID ใหม่
-		item.ID = primitive.NewObjectID()
+	// ✅ ดึงรายการ `ActivityItems` ที่มีอยู่
+	var existingItems []models.ActivityItem
+	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": id})
+	if err != nil {
+		return models.ActivityDto{}, err
+	}
+	if err := cursor.All(ctx, &existingItems); err != nil {
+		return models.ActivityDto{}, err
+	}
 
-		// บันทึก ActivityItem ลง MongoDB
-		_, err := activityItemCollection.InsertOne(ctx, item)
-		if err != nil {
-			return models.Activity{}, nil, err
+	// ✅ สร้าง Map ของ `existingItems` เพื่อเช็คว่าตัวไหนมีอยู่แล้ว
+	existingItemMap := make(map[string]models.ActivityItem)
+	for _, item := range existingItems {
+		existingItemMap[item.ID.Hex()] = item
+	}
+
+	// ✅ สร้าง `Set` สำหรับเก็บ `ID` ของรายการใหม่
+	newItemIDs := make(map[string]bool)
+	for _, newItem := range activity.ActivityItems {
+		if newItem.ID.IsZero() {
+			// ✅ ถ้าไม่มี `_id` ให้สร้างใหม่
+			newItem.ID = primitive.NewObjectID()
+			newItem.ActivityID = id
+			_, err := activityItemCollection.InsertOne(ctx, newItem)
+			if err != nil {
+				return models.ActivityDto{}, err
+			}
+		} else {
+			// ✅ ถ้ามี `_id` → อัปเดต
+			newItemIDs[newItem.ID.Hex()] = true
+
+			_, err := activityItemCollection.UpdateOne(ctx,
+				bson.M{"_id": newItem.ID},
+				bson.M{"$set": bson.M{
+					"name":            newItem.Name,
+					"maxParticipants": newItem.MaxParticipants,
+					"room":            newItem.Room,
+					"dates":           newItem.Dates,
+					"hour":            newItem.Hour,
+				}},
+			)
+			if err != nil {
+				return models.ActivityDto{}, err
+			}
 		}
-		updatedActivityItems = append(updatedActivityItems, item)
 	}
 
-	// คืนค่าข้อมูลที่อัปเดต
-	return activity, updatedActivityItems, nil
+	// ✅ ลบ `ActivityItems` ที่ไม่มีในรายการใหม่
+	for existingID := range existingItemMap {
+		if !newItemIDs[existingID] {
+			_, err := activityItemCollection.DeleteOne(ctx, bson.M{"_id": existingID})
+			if err != nil {
+				return models.ActivityDto{}, err
+			}
+		}
+	}
+
+	// ✅ คืนค่า Activity ที่อัปเดต
+	return activity, nil
 }
 
 // DeleteActivity - ลบกิจกรรมและ ActivityItems ที่เกี่ยวข้อง
@@ -272,4 +302,41 @@ func DeleteActivity(id primitive.ObjectID) error {
 	// ลบ Activity
 	_, err = activityCollection.DeleteOne(ctx, bson.M{"_id": id})
 	return err
+}
+
+func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64) mongo.Pipeline {
+	pipeline := mongo.Pipeline{
+		// 🔍 Match เฉพาะ Activity ที่ต้องการ
+		{{Key: "$match", Value: filter}},
+
+		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
+		// 🔗 Lookup Majors
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "majors"},
+			{Key: "localField", Value: "majorIds"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "majors"},
+		}}},
+	}
+
+	// ✅ ตรวจสอบและเพิ่ม `$sort` เฉพาะกรณีที่ต้องใช้
+	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
+		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
+	}
+
+	// ✅ ตรวจสอบและเพิ่ม `$skip` และ `$limit` เฉพาะกรณีที่ต้องใช้
+	if skip > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}})
+	}
+	if limit > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$limit", Value: limit}})
+	}
+
+	return pipeline
 }

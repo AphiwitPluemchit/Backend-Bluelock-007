@@ -17,14 +17,14 @@ const docTemplate = `{
     "paths": {
         "/activitys": {
             "get": {
-                "description": "Get all activities",
+                "description": "Get all activities with pagination, search, and sorting",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "activitys"
                 ],
-                "summary": "Get all activities",
+                "summary": "Get all activities with pagination, search, and sorting",
                 "parameters": [
                     {
                         "type": "integer",
@@ -58,6 +58,12 @@ const docTemplate = `{
                         "default": "asc",
                         "description": "Sort order (asc or desc)",
                         "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Status of the activity",
+                        "name": "status",
                         "in": "query"
                     }
                 ],
@@ -96,7 +102,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.RequestCreateActivity"
+                            "$ref": "#/definitions/models.ActivityDto"
                         }
                     }
                 ],
@@ -106,6 +112,131 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/models.Activity"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/activitys/{id}": {
+            "get": {
+                "description": "Get an activity by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get an activity by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update an activity",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Update an activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Activity object",
+                        "name": "activity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ActivityDto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ActivityDto"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an activity",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Delete an activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -357,17 +488,14 @@ const docTemplate = `{
     "definitions": {
         "models.Activity": {
             "type": "object",
-            "required": [
-                "activityStateId",
-                "majorIds",
-                "name",
-                "skillId",
-                "type"
-            ],
             "properties": {
-                "activityStateId": {
+                "activityState": {
                     "type": "string",
-                    "example": "67bf1cdd95fb769b3ded079e"
+                    "example": "planning"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
                 },
                 "id": {
                     "type": "string"
@@ -386,9 +514,73 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Football Tournament"
                 },
-                "skillId": {
+                "skill": {
                     "type": "string",
-                    "example": "67bf18532b62df84b60d95a2"
+                    "example": "hard"
+                },
+                "studentYear": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
+                    ]
+                },
+                "type": {
+                    "type": "string",
+                    "example": "one"
+                }
+            }
+        },
+        "models.ActivityDto": {
+            "type": "object",
+            "properties": {
+                "activityItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItem"
+                    }
+                },
+                "activityState": {
+                    "type": "string",
+                    "example": "planning"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "majors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Major"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Football Tournament"
+                },
+                "skill": {
+                    "type": "string",
+                    "example": "hard"
+                },
+                "studentYear": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
+                    ]
                 },
                 "type": {
                     "type": "string",
@@ -399,26 +591,18 @@ const docTemplate = `{
         "models.ActivityItem": {
             "type": "object",
             "required": [
-                "duration",
-                "endDate",
                 "hour",
-                "maxParticipants",
-                "name",
-                "room",
-                "startDate"
+                "maxParticipants"
             ],
             "properties": {
                 "activityId": {
                     "type": "string"
                 },
-                "duration": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "example": 2
-                },
-                "endDate": {
-                    "type": "string",
-                    "example": "2025-03-11"
+                "date": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Date"
+                    }
                 },
                 "hour": {
                     "type": "integer",
@@ -440,10 +624,6 @@ const docTemplate = `{
                 "room": {
                     "type": "string",
                     "example": "Stadium A"
-                },
-                "startDate": {
-                    "type": "string",
-                    "example": "2025-03-10"
                 }
             }
         },
@@ -464,6 +644,23 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Date": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "example": "2025-03-11"
+                },
+                "etime": {
+                    "type": "string",
+                    "example": "12:00"
+                },
+                "stime": {
+                    "type": "string",
+                    "example": "10:00"
+                }
+            }
+        },
         "models.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -477,17 +674,14 @@ const docTemplate = `{
                 }
             }
         },
-        "models.RequestCreateActivity": {
+        "models.Major": {
             "type": "object",
             "properties": {
-                "activity": {
-                    "$ref": "#/definitions/models.Activity"
+                "id": {
+                    "type": "string"
                 },
-                "activityItems": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.ActivityItem"
-                    }
+                "majorName": {
+                    "type": "string"
                 }
             }
         }

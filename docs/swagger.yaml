@@ -1,45 +1,91 @@
 definitions:
   models.Activity:
     properties:
-      activityStateId:
-        example: 67bf1cdd95fb769b3ded079e
+      activityState:
+        example: planning
+        type: string
+      file:
+        example: image.jpg
         type: string
       id:
         type: string
       majorIds:
         example:
-        - 67bf0bd48873e448798fed34
-        - 67bf0bda8873e448798fed35
+          - 67bf0bd48873e448798fed34
+          - 67bf0bda8873e448798fed35
         items:
           type: string
         type: array
       name:
         example: Football Tournament
         type: string
-      skillId:
-        example: 67bf18532b62df84b60d95a2
+      skill:
+        example: hard
         type: string
+      studentYear:
+        example:
+          - 1
+          - 2
+          - 3
+          - 4
+        items:
+          type: integer
+        type: array
+      type:
+        example: one
+        type: string
+    type: object
+  models.ActivityDto:
+    properties:
+      activityItems:
+        items:
+          $ref: "#/definitions/models.ActivityItem"
+        type: array
+      activityState:
+        example: planning
+        type: string
+      file:
+        example: image.jpg
+        type: string
+      id:
+        type: string
+      majors:
+        items:
+          $ref: "#/definitions/models.Major"
+        type: array
+      name:
+        example: Football Tournament
+        type: string
+      skill:
+        example: hard
+        type: string
+      studentYear:
+        example:
+          - 1
+          - 2
+          - 3
+          - 4
+        items:
+          type: integer
+        type: array
       type:
         example: one
         type: string
     required:
-    - activityStateId
-    - majorIds
-    - name
-    - skillId
-    - type
+      - activityStateId
+      - majorIds
+      - name
+      - skillId
+      - type
     type: object
   models.ActivityItem:
     properties:
       activityId:
         type: string
-      duration:
-        example: 2
-        minimum: 1
-        type: integer
-      endDate:
-        example: "2025-03-11"
-        type: string
+      date:
+        items:
+          $ref: "#/definitions/models.Date"
+        type: array
       hour:
         example: 4
         minimum: 1
@@ -56,17 +102,9 @@ definitions:
       room:
         example: Stadium A
         type: string
-      startDate:
-        example: "2025-03-10"
-        type: string
     required:
-    - duration
-    - endDate
-    - hour
-    - maxParticipants
-    - name
-    - room
-    - startDate
+      - hour
+      - maxParticipants
     type: object
   models.Admin:
     properties:
@@ -79,6 +117,18 @@ definitions:
       password:
         type: string
     type: object
+  models.Date:
+    properties:
+      date:
+        example: "2025-03-11"
+        type: string
+      etime:
+        example: "12:00"
+        type: string
+      stime:
+        example: "10:00"
+        type: string
+    type: object
   models.ErrorResponse:
     properties:
       message:
@@ -88,48 +138,50 @@ definitions:
         description: HTTP Status Code
         type: integer
     type: object
-  models.RequestCreateActivity:
+  models.Major:
     properties:
-      activity:
-        $ref: '#/definitions/models.Activity'
-      activityItems:
-        items:
-          $ref: '#/definitions/models.ActivityItem'
-        type: array
+      id:
+        type: string
+      majorName:
+        type: string
     type: object
 info:
   contact: {}
 paths:
   /activitys:
     get:
-      description: Get all activities
+      description: Get all activities with pagination, search, and sorting
       parameters:
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: Number of items per page
-        in: query
-        name: limit
-        type: integer
-      - description: Search term
-        in: query
-        name: search
-        type: string
-      - default: name
-        description: Field to sort by
-        in: query
-        name: sortBy
-        type: string
-      - default: asc
-        description: Sort order (asc or desc)
-        in: query
-        name: order
-        type: string
+        - default: 1
+          description: Page number
+          in: query
+          name: page
+          type: integer
+        - default: 10
+          description: Number of items per page
+          in: query
+          name: limit
+          type: integer
+        - description: Search term
+          in: query
+          name: search
+          type: string
+        - default: name
+          description: Field to sort by
+          in: query
+          name: sortBy
+          type: string
+        - default: asc
+          description: Sort order (asc or desc)
+          in: query
+          name: order
+          type: string
+        - description: Status of the activity
+          in: query
+          name: status
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
@@ -139,68 +191,151 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get all activities
+            $ref: "#/definitions/models.ErrorResponse"
+      summary: Get all activities with pagination, search, and sorting
       tags:
-      - activitys
+        - activitys
     post:
       consumes:
-      - application/json
+        - application/json
       description: Create a new activity
       parameters:
-      - description: Activity and ActivityItems
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/models.RequestCreateActivity'
+        - description: Activity and ActivityItems
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: "#/definitions/models.ActivityDto"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/models.Activity'
+            $ref: "#/definitions/models.Activity"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
       summary: Create a new activity
       tags:
-      - activitys
+        - activitys
+  /activitys/{id}:
+    delete:
+      description: Delete an activity
+      parameters:
+        - description: Activity ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: "#/definitions/models.ErrorResponse"
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: "#/definitions/models.ErrorResponse"
+      summary: Delete an activity
+      tags:
+        - activitys
+    get:
+      description: Get an activity by ID
+      parameters:
+        - description: Activity ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: "#/definitions/models.Activity"
+        "404":
+          description: Not Found
+          schema:
+            $ref: "#/definitions/models.ErrorResponse"
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: "#/definitions/models.ErrorResponse"
+      summary: Get an activity by ID
+      tags:
+        - activitys
+    put:
+      description: Update an activity
+      parameters:
+        - description: Activity ID
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Activity object
+          in: body
+          name: activity
+          required: true
+          schema:
+            $ref: "#/definitions/models.ActivityDto"
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: "#/definitions/models.ActivityDto"
+        "400":
+          description: Bad Request
+          schema:
+            $ref: "#/definitions/models.ErrorResponse"
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: "#/definitions/models.ErrorResponse"
+      summary: Update an activity
+      tags:
+        - activitys
   /admins:
     get:
       description: Get admins with pagination, search, and sorting
       parameters:
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: Items per page
-        in: query
-        name: limit
-        type: integer
-      - description: Search by name or email
-        in: query
-        name: search
-        type: string
-      - description: 'Sort by field (default: name)'
-        in: query
-        name: sortBy
-        type: string
-      - default: asc
-        description: Sort order (asc or desc)
-        in: query
-        name: order
-        type: string
+        - default: 1
+          description: Page number
+          in: query
+          name: page
+          type: integer
+        - default: 10
+          description: Items per page
+          in: query
+          name: limit
+          type: integer
+        - description: Search by name or email
+          in: query
+          name: search
+          type: string
+        - description: "Sort by field (default: name)"
+          in: query
+          name: sortBy
+          type: string
+        - default: asc
+          description: Sort order (asc or desc)
+          in: query
+          name: order
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
@@ -210,120 +345,120 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
       summary: Get admins with pagination, search, and sorting
       tags:
-      - admins
+        - admins
     post:
       consumes:
-      - application/json
+        - application/json
       description: Create a new admin
       parameters:
-      - description: Admin object
-        in: body
-        name: admin
-        required: true
-        schema:
-          $ref: '#/definitions/models.Admin'
+        - description: Admin object
+          in: body
+          name: admin
+          required: true
+          schema:
+            $ref: "#/definitions/models.Admin"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/models.Admin'
+            $ref: "#/definitions/models.Admin"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
       summary: Create a new admin
       tags:
-      - admins
+        - admins
   /admins/{id}:
     delete:
       description: Delete an admin
       parameters:
-      - description: Admin ID
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: Admin ID
+          in: path
+          name: id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Admin'
+            $ref: "#/definitions/models.Admin"
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
       summary: Delete an admin
       tags:
-      - admins
+        - admins
     get:
       description: Get an admin by ID
       parameters:
-      - description: Admin ID
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: Admin ID
+          in: path
+          name: id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Admin'
+            $ref: "#/definitions/models.Admin"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
       summary: Get an admin by ID
       tags:
-      - admins
+        - admins
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update an admin
       parameters:
-      - description: Admin ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Admin object
-        in: body
-        name: admin
-        required: true
-        schema:
-          $ref: '#/definitions/models.Admin'
+        - description: Admin ID
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Admin object
+          in: body
+          name: admin
+          required: true
+          schema:
+            $ref: "#/definitions/models.Admin"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Admin'
+            $ref: "#/definitions/models.Admin"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: "#/definitions/models.ErrorResponse"
       summary: Update an admin
       tags:
-      - admins
+        - admins
 swagger: "2.0"
