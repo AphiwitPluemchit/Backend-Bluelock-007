@@ -1,2 +1,3 @@
 tmp/main.exe
 tmp/build-errors.log
+.env
