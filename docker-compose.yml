@@ -4,7 +4,7 @@ services:
   backend:
     build: .
     ports:
-      - "8080:8080"
+      - "8888:8080"
     environment:
       - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
     restart: always

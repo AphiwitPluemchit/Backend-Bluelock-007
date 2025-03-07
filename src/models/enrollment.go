@@ -13,3 +13,9 @@ type Enrollment struct {
 	ActivityItemID   primitive.ObjectID `json:"activityItemId" bson:"activityItemId"`
 	StudentID        primitive.ObjectID `json:"studentId" bson:"studentId"`
 }
+
+// SuccessResponse ใช้เป็นโครงสร้าง JSON Response ที่ Swagger ใช้
+type SuccessResponse struct {
+	Message string `json:"message"`
+	Data    any    `json:"data"`
+}

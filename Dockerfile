@@ -31,9 +31,11 @@ WORKDIR /app
 # คัดลอก Binary จาก Stage 1
 COPY --from=builder /app/main .
 COPY --from=builder /app/docs ./docs
+# ✅ คัดลอก .env เข้า Container
+COPY .env . 
 
 # เปิด Port 8080
-EXPOSE 8080
+EXPOSE 8888
 
 # รันแอป
 CMD ["./main"]
