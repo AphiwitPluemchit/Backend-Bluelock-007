@@ -77,6 +77,12 @@ const docTemplate = `{
                         "description": "Filter by major",
                         "name": "major",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by studentYear",
+                        "name": "studentYear",
+                        "in": "query"
                     }
                 ],
                 "responses": {

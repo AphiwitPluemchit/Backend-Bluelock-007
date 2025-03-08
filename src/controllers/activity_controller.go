@@ -59,6 +59,7 @@ func CreateActivity(c *fiber.Ctx) error {
 // @Param        skill          query  string  false  "Filter by skill"
 // @Param        activityState  query  string  false  "Filter by activityState"
 // @Param        major          query  string  false  "Filter by major"
+// @Param        studentYear    query  string  false  "Filter by studentYear"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [get]

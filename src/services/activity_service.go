@@ -85,7 +85,7 @@ func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
-func GetAllActivities(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []string) ([]models.ActivityDto, int64, int, error) {
+func GetAllActivities(params models.PaginationParams, skills []string, states []string, majorNames []string, studentYears []string) ([]models.ActivityDto, int64, int, error) {
 	var results []models.ActivityDto
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -121,11 +121,6 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 		filter["activityState"] = bson.M{"$in": states}
 	}
 
-	// 🔍 ค้นหาตาม Major (ถ้ามี)
-	if len(majors) > 0 && majors[0] != "" {
-		filter["majors.majorName"] = bson.M{"$in": majors}
-	}
-
 	// 🔍 ค้นหาตาม StudentYear (ถ้ามี)
 	if len(studentYears) > 0 && studentYears[0] != "" {
 		var years []int
@@ -146,7 +141,7 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 		return nil, 0, 0, err
 	}
 
-	pipeline := getActivityPipeline(filter, sortField, sortOrder, skip, int64(params.Limit))
+	pipeline := getActivityPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majorNames)
 
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -177,7 +172,7 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 
 	var result models.ActivityDto
 
-	pipeline := getActivityPipeline(bson.M{"_id": objectID}, "", 0, 0, 1)
+	pipeline := GetOneActivityPipeline(bson.M{"_id": objectID})
 
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -329,7 +324,7 @@ func DeleteActivity(id primitive.ObjectID) error {
 	return err
 }
 
-func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64) mongo.Pipeline {
+func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majorNames []string) mongo.Pipeline {
 	pipeline := mongo.Pipeline{
 		// 🔍 Match เฉพาะ Activity ที่ต้องการ
 		{{Key: "$match", Value: filter}},
@@ -350,6 +345,18 @@ func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip in
 		}}},
 	}
 
+	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า majorNames**
+	if majorNames[0] != "" {
+		fmt.Println("Filtering by majorNames:", majorNames) // Debugging log
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{
+				{Key: "majors.majorName", Value: bson.D{{Key: "$in", Value: majorNames}}},
+			}},
+		})
+	} else {
+		fmt.Println("Skipping majorName filtering")
+	}
+
 	// ✅ ตรวจสอบและเพิ่ม `$sort` เฉพาะกรณีที่ต้องใช้
 	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
 		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
@@ -364,4 +371,26 @@ func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip in
 	}
 
 	return pipeline
+}
+
+func GetOneActivityPipeline(filter bson.M) mongo.Pipeline {
+	return mongo.Pipeline{
+		// 🔍 Match เฉพาะ Activity ที่ต้องการ
+		{{Key: "$match", Value: filter}},
+
+		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
+		// 🔗 Lookup Majors
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "majors"},
+			{Key: "localField", Value: "majorIds"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "majors"},
+		}}},
+	}
 }

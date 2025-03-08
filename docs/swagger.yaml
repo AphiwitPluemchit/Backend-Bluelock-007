@@ -201,6 +201,10 @@ paths:
         in: query
         name: major
         type: string
+      - description: Filter by studentYear
+        in: query
+        name: studentYear
+        type: string
       produces:
       - application/json
       responses:
