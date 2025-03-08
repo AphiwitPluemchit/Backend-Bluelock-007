@@ -6,6 +6,7 @@ import (
 	"Backend-Bluelock-007/src/utils"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -55,7 +56,9 @@ func CreateActivity(c *fiber.Ctx) error {
 // @Param        search query  string  false  "Search term"
 // @Param        sortBy query  string  false  "Field to sort by" default(name)
 // @Param        order  query  string  false  "Sort order (asc or desc)" default(asc)
-// @Param        status query  string  false  "Status of the activity"
+// @Param        skill          query  string  false  "Filter by skill"
+// @Param        activityState  query  string  false  "Filter by activityState"
+// @Param        major          query  string  false  "Filter by major"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [get]
@@ -69,10 +72,21 @@ func GetAllActivities(c *fiber.Ctx) error {
 	params.Search = c.Query("search", params.Search)
 	params.SortBy = c.Query("sortBy", params.SortBy)
 	params.Order = c.Query("order", params.Order)
-	status := c.Query("status")
+
+	// ดึงค่าจาก Query Parameters และแปลงเป็น array
+	skills := c.Query("skill")                 // เช่น skill=soft,hard
+	activityStates := c.Query("activityState") // เช่น activityState=open,planning
+	majors := c.Query("major")                 // เช่น major=CS,SE
+	studentYears := c.Query("studentYear")     // เช่น studentYear=1,2,3
+
+	// Convert comma-separated values into arrays
+	skillFilter := strings.Split(skills, ",")
+	stateFilter := strings.Split(activityStates, ",")
+	majorFilter := strings.Split(majors, ",")
+	yearFilter := strings.Split(studentYears, ",")
 
 	// ดึงข้อมูลจาก Service
-	activities, total, totalPages, err := services.GetAllActivities(params, status)
+	activities, total, totalPages, err := services.GetAllActivities(params, skillFilter, stateFilter, majorFilter, yearFilter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch activities",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,7 +35,7 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
+func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -62,7 +63,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
 	res, err := activityCollection.InsertOne(ctx, activityToInsert)
 	if err != nil {
-		return activity, err
+		return models.ActivityDto{}, err
 	}
 
 	// ✅ อัปเดต activity.ID จาก MongoDB
@@ -75,16 +76,16 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 
 		_, err := activityItemCollection.InsertOne(ctx, activity.ActivityItems[i])
 		if err != nil {
-			return activity, err
+			return models.ActivityDto{}, err
 		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
-	return nil, err
+	return models.ActivityDto{}, err
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
-func GetAllActivities(params models.PaginationParams, status string) ([]models.ActivityDto, int64, int, error) {
+func GetAllActivities(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []string) ([]models.ActivityDto, int64, int, error) {
 	var results []models.ActivityDto
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -95,27 +96,48 @@ func GetAllActivities(params models.PaginationParams, status string) ([]models.A
 	// กำหนดค่าเริ่มต้นของการ Sort
 	sortField := params.SortBy
 	if sortField == "" {
-		sortField = "name" // ค่าเริ่มต้นเรียงด้วย Name
+		sortField = "name"
 	}
-	sortOrder := 1 // ค่าเริ่มต้นเป็น ascending (1)
+	sortOrder := 1
 	if strings.ToLower(params.Order) == "desc" {
 		sortOrder = -1
 	}
 
-	// ค้นหาข้อมูลที่ตรงกับ Search
+	// สร้าง Filter
 	filter := bson.M{}
+
+	// 🔍 ค้นหาตามชื่อกิจกรรม (case-insensitive)
 	if params.Search != "" {
-		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"} // ค้นหาแบบ Case-Insensitive
+		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
 	}
 
-	// ✅ กำหนดเงื่อนไข `status`
-	switch strings.ToLower(status) {
-	case "planning":
-		filter["activityState"] = "planning"
-	case "open":
-		filter["activityState"] = bson.M{"$in": []string{"open", "close"}}
-	case "success":
-		filter["activityState"] = bson.M{"$in": []string{"success", "cancel"}}
+	// 🔍 ค้นหาตาม Skill (ถ้ามี)
+	if len(skills) > 0 && skills[0] != "" {
+		filter["skill"] = bson.M{"$in": skills}
+	}
+
+	// 🔍 ค้นหาตาม ActivityState (ถ้ามี)
+	if len(states) > 0 && states[0] != "" {
+		filter["activityState"] = bson.M{"$in": states}
+	}
+
+	// 🔍 ค้นหาตาม Major (ถ้ามี)
+	if len(majors) > 0 && majors[0] != "" {
+		filter["majors.majorName"] = bson.M{"$in": majors}
+	}
+
+	// 🔍 ค้นหาตาม StudentYear (ถ้ามี)
+	if len(studentYears) > 0 && studentYears[0] != "" {
+		var years []int
+		for _, year := range studentYears {
+			y, err := strconv.Atoi(year)
+			if err == nil {
+				years = append(years, y)
+			}
+		}
+		if len(years) > 0 {
+			filter["studentYears"] = bson.M{"$in": years}
+		}
 	}
 
 	// นับจำนวนเอกสารทั้งหมด
@@ -126,15 +148,12 @@ func GetAllActivities(params models.PaginationParams, status string) ([]models.A
 
 	pipeline := getActivityPipeline(filter, sortField, sortOrder, skip, int64(params.Limit))
 
-	// ✅ ต้องใช้ activityCollection แทน activityItemCollection
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.Println("Error fetching activities:", err)
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
-
-	// Decode ข้อมูลลงใน Struct
 
 	if err = cursor.All(ctx, &results); err != nil {
 		log.Println("Error decoding activities:", err)
@@ -265,10 +284,12 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 				bson.M{"_id": newItem.ID},
 				bson.M{"$set": bson.M{
 					"name":            newItem.Name,
+					"description":     newItem.Description,
 					"maxParticipants": newItem.MaxParticipants,
 					"room":            newItem.Room,
 					"dates":           newItem.Dates,
 					"hour":            newItem.Hour,
+					"operator":        newItem.Operator,
 				}},
 			)
 			if err != nil {

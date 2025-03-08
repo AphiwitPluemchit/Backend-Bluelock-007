@@ -19,8 +19,10 @@ type ActivityItem struct {
 	ID              primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	ActivityID      primitive.ObjectID `json:"activityId,omitempty" bson:"activityId,omitempty"`
 	Name            *string            `json:"name" bson:"name" example:"Quarter Final"`
+	Description     *string            `json:"description" bson:"description" example:"Quarter Final"`
 	MaxParticipants *int               `json:"maxParticipants" bson:"maxParticipants" validate:"required,min=1" example:"22"`
 	Room            *string            `json:"room" bson:"room" example:"Stadium A"`
+	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
 	Dates           []Dates            `json:"dates" bson:"dates"`
 	Hour            *int               `json:"hour" bson:"hour" validate:"required,min=1" example:"4"`
 }

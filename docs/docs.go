@@ -62,8 +62,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Status of the activity",
-                        "name": "status",
+                        "description": "Filter by skill",
+                        "name": "skill",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by activityState",
+                        "name": "activityState",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by major",
+                        "name": "major",
                         "in": "query"
                     }
                 ],
@@ -483,6 +495,207 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/foods": {
+            "get": {
+                "description": "ดึงข้อมูลอาหารที่มีอยู่ทั้งหมด",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ดึงรายการอาหารทั้งหมด",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "สร้างข้อมูลอาหารเป็น array",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "เพิ่มข้อมูลอาหารหลายรายการ",
+                "parameters": [
+                    {
+                        "description": "รายการอาหาร",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/foods/{id}": {
+            "get": {
+                "description": "ค้นหาข้อมูลอาหารโดยใช้ ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ดึงข้อมูลอาหารตาม ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "อัปเดตข้อมูลอาหารที่มีอยู่",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "อัปเดตข้อมูลอาหาร",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ข้อมูลอาหารที่ต้องการอัปเดต",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "ลบข้อมูลอาหารออกจากระบบ",
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ลบข้อมูลอาหาร",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -518,7 +731,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "hard"
                 },
-                "studentYear": {
+                "studentYears": {
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -570,7 +783,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "hard"
                 },
-                "studentYear": {
+                "studentYears": {
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -598,11 +811,15 @@ const docTemplate = `{
                 "activityId": {
                     "type": "string"
                 },
-                "date": {
+                "dates": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.Date"
+                        "$ref": "#/definitions/models.Dates"
                     }
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Quarter Final"
                 },
                 "hour": {
                     "type": "integer",
@@ -620,6 +837,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "Quarter Final"
+                },
+                "operator": {
+                    "type": "string",
+                    "example": "Operator 1"
                 },
                 "room": {
                     "type": "string",
@@ -644,7 +865,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Date": {
+        "models.Dates": {
             "type": "object",
             "properties": {
                 "date": {
@@ -674,6 +895,17 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Food": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Major": {
             "type": "object",
             "properties": {
@@ -681,6 +913,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "majorName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
                     "type": "string"
                 }
             }

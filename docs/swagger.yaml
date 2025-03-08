@@ -11,8 +11,8 @@ definitions:
         type: string
       majorIds:
         example:
-          - 67bf0bd48873e448798fed34
-          - 67bf0bda8873e448798fed35
+        - 67bf0bd48873e448798fed34
+        - 67bf0bda8873e448798fed35
         items:
           type: string
         type: array
@@ -22,12 +22,12 @@ definitions:
       skill:
         example: hard
         type: string
-      studentYear:
+      studentYears:
         example:
-          - 1
-          - 2
-          - 3
-          - 4
+        - 1
+        - 2
+        - 3
+        - 4
         items:
           type: integer
         type: array
@@ -39,7 +39,7 @@ definitions:
     properties:
       activityItems:
         items:
-          $ref: "#/definitions/models.ActivityItem"
+          $ref: '#/definitions/models.ActivityItem'
         type: array
       activityState:
         example: planning
@@ -51,7 +51,7 @@ definitions:
         type: string
       majors:
         items:
-          $ref: "#/definitions/models.Major"
+          $ref: '#/definitions/models.Major'
         type: array
       name:
         example: Football Tournament
@@ -59,33 +59,30 @@ definitions:
       skill:
         example: hard
         type: string
-      studentYear:
+      studentYears:
         example:
-          - 1
-          - 2
-          - 3
-          - 4
+        - 1
+        - 2
+        - 3
+        - 4
         items:
           type: integer
         type: array
       type:
         example: one
         type: string
-    required:
-      - activityStateId
-      - majorIds
-      - name
-      - skillId
-      - type
     type: object
   models.ActivityItem:
     properties:
       activityId:
         type: string
-      date:
+      dates:
         items:
-          $ref: "#/definitions/models.Date"
+          $ref: '#/definitions/models.Dates'
         type: array
+      description:
+        example: Quarter Final
+        type: string
       hour:
         example: 4
         minimum: 1
@@ -99,12 +96,15 @@ definitions:
       name:
         example: Quarter Final
         type: string
+      operator:
+        example: Operator 1
+        type: string
       room:
         example: Stadium A
         type: string
     required:
-      - hour
-      - maxParticipants
+    - hour
+    - maxParticipants
     type: object
   models.Admin:
     properties:
@@ -117,7 +117,7 @@ definitions:
       password:
         type: string
     type: object
-  models.Date:
+  models.Dates:
     properties:
       date:
         example: "2025-03-11"
@@ -138,11 +138,24 @@ definitions:
         description: HTTP Status Code
         type: integer
     type: object
+  models.Food:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   models.Major:
     properties:
       id:
         type: string
       majorName:
+        type: string
+    type: object
+  models.SuccessResponse:
+    properties:
+      data: {}
+      message:
         type: string
     type: object
 info:
@@ -152,36 +165,44 @@ paths:
     get:
       description: Get all activities with pagination, search, and sorting
       parameters:
-        - default: 1
-          description: Page number
-          in: query
-          name: page
-          type: integer
-        - default: 10
-          description: Number of items per page
-          in: query
-          name: limit
-          type: integer
-        - description: Search term
-          in: query
-          name: search
-          type: string
-        - default: name
-          description: Field to sort by
-          in: query
-          name: sortBy
-          type: string
-        - default: asc
-          description: Sort order (asc or desc)
-          in: query
-          name: order
-          type: string
-        - description: Status of the activity
-          in: query
-          name: status
-          type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      - default: name
+        description: Field to sort by
+        in: query
+        name: sortBy
+        type: string
+      - default: asc
+        description: Sort order (asc or desc)
+        in: query
+        name: order
+        type: string
+      - description: Filter by skill
+        in: query
+        name: skill
+        type: string
+      - description: Filter by activityState
+        in: query
+        name: activityState
+        type: string
+      - description: Filter by major
+        in: query
+        name: major
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -191,151 +212,151 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Get all activities with pagination, search, and sorting
       tags:
-        - activitys
+      - activitys
     post:
       consumes:
-        - application/json
+      - application/json
       description: Create a new activity
       parameters:
-        - description: Activity and ActivityItems
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/models.ActivityDto"
+      - description: Activity and ActivityItems
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ActivityDto'
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: "#/definitions/models.Activity"
+            $ref: '#/definitions/models.Activity'
         "400":
           description: Bad Request
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Create a new activity
       tags:
-        - activitys
+      - activitys
   /activitys/{id}:
     delete:
       description: Delete an activity
       parameters:
-        - description: Activity ID
-          in: path
-          name: id
-          required: true
-          type: string
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
         "400":
           description: Bad Request
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Delete an activity
       tags:
-        - activitys
+      - activitys
     get:
       description: Get an activity by ID
       parameters:
-        - description: Activity ID
-          in: path
-          name: id
-          required: true
-          type: string
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/models.Activity"
+            $ref: '#/definitions/models.Activity'
         "404":
           description: Not Found
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Get an activity by ID
       tags:
-        - activitys
+      - activitys
     put:
       description: Update an activity
       parameters:
-        - description: Activity ID
-          in: path
-          name: id
-          required: true
-          type: string
-        - description: Activity object
-          in: body
-          name: activity
-          required: true
-          schema:
-            $ref: "#/definitions/models.ActivityDto"
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Activity object
+        in: body
+        name: activity
+        required: true
+        schema:
+          $ref: '#/definitions/models.ActivityDto'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/models.ActivityDto"
+            $ref: '#/definitions/models.ActivityDto'
         "400":
           description: Bad Request
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Update an activity
       tags:
-        - activitys
+      - activitys
   /admins:
     get:
       description: Get admins with pagination, search, and sorting
       parameters:
-        - default: 1
-          description: Page number
-          in: query
-          name: page
-          type: integer
-        - default: 10
-          description: Items per page
-          in: query
-          name: limit
-          type: integer
-        - description: Search by name or email
-          in: query
-          name: search
-          type: string
-        - description: "Sort by field (default: name)"
-          in: query
-          name: sortBy
-          type: string
-        - default: asc
-          description: Sort order (asc or desc)
-          in: query
-          name: order
-          type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search by name or email
+        in: query
+        name: search
+        type: string
+      - description: 'Sort by field (default: name)'
+        in: query
+        name: sortBy
+        type: string
+      - default: asc
+        description: Sort order (asc or desc)
+        in: query
+        name: order
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -345,120 +366,253 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Get admins with pagination, search, and sorting
       tags:
-        - admins
+      - admins
     post:
       consumes:
-        - application/json
+      - application/json
       description: Create a new admin
       parameters:
-        - description: Admin object
-          in: body
-          name: admin
-          required: true
-          schema:
-            $ref: "#/definitions/models.Admin"
+      - description: Admin object
+        in: body
+        name: admin
+        required: true
+        schema:
+          $ref: '#/definitions/models.Admin'
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: "#/definitions/models.Admin"
+            $ref: '#/definitions/models.Admin'
         "400":
           description: Bad Request
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Create a new admin
       tags:
-        - admins
+      - admins
   /admins/{id}:
     delete:
       description: Delete an admin
       parameters:
-        - description: Admin ID
-          in: path
-          name: id
-          required: true
-          type: string
+      - description: Admin ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/models.Admin"
+            $ref: '#/definitions/models.Admin'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Delete an admin
       tags:
-        - admins
+      - admins
     get:
       description: Get an admin by ID
       parameters:
-        - description: Admin ID
-          in: path
-          name: id
-          required: true
-          type: string
+      - description: Admin ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/models.Admin"
+            $ref: '#/definitions/models.Admin'
         "404":
           description: Not Found
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Get an admin by ID
       tags:
-        - admins
+      - admins
     put:
       consumes:
-        - application/json
+      - application/json
       description: Update an admin
       parameters:
-        - description: Admin ID
-          in: path
-          name: id
-          required: true
-          type: string
-        - description: Admin object
-          in: body
-          name: admin
-          required: true
-          schema:
-            $ref: "#/definitions/models.Admin"
+      - description: Admin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Admin object
+        in: body
+        name: admin
+        required: true
+        schema:
+          $ref: '#/definitions/models.Admin'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/models.Admin"
+            $ref: '#/definitions/models.Admin'
         "400":
           description: Bad Request
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: "#/definitions/models.ErrorResponse"
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Update an admin
       tags:
-        - admins
+      - admins
+  /foods:
+    get:
+      description: ดึงข้อมูลอาหารที่มีอยู่ทั้งหมด
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Food'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ดึงรายการอาหารทั้งหมด
+      tags:
+      - foods
+    post:
+      consumes:
+      - application/json
+      description: สร้างข้อมูลอาหารเป็น array
+      parameters:
+      - description: รายการอาหาร
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.Food'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            items:
+              $ref: '#/definitions/models.Food'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: เพิ่มข้อมูลอาหารหลายรายการ
+      tags:
+      - foods
+  /foods/{id}:
+    delete:
+      description: ลบข้อมูลอาหารออกจากระบบ
+      parameters:
+      - description: Food ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ลบข้อมูลอาหาร
+      tags:
+      - foods
+    get:
+      description: ค้นหาข้อมูลอาหารโดยใช้ ID
+      parameters:
+      - description: Food ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Food'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ดึงข้อมูลอาหารตาม ID
+      tags:
+      - foods
+    put:
+      consumes:
+      - application/json
+      description: อัปเดตข้อมูลอาหารที่มีอยู่
+      parameters:
+      - description: Food ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ข้อมูลอาหารที่ต้องการอัปเดต
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.Food'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: อัปเดตข้อมูลอาหาร
+      tags:
+      - foods
 swagger: "2.0"
