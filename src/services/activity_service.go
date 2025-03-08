@@ -280,7 +280,11 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 	// ✅ ลบ `ActivityItems` ที่ไม่มีในรายการใหม่
 	for existingID := range existingItemMap {
 		if !newItemIDs[existingID] {
-			_, err := activityItemCollection.DeleteOne(ctx, bson.M{"_id": existingID})
+			objID, err := primitive.ObjectIDFromHex(existingID) // 🔥 แปลง `string` เป็น `ObjectID`
+			if err != nil {
+				continue
+			}
+			_, err = activityItemCollection.DeleteOne(ctx, bson.M{"_id": objID})
 			if err != nil {
 				return models.ActivityDto{}, err
 			}
