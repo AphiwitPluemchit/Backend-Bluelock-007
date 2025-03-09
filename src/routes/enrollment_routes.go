@@ -12,6 +12,6 @@ func enrollmentRoutes(app *fiber.App) {
 	enrollmentRoutes.Post("/", controllers.CreateEnrollment)                                                            // ✅ ลงทะเบียน
 	enrollmentRoutes.Get("/student/:studentId", controllers.GetEnrollmentsByStudent)                                    // ✅ ดูกิจกรรมที่ Student ลงทะเบียนไว้
 	enrollmentRoutes.Delete("/:enrollmentId", controllers.DeleteEnrollment)                                             // ✅ ยกเลิกลงทะเบียน
-	enrollmentRoutes.Get("/activity/:activityItemId", controllers.GetStudentsByActivity)                                // ✅ Admin ดูนักศึกษาที่ลงทะเบียน
+	enrollmentRoutes.Get("/activity/:activityId", controllers.GetStudentsByActivity)                                    // ✅ Admin ดูนักศึกษาที่ลงทะเบียน
 	enrollmentRoutes.Get("/student/:studentId/activity/:activityItemId", controllers.GetEnrollmentByStudentAndActivity) // ✅ ดูกิจกรรมที่ลงทะเบียน (1 ตัว)
 }

@@ -176,14 +176,39 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 }
 
 // ✅ 4. Admin ดู Student ที่ลงทะเบียนในกิจกรรม พร้อมรายละเอียด
-func GetStudentsByActivity(activityItemID primitive.ObjectID) ([]bson.M, error) {
+func GetStudentsByActivity(activityID primitive.ObjectID) ([]bson.M, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"activityItemId": activityItemID}}},
+	// 🔍 ดึง `activityItemId` ทั้งหมดที่อยู่ภายใต้ `activityId`
+	activityItemIDs := []primitive.ObjectID{}
+	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	if err != nil {
+		return nil, fmt.Errorf("error fetching activity items: %v", err)
+	}
+	defer cursor.Close(ctx)
 
-		// Lookup Student Collection
+	for cursor.Next(ctx) {
+		var item struct {
+			ID primitive.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&item); err != nil {
+			log.Println("Error decoding activity item:", err)
+			continue
+		}
+		activityItemIDs = append(activityItemIDs, item.ID)
+	}
+
+	if len(activityItemIDs) == 0 {
+		return []bson.M{}, nil
+	}
+
+	// 🔍 ดึงข้อมูลนักศึกษาที่ลงทะเบียนในทุก `activityItemId`
+	pipeline := mongo.Pipeline{
+		// 1️⃣ Match Enrollment ตาม `activityItemIds`
+		bson.D{{Key: "$match", Value: bson.M{"activityItemId": bson.M{"$in": activityItemIDs}}}},
+
+		// 2️⃣ Lookup Student Collection
 		bson.D{{
 			Key: "$lookup", Value: bson.M{
 				"from":         "students",
@@ -194,7 +219,7 @@ func GetStudentsByActivity(activityItemID primitive.ObjectID) ([]bson.M, error) 
 		}},
 		bson.D{{Key: "$unwind", Value: "$studentDetails"}},
 
-		// Lookup Major Collection
+		// 3️⃣ Lookup Major Collection
 		bson.D{{
 			Key: "$lookup", Value: bson.M{
 				"from":         "majors",
@@ -205,11 +230,22 @@ func GetStudentsByActivity(activityItemID primitive.ObjectID) ([]bson.M, error) 
 		}},
 		bson.D{{Key: "$unwind", Value: bson.M{"path": "$majorDetails", "preserveNullAndEmptyArrays": true}}},
 
-		// เปลี่ยนโครงสร้างผลลัพธ์
+		// 4️⃣ Lookup ActivityItems เพื่อดึง `name`
+		bson.D{{
+			Key: "$lookup", Value: bson.M{
+				"from":         "activityItems",
+				"localField":   "activityItemId",
+				"foreignField": "_id",
+				"as":           "activityItemDetails",
+			},
+		}},
+		bson.D{{Key: "$unwind", Value: "$activityItemDetails"}},
+
+		// 5️⃣ Project ข้อมูลที่ต้องการ
 		bson.D{{
 			Key: "$project", Value: bson.M{
-				"id":               "$_id",
-				"registrationDate": "$registrationDate",
+				"activityItemId":   "$activityItemId",
+				"activityItemName": "$activityItemDetails.name", // ✅ เพิ่ม Name ของ ActivityItem
 				"student": bson.M{
 					"id":        "$studentDetails._id",
 					"code":      "$studentDetails.code",
@@ -223,20 +259,30 @@ func GetStudentsByActivity(activityItemID primitive.ObjectID) ([]bson.M, error) 
 			},
 		}},
 
-		// Group นักศึกษาเป็น Array
+		// 6️⃣ Group นักศึกษาตาม `activityItemId`
 		bson.D{{
 			Key: "$group", Value: bson.M{
-				"_id":            "$activityItemId",
-				"activityItemId": bson.M{"$first": "$activityItemId"},
-				"students":       bson.M{"$push": bson.M{"id": "$id", "registrationDate": "$registrationDate", "student": "$student"}},
+				"_id":      "$activityItemId",
+				"id":       bson.M{"$first": "$activityItemId"},
+				"name":     bson.M{"$first": "$activityItemName"}, // ✅ เพิ่ม Name
+				"students": bson.M{"$push": bson.M{"student": "$student"}},
 			},
 		}},
 
-		// ลบ `_id` ออกจากผลลัพธ์
+		// 7️⃣ Group ตาม `activityId`
+		bson.D{{
+			Key: "$group", Value: bson.M{
+				"_id":            activityID,
+				"activityId":     bson.M{"$first": activityID},
+				"activityItemId": bson.M{"$push": bson.M{"id": "$id", "name": "$name", "students": "$students"}}, // ✅ เพิ่ม Name ลงใน activityItemId
+			},
+		}},
+
+		// 8️⃣ Remove `_id`
 		bson.D{{Key: "$unset", Value: "_id"}},
 	}
 
-	cursor, err := enrollmentCollection.Aggregate(ctx, pipeline)
+	cursor, err = enrollmentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("aggregation error: %v", err)
 	}
