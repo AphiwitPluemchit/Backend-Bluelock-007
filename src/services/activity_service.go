@@ -336,6 +336,7 @@ func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip in
 			{Key: "foreignField", Value: "activityId"},
 			{Key: "as", Value: "activityItems"},
 		}}},
+
 		// 🔗 Lookup Majors
 		{{Key: "$lookup", Value: bson.D{
 			{Key: "from", Value: "majors"},
@@ -385,12 +386,37 @@ func GetOneActivityPipeline(filter bson.M) mongo.Pipeline {
 			{Key: "foreignField", Value: "activityId"},
 			{Key: "as", Value: "activityItems"},
 		}}},
+
+		// 🔥 Unwind ActivityItems เพื่อให้สามารถใช้ Lookup Enrollments ได้
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$activityItems"},
+			{Key: "preserveNullAndEmptyArrays", Value: true}, // กรณีไม่มี ActivityItem ให้เก็บค่า null
+		}}},
+
+		// 🔗 Lookup Enrollments ที่เกี่ยวข้องกับ ActivityItems
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "enrollments"},
+			{Key: "localField", Value: "activityItems._id"},
+			{Key: "foreignField", Value: "activityItemId"},
+			{Key: "as", Value: "activityItems.enrollments"},
+		}}},
+
 		// 🔗 Lookup Majors
 		{{Key: "$lookup", Value: bson.D{
 			{Key: "from", Value: "majors"},
 			{Key: "localField", Value: "majorIds"},
 			{Key: "foreignField", Value: "_id"},
 			{Key: "as", Value: "majors"},
+		}}},
+
+		// 🔥 Group ActivityItems กลับเข้าไปใน Activity  ฟังก์ชัน $mergeObjects ที่สามารถรวม Fields ทั้งหมดของ Document เข้าไป
+		// "activityData" จะเก็บ ทุก Field ของ Activity
+		// "activityItems" จะเก็บ Array ของ ActivityItems
+		// ไม่ต้องเขียน $first ให้ทุก Field ของ Activity อีกต่อไป
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id"},
+			{Key: "activityData", Value: bson.D{{Key: "$mergeObjects", Value: "$$ROOT"}}},
+			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
 		}}},
 	}
 }
