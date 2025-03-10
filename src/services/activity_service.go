@@ -467,53 +467,139 @@ func GetOneActivityPipeline(filter bson.M) mongo.Pipeline {
 }
 
 func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline {
-
-	// {
-	// 	"_id": {
-	// 	  "$oid": "67cd9df6899db2b58315fbaa"
-	// 	},
-	// 	"activityId": {
-	// 	  "$oid": "67cd9fc07f71d9f9edc32cb0"
-	// 	},
-	// 	"name": "Quarter Final",
-	// 	"description": null,
-	// 	"maxParticipants": 22,
-	// 	"room": "Stadium A",
-	// 	"operator": null,
-	// 	"dates": [
-	// 	  {
-	// 		"date": "2025-03-11",
-	// 		"stime": "10:00",
-	// 		"etime": "12:00"
-	// 	  }
-	// 	],
-	// 	"hour": 4
-	//   }
-
-	//   {
-	// 	"_id": {
-	// 	  "$oid": "67cd9fc07f71d9f9edc32cb1"
-	// 	},
-	// 	"activityId": {
-	// 	  "$oid": "67cd9fc07f71d9f9edc32cb0"
-	// 	},
-	// 	"name": "Quarter Final",
-	// 	"description": "Quarter Final",
-	// 	"maxParticipants": 22,
-	// 	"room": "Stadium A",
-	// 	"operator": "Operator 1",
-	// 	"dates": [
-	// 	  {
-	// 		"date": "2025-03-11",
-	// 		"stime": "10:00",
-	// 		"etime": "12:00"
-	// 	  }
-	// 	],
-	// 	"hour": 4
-	//   }
 	return mongo.Pipeline{
-		// 🔍 Match เฉพาะ ActivityItems ที่ต้องการ
-		{{Key: "$match", Value: bson.D{{Key: "activityId", Value: activityID}}}},
+		// 1️⃣ Match เฉพาะ ActivityItems ที่ต้องการ
+		{{
+			Key: "$match", Value: bson.D{
+				{Key: "activityId", Value: activityID},
+			},
+		}},
+
+		// 2️⃣ Group แรก: รวมค่า maxParticipants ของ activityItem ทั้งหมด
+		//    และรวม enrollment ทั้งหมดไว้ใน fields ชื่อ "allEnrollments"
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$activityId"},
+				// รวมค่า maxParticipants จาก activityItem หลายตัว
+				{Key: "maxParticipants", Value: bson.D{{Key: "$sum", Value: "$maxParticipants"}}},
+				// สะสม ID ของ activityItem ไว้ (ถ้าต้อง Lookup ต่อ)
+				{Key: "itemIds", Value: bson.D{{Key: "$push", Value: "$_id"}}},
+			},
+		}},
+
+		// 3️⃣ Lookup Enrollments จาก collection enrollments
+		//    โดยจับคู่ field "itemIds" กับ "activityItemId"
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "enrollments"},
+				{Key: "localField", Value: "itemIds"},
+				{Key: "foreignField", Value: "activityItemId"},
+				{Key: "as", Value: "enrollments"},
+			},
+		}},
+
+		// 4️⃣ Unwind Enrollments (ถ้าไม่มี Enrollments จะไม่ดรอป document ทิ้ง)
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$enrollments"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			},
+		}},
+
+		// 5️⃣ Lookup Students
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "students"},
+				{Key: "localField", Value: "enrollments.studentId"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "students"},
+			},
+		}},
+
+		// 6️⃣ Unwind Students
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$students"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			},
+		}},
+
+		// 7️⃣ Group ตาม MajorID และนับจำนวน student ต่อ major
+		//    พร้อมกับ "ยก" maxParticipants จากขั้นตอนก่อนหน้ามาด้วย
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$students.majorId"},
+				{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
+				// สำคัญ: เก็บค่า maxParticipants ที่ได้มาจาก group แรก
+				{Key: "maxParticipants", Value: bson.D{{Key: "$first", Value: "$maxParticipants"}}},
+			},
+		}},
+
+		// 8) Lookup "majors" เพื่อดึง majorName จาก _id ของ major
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "majors"},
+				{Key: "localField", Value: "_id"},   // ตอนนี้ _id = majorId
+				{Key: "foreignField", Value: "_id"}, // ใน majors ก็เก็บ _id
+				{Key: "as", Value: "majorData"},
+			},
+		}},
+
+		// 9) Unwind majorData (ถ้าไม่พบ จะได้ null)
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$majorData"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			},
+		}},
+
+		// 10) Group สุดท้าย → รวมเป็น Document เดียว
+		//     เอา maxParticipants, totalRegistered, และ registeredByMajor (majorName + count)
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: nil},
+				// ใช้ $first เพื่อรักษาค่า maxParticipants
+				{Key: "maxParticipants", Value: bson.D{{Key: "$first", Value: "$maxParticipants"}}},
+				// นับ totalRegistered จาก sum ของ count
+				{Key: "totalRegistered", Value: bson.D{{Key: "$sum", Value: "$count"}}},
+				// เก็บ registeredByMajor เป็น array
+				{Key: "registeredByMajor", Value: bson.D{{
+					Key: "$push", Value: bson.D{
+						// จะเก็บ majorId ไว้ด้วยก็ได้ หากต้องการ
+						// {Key: "majorId", Value: "$_id"},
+
+						// หรือจะแทน _id ด้วย majorName เลย
+						{Key: "majorName", Value: "$majorData.majorName"},
+						{Key: "count", Value: "$count"},
+					},
+				}}},
+			},
+		}},
+
+		// 11) Add field remainingSlots
+		{{
+			Key: "$addFields", Value: bson.D{
+				{Key: "remainingSlots", Value: bson.D{
+					{Key: "$subtract", Value: bson.A{"$maxParticipants", "$totalRegistered"}},
+				}},
+			},
+		}},
+		// 12) Project ค่า Final
+		{{
+			Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 0},
+				{Key: "maxParticipants", Value: 1},
+				{Key: "totalRegistered", Value: 1},
+				{Key: "remainingSlots", Value: 1},
+				{Key: "registeredByMajor", Value: 1},
+			},
+		}},
+	}
+}
+
+func getRegisterPipeline(activityId primitive.ObjectID) mongo.Pipeline {
+	return mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "activityId", Value: activityId}}}},
 
 		//  Lookup Enrollments จาก collection enrollments
 		{{Key: "$lookup", Value: bson.D{
@@ -523,32 +609,30 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 			{Key: "as", Value: "enrollments"},
 		}}},
 
-		//  Add field totalRegistered เพื่อนับจำนวน enrollments
-		{{Key: "$addFields", Value: bson.D{
-			{Key: "totalRegistered", Value: bson.D{{Key: "$size", Value: "$enrollments"}}},
+		//  Unwind Enrollments (เก็บค่า null)
+		{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$enrollments"}, {Key: "preserveNullAndEmptyArrays", Value: true}}}},
+
+		//  Lookup Students
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "students"},
+			{Key: "localField", Value: "enrollments.studentId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "students"},
 		}}},
 
-		// Sum MaxParticipants ของ ActivityItems
+		//  Unwind Students (เก็บค่า null)
+		{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$students"}, {Key: "preserveNullAndEmptyArrays", Value: true}}}},
+
+		//  Group by ActivityItemID เพื่อเก็บ maxParticipants และ totalRegistered
 		{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$activityId"},
-			{Key: "maxParticipants", Value: bson.D{{Key: "$sum", Value: "$maxParticipants"}}},
-			{Key: "totalRegistered", Value: bson.D{{Key: "$sum", Value: "$totalRegistered"}}},
-			// cal remaining slots
-
-		}}},
-
-		//  Add field remainingSlots เพื่อคำนวณจำนวนที่เหลือ
-		{{Key: "$addFields", Value: bson.D{
-			{Key: "remainingSlots", Value: bson.D{{Key: "$subtract", Value: bson.A{"$maxParticipants", "$totalRegistered"}}}},
+			{Key: "_id", Value: "$_id"},
+			{Key: "students", Value: bson.D{{Key: "$push", Value: "$students"}}},
 		}}},
 
 		//  Project Final Output
 		{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 0},
-			{Key: "maxParticipants", Value: "$maxParticipants"},
-			{Key: "totalRegistered", Value: "$totalRegistered"},
-			{Key: "remainingSlots", Value: "$remainingSlots"},
+			{Key: "students", Value: "$students"},
 		}}},
 	}
-
 }
