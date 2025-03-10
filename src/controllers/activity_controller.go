@@ -113,7 +113,7 @@ func GetAllActivities(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Success      200  {object}  models.Activity
+// @Success      200  {object}  models.ActivityDto
 // @Failure      404  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id} [get]
@@ -134,6 +134,37 @@ func GetActivityByID(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": activity,
 	})
+}
+
+// GetEnrollmentSummaryByActivityID - ดึงข้อมูลสรุปการลงทะเบียน
+// GetEnrollmentSummaryByActivityID - godoc
+// @Summary      Get enrollment summary by activity ID
+// @Description  Get enrollment summary by activity ID
+// @Tags         activitys
+// @Produce      json
+// @Param        id   path  string  true  "Activity ID"
+// @Success      200  {object}  models.ActivityDto
+// @Failure      404  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id}/enrollment-summary [get]
+func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
+	id := c.Params("id")
+	activityID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
+	}
+
+	// ดึงข้อมูลสรุปการลงทะเบียน
+	enrollmentSummary, err := services.GetActivityEnrollSummary(activityID.Hex())
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":   "Activity not found",
+			"message": err.Error(),
+		})
+	}
+
+	// ส่งข้อมูลกลับ
+	return c.Status(fiber.StatusOK).JSON(enrollmentSummary)
 }
 
 // UpdateActivity - อัพเดตข้อมูลกิจกรรม พร้อม ActivityItems

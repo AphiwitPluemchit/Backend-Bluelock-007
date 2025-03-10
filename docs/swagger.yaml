@@ -83,15 +83,17 @@ definitions:
       description:
         example: Quarter Final
         type: string
+      enrollments:
+        items:
+          $ref: '#/definitions/models.Enrollment'
+        type: array
       hour:
         example: 4
-        minimum: 1
         type: integer
       id:
         type: string
       maxParticipants:
         example: 22
-        minimum: 1
         type: integer
       name:
         example: Quarter Final
@@ -102,9 +104,6 @@ definitions:
       room:
         example: Stadium A
         type: string
-    required:
-    - hour
-    - maxParticipants
     type: object
   models.Admin:
     properties:
@@ -129,6 +128,21 @@ definitions:
         example: "10:00"
         type: string
     type: object
+  models.Enrollment:
+    properties:
+      activityItemId:
+        type: string
+      id:
+        type: string
+      registrationDate:
+        type: string
+      student:
+        allOf:
+        - $ref: '#/definitions/models.Student'
+        description: เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
+      studentId:
+        type: string
+    type: object
   models.ErrorResponse:
     properties:
       message:
@@ -150,6 +164,25 @@ definitions:
       id:
         type: string
       majorName:
+        type: string
+    type: object
+  models.Student:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+      hardSkill:
+        type: integer
+      id:
+        type: string
+      majorId:
+        type: string
+      name:
+        type: string
+      softSkill:
+        type: integer
+      status:
         type: string
     type: object
   models.SuccessResponse:
@@ -288,7 +321,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Activity'
+            $ref: '#/definitions/models.ActivityDto'
         "404":
           description: Not Found
           schema:
@@ -330,6 +363,33 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Update an activity
+      tags:
+      - activitys
+  /activitys/{id}/enrollment-summary:
+    get:
+      description: Get enrollment summary by activity ID
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ActivityDto'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get enrollment summary by activity ID
       tags:
       - activitys
   /admins:

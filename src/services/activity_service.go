@@ -192,6 +192,51 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 	return nil, fmt.Errorf("activity not found")
 }
 
+type EnrollmentSummary struct {
+	MaxParticipants   int               `json:"maxParticipants"`
+	TotalRegistered   int               `json:"totalRegistered"`
+	RemainingSlots    int               `json:"remainingSlots"`
+	RegisteredByMajor []MajorEnrollment `json:"registeredByMajor"`
+}
+
+// โครงสร้างสำหรับแยกจำนวนลงทะเบียนตามสาขา
+type MajorEnrollment struct {
+	MajorName string `json:"majorName"`
+	Count     int    `json:"count"`
+}
+
+func GetActivityEnrollSummary(activityID string) (EnrollmentSummary, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	objectID, err := primitive.ObjectIDFromHex(activityID)
+	if err != nil {
+		return EnrollmentSummary{}, err
+	}
+
+	var result EnrollmentSummary
+
+	pipeline := GetActivityStatisticsPipeline(objectID)
+
+	cursor, err := activityItemCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		log.Println("Error fetching activity by ID:", err)
+		return result, err
+	}
+	defer cursor.Close(ctx)
+
+	if cursor.Next(ctx) {
+		if err := cursor.Decode(&result); err != nil {
+			log.Println("Error decoding activity:", err)
+			return result, err
+		}
+		return result, nil
+	}
+
+	return result, err
+}
+
 // GetActivityItemsByActivityID - ดึง ActivityItems ตาม ActivityID
 func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.ActivityItem, error) {
 	var activityItems []models.ActivityItem
@@ -419,4 +464,91 @@ func GetOneActivityPipeline(filter bson.M) mongo.Pipeline {
 			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
 		}}},
 	}
+}
+
+func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline {
+
+	// {
+	// 	"_id": {
+	// 	  "$oid": "67cd9df6899db2b58315fbaa"
+	// 	},
+	// 	"activityId": {
+	// 	  "$oid": "67cd9fc07f71d9f9edc32cb0"
+	// 	},
+	// 	"name": "Quarter Final",
+	// 	"description": null,
+	// 	"maxParticipants": 22,
+	// 	"room": "Stadium A",
+	// 	"operator": null,
+	// 	"dates": [
+	// 	  {
+	// 		"date": "2025-03-11",
+	// 		"stime": "10:00",
+	// 		"etime": "12:00"
+	// 	  }
+	// 	],
+	// 	"hour": 4
+	//   }
+
+	//   {
+	// 	"_id": {
+	// 	  "$oid": "67cd9fc07f71d9f9edc32cb1"
+	// 	},
+	// 	"activityId": {
+	// 	  "$oid": "67cd9fc07f71d9f9edc32cb0"
+	// 	},
+	// 	"name": "Quarter Final",
+	// 	"description": "Quarter Final",
+	// 	"maxParticipants": 22,
+	// 	"room": "Stadium A",
+	// 	"operator": "Operator 1",
+	// 	"dates": [
+	// 	  {
+	// 		"date": "2025-03-11",
+	// 		"stime": "10:00",
+	// 		"etime": "12:00"
+	// 	  }
+	// 	],
+	// 	"hour": 4
+	//   }
+	return mongo.Pipeline{
+		// 🔍 Match เฉพาะ ActivityItems ที่ต้องการ
+		{{Key: "$match", Value: bson.D{{Key: "activityId", Value: activityID}}}},
+
+		//  Lookup Enrollments จาก collection enrollments
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "enrollments"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityItemId"},
+			{Key: "as", Value: "enrollments"},
+		}}},
+
+		//  Add field totalRegistered เพื่อนับจำนวน enrollments
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "totalRegistered", Value: bson.D{{Key: "$size", Value: "$enrollments"}}},
+		}}},
+
+		// Sum MaxParticipants ของ ActivityItems
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$activityId"},
+			{Key: "maxParticipants", Value: bson.D{{Key: "$sum", Value: "$maxParticipants"}}},
+			{Key: "totalRegistered", Value: bson.D{{Key: "$sum", Value: "$totalRegistered"}}},
+			// cal remaining slots
+
+		}}},
+
+		//  Add field remainingSlots เพื่อคำนวณจำนวนที่เหลือ
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "remainingSlots", Value: bson.D{{Key: "$subtract", Value: bson.A{"$maxParticipants", "$totalRegistered"}}}},
+		}}},
+
+		//  Project Final Output
+		{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "maxParticipants", Value: "$maxParticipants"},
+			{Key: "totalRegistered", Value: "$totalRegistered"},
+			{Key: "remainingSlots", Value: "$remainingSlots"},
+		}}},
+	}
+
 }
