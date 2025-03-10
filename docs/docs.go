@@ -169,7 +169,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.Activity"
+                            "$ref": "#/definitions/models.ActivityDto"
                         }
                     },
                     "404": {
@@ -258,6 +258,47 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/activitys/{id}/enrollment-summary": {
+            "get": {
+                "description": "Get enrollment summary by activity ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get enrollment summary by activity ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ActivityDto"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -809,10 +850,6 @@ const docTemplate = `{
         },
         "models.ActivityItem": {
             "type": "object",
-            "required": [
-                "hour",
-                "maxParticipants"
-            ],
             "properties": {
                 "activityId": {
                     "type": "string"
@@ -827,9 +864,14 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Quarter Final"
                 },
+                "enrollments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Enrollment"
+                    }
+                },
                 "hour": {
                     "type": "integer",
-                    "minimum": 1,
                     "example": 4
                 },
                 "id": {
@@ -837,7 +879,6 @@ const docTemplate = `{
                 },
                 "maxParticipants": {
                     "type": "integer",
-                    "minimum": 1,
                     "example": 22
                 },
                 "name": {
@@ -888,6 +929,31 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Enrollment": {
+            "type": "object",
+            "properties": {
+                "activityItemId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "registrationDate": {
+                    "type": "string"
+                },
+                "student": {
+                    "description": "เพิ่ม ` + "`" + `Student` + "`" + ` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Student"
+                        }
+                    ]
+                },
+                "studentId": {
+                    "type": "string"
+                }
+            }
+        },
         "models.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -919,6 +985,35 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "majorName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Student": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "hardSkill": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "majorId": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "softSkill": {
+                    "type": "integer"
+                },
+                "status": {
                     "type": "string"
                 }
             }

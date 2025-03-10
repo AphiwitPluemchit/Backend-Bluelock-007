@@ -14,4 +14,5 @@ func activityRoutes(app *fiber.App) {
 	activityRoutes.Get("/:id", controllers.GetActivityByID)   // ดึงข้อมูลผู้ใช้ตาม ID
 	activityRoutes.Put("/:id", controllers.UpdateActivity)    // อัปเดตข้อมูลผู้ใช้
 	activityRoutes.Delete("/:id", controllers.DeleteActivity) // ลบผู้ใช้
+	activityRoutes.Get("/:id/enrollment-summary", controllers.GetEnrollmentSummaryByActivityID)
 }
