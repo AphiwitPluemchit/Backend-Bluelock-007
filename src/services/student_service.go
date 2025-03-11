@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"math"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -83,37 +84,86 @@ func CreateStudent(student *models.Student) error {
 }
 
 // GetAllStudents - ดึงข้อมูลผู้ใช้ทั้งหมด
-func GetAllStudents() ([]models.Student, error) {
-	var students []models.Student
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func GetStudentsWithFilter(params models.PaginationParams, majors []string, years []string) ([]bson.M, int64, int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := studentCollection.Find(ctx, bson.M{})
+	filter := bson.M{}
+	if params.Search != "" {
+		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
+	}
+	if len(years) > 0 {
+		filter["status"] = bson.M{"$in": years}
+	}
+
+	sort := bson.D{{Key: params.SortBy, Value: 1}}
+	if params.Order == "desc" {
+		sort = bson.D{{Key: params.SortBy, Value: -1}}
+	}
+
+	skip := int64((params.Page - 1) * params.Limit)
+	limit := int64(params.Limit)
+
+	total, err := studentCollection.CountDocuments(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
+	}
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: filter}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "majors",
+			"localField":   "majorId",
+			"foreignField": "_id",
+			"as":           "majorInfo",
+		}}},
+		{{Key: "$addFields", Value: bson.M{
+			"majorNames": bson.M{
+				"$map": bson.M{
+					"input": "$majorInfo",
+					"as":    "m",
+					"in":    "$$m.majorName",
+				},
+			},
+			"studentYears": bson.A{"$status"},
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"password":  0,
+			"majorId":   0,
+			"majorInfo": 0,
+		}}},
+	}
+
+	if len(majors) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{
+			"majorNames": bson.M{"$in": majors},
+		}}})
+	}
+
+	pipeline = append(pipeline,
+		bson.D{{Key: "$sort", Value: sort}},
+		bson.D{{Key: "$skip", Value: skip}},
+		bson.D{{Key: "$limit", Value: limit}},
+	)
+
+	cursor, err := studentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	for cursor.Next(ctx) {
-		var student models.Student
-		if err := cursor.Decode(&student); err != nil {
-			return nil, err
-		}
-		students = append(students, student)
+	var students []bson.M
+	if err := cursor.All(ctx, &students); err != nil {
+		return nil, 0, 0, err
 	}
-
-	return students, nil
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+	return students, total, totalPages, nil
 }
 
-// GetStudentByID - ดึงข้อมูลผู้ใช้ตาม ID
-func GetStudentByID(id string) (*models.Student, error) {
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, errors.New("invalid student ID")
-	}
-
+// GetStudentByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code
+func GetStudentByCode(code string) (*models.Student, error) {
 	var student models.Student
-	err = studentCollection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&student)
+	err := studentCollection.FindOne(context.Background(), bson.M{"code": code}).Decode(&student)
 	if err != nil {
 		return nil, err
 	}
