@@ -438,6 +438,39 @@ func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 			},
 		}},
 
+		// 3️⃣ **Unwind ActivityItems** เพื่อทำ Lookup Enrollments ได้
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$activityItems"},
+				{Key: "preserveNullAndEmptyArrays", Value: true}, // กรณีไม่มี ActivityItem ให้เก็บค่า null
+			},
+		}},
+
+		// 4️⃣ Lookup Enrollments ของแต่ละ ActivityItem
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "enrollments"},
+				{Key: "localField", Value: "activityItems._id"},
+				{Key: "foreignField", Value: "activityItemId"},
+				{Key: "as", Value: "activityItems.enrollments"},
+			},
+		}},
+
+		// 5️⃣ **Group ActivityItems กลับเป็น Array** เพื่อให้ ActivityItems กลับมาอยู่ใน List
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$_id"},
+				{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
+				{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
+				{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
+				{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
+				{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
+				{Key: "studentYears", Value: bson.D{{Key: "$first", Value: "$studentYears"}}},
+				{Key: "majorIds", Value: bson.D{{Key: "$first", Value: "$majorIds"}}},
+				{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
+			},
+		}},
+
 		// 3️⃣ Lookup Majors จาก majorIds
 		{{
 			Key: "$lookup", Value: bson.D{
