@@ -172,7 +172,7 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 
 	var result models.ActivityDto
 
-	pipeline := GetOneActivityPipeline(bson.M{"_id": objectID})
+	pipeline := GetOneActivityPipeline(objectID)
 
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -419,50 +419,49 @@ func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip in
 	return pipeline
 }
 
-func GetOneActivityPipeline(filter bson.M) mongo.Pipeline {
+func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 	return mongo.Pipeline{
-		// 🔍 Match เฉพาะ Activity ที่ต้องการ
-		{{Key: "$match", Value: filter}},
+		// 1️⃣ Match เฉพาะ Activity ที่ต้องการ
+		{{
+			Key: "$match", Value: bson.D{
+				{Key: "_id", Value: activityID},
+			},
+		}},
 
-		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "activityItems"},
-			{Key: "localField", Value: "_id"},
-			{Key: "foreignField", Value: "activityId"},
-			{Key: "as", Value: "activityItems"},
-		}}},
+		// 2️⃣ Lookup ActivityItems ที่เกี่ยวข้อง
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "activityItems"},
+				{Key: "localField", Value: "_id"},
+				{Key: "foreignField", Value: "activityId"},
+				{Key: "as", Value: "activityItems"},
+			},
+		}},
 
-		// 🔥 Unwind ActivityItems เพื่อให้สามารถใช้ Lookup Enrollments ได้
-		{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$activityItems"},
-			{Key: "preserveNullAndEmptyArrays", Value: true}, // กรณีไม่มี ActivityItem ให้เก็บค่า null
-		}}},
+		// 3️⃣ Lookup Majors จาก majorIds
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "majors"},
+				{Key: "localField", Value: "majorIds"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "majors"},
+			},
+		}},
 
-		// 🔗 Lookup Enrollments ที่เกี่ยวข้องกับ ActivityItems
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "enrollments"},
-			{Key: "localField", Value: "activityItems._id"},
-			{Key: "foreignField", Value: "activityItemId"},
-			{Key: "as", Value: "activityItems.enrollments"},
-		}}},
-
-		// 🔗 Lookup Majors
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "majors"},
-			{Key: "localField", Value: "majorIds"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "majors"},
-		}}},
-
-		// 🔥 Group ActivityItems กลับเข้าไปใน Activity  ฟังก์ชัน $mergeObjects ที่สามารถรวม Fields ทั้งหมดของ Document เข้าไป
-		// "activityData" จะเก็บ ทุก Field ของ Activity
-		// "activityItems" จะเก็บ Array ของ ActivityItems
-		// ไม่ต้องเขียน $first ให้ทุก Field ของ Activity อีกต่อไป
-		{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$_id"},
-			{Key: "activityData", Value: bson.D{{Key: "$mergeObjects", Value: "$$ROOT"}}},
-			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
-		}}},
+		// 4️⃣ จัดรูปแบบข้อมูลให้เหมาะสม
+		{{
+			Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 1},
+				{Key: "name", Value: 1},
+				{Key: "type", Value: 1},
+				{Key: "activityState", Value: 1},
+				{Key: "skill", Value: 1},
+				{Key: "file", Value: 1},
+				{Key: "studentYears", Value: 1},
+				{Key: "majors", Value: 1},
+				{Key: "activityItems", Value: 1},
+			},
+		}},
 	}
 }
 
@@ -594,45 +593,5 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 				{Key: "registeredByMajor", Value: 1},
 			},
 		}},
-	}
-}
-
-func getRegisterPipeline(activityId primitive.ObjectID) mongo.Pipeline {
-	return mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "activityId", Value: activityId}}}},
-
-		//  Lookup Enrollments จาก collection enrollments
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "enrollments"},
-			{Key: "localField", Value: "_id"},
-			{Key: "foreignField", Value: "activityItemId"},
-			{Key: "as", Value: "enrollments"},
-		}}},
-
-		//  Unwind Enrollments (เก็บค่า null)
-		{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$enrollments"}, {Key: "preserveNullAndEmptyArrays", Value: true}}}},
-
-		//  Lookup Students
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "students"},
-			{Key: "localField", Value: "enrollments.studentId"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "students"},
-		}}},
-
-		//  Unwind Students (เก็บค่า null)
-		{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$students"}, {Key: "preserveNullAndEmptyArrays", Value: true}}}},
-
-		//  Group by ActivityItemID เพื่อเก็บ maxParticipants และ totalRegistered
-		{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$_id"},
-			{Key: "students", Value: bson.D{{Key: "$push", Value: "$students"}}},
-		}}},
-
-		//  Project Final Output
-		{{Key: "$project", Value: bson.D{
-			{Key: "_id", Value: 0},
-			{Key: "students", Value: "$students"},
-		}}},
 	}
 }
