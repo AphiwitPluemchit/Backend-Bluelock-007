@@ -446,15 +446,15 @@ func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 			},
 		}},
 
-		// 4️⃣ Lookup Enrollments ของแต่ละ ActivityItem
-		{{
-			Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "enrollments"},
-				{Key: "localField", Value: "activityItems._id"},
-				{Key: "foreignField", Value: "activityItemId"},
-				{Key: "as", Value: "activityItems.enrollments"},
-			},
-		}},
+		// // 4️⃣ Lookup Enrollments ของแต่ละ ActivityItem
+		// {{
+		// 	Key: "$lookup", Value: bson.D{
+		// 		{Key: "from", Value: "enrollments"},
+		// 		{Key: "localField", Value: "activityItems._id"},
+		// 		{Key: "foreignField", Value: "activityItemId"},
+		// 		{Key: "as", Value: "activityItems.enrollments"},
+		// 	},
+		// }},
 
 		// 5️⃣ **Group ActivityItems กลับเป็น Array** เพื่อให้ ActivityItems กลับมาอยู่ใน List
 		{{
