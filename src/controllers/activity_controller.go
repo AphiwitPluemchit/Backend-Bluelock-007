@@ -143,7 +143,7 @@ func GetActivityByID(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Success      200  {object}  models.ActivityDto
+// @Success      200  {object} 	models.EnrollmentSummary
 // @Failure      404  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id}/enrollment-summary [get]

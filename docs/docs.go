@@ -294,7 +294,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.EnrollmentSummary"
                         }
                     },
                     "404": {
@@ -940,6 +940,20 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ActivityItemSum": {
+            "type": "object",
+            "properties": {
+                "activityItemName": {
+                    "type": "string"
+                },
+                "registeredByMajor": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MajorEnrollment"
+                    }
+                }
+            }
+        },
         "models.Admin": {
             "type": "object",
             "properties": {
@@ -999,6 +1013,26 @@ const docTemplate = `{
                 }
             }
         },
+        "models.EnrollmentSummary": {
+            "type": "object",
+            "properties": {
+                "activityItemSums": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItemSum"
+                    }
+                },
+                "maxParticipants": {
+                    "type": "integer"
+                },
+                "remainingSlots": {
+                    "type": "integer"
+                },
+                "totalRegistered": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -1045,6 +1079,17 @@ const docTemplate = `{
             "properties": {
                 "id": {
                     "type": "string"
+                },
+                "majorName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MajorEnrollment": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
                 },
                 "majorName": {
                     "type": "string"

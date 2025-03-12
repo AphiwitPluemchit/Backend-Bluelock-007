@@ -107,6 +107,15 @@ definitions:
         example: Stadium A
         type: string
     type: object
+  models.ActivityItemSum:
+    properties:
+      activityItemName:
+        type: string
+      registeredByMajor:
+        items:
+          $ref: '#/definitions/models.MajorEnrollment'
+        type: array
+    type: object
   models.Admin:
     properties:
       email:
@@ -145,6 +154,19 @@ definitions:
       studentId:
         type: string
     type: object
+  models.EnrollmentSummary:
+    properties:
+      activityItemSums:
+        items:
+          $ref: '#/definitions/models.ActivityItemSum'
+        type: array
+      maxParticipants:
+        type: integer
+      remainingSlots:
+        type: integer
+      totalRegistered:
+        type: integer
+    type: object
   models.ErrorResponse:
     properties:
       message:
@@ -176,6 +198,13 @@ definitions:
     properties:
       id:
         type: string
+      majorName:
+        type: string
+    type: object
+  models.MajorEnrollment:
+    properties:
+      count:
+        type: integer
       majorName:
         type: string
     type: object
@@ -395,7 +424,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.ActivityDto'
+            $ref: '#/definitions/models.EnrollmentSummary'
         "404":
           description: Not Found
           schema:
