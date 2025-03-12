@@ -224,7 +224,7 @@ func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, erro
 	return result, err
 }
 
-func GetEnrollmentByActivityID(activityID string) ([]models.ActivityItem, error) {
+func GetEnrollmentByActivityID(activityID string) ([]models.Enrollment, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -234,14 +234,14 @@ func GetEnrollmentByActivityID(activityID string) ([]models.ActivityItem, error)
 	}
 
 	pipeline := GetEnrollmentByActivityIDPipeline(objectID)
-	cursor, err := activityItemCollection.Aggregate(ctx, pipeline)
+	cursor, err := activityItemCollection.Aggregate(ctx, pipeline) // เปลี่ยนเป็น `enrollmentCollection`
 	if err != nil {
 		log.Println("Error fetching enrollments:", err)
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
-	var results []models.ActivityItem
+	var results []models.Enrollment
 	if err = cursor.All(ctx, &results); err != nil {
 		log.Println("Error decoding enrollments:", err)
 		return nil, err
@@ -698,36 +698,15 @@ func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID) mongo.Pipe
 			},
 		}},
 
-		// 8️⃣ Group เพื่อรวม Enrollment ทั้งหมดให้กลับไปอยู่ใน ActivityItem
-		{{
-			Key: "$group", Value: bson.D{
-				{Key: "_id", Value: "$_id"},
-				{Key: "activityId", Value: bson.D{{Key: "$first", Value: "$activityId"}}},
-				{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
-				{Key: "description", Value: bson.D{{Key: "$first", Value: "$description"}}},
-				{Key: "maxParticipants", Value: bson.D{{Key: "$first", Value: "$maxParticipants"}}},
-				{Key: "room", Value: bson.D{{Key: "$first", Value: "$room"}}},
-				{Key: "operator", Value: bson.D{{Key: "$first", Value: "$operator"}}},
-				{Key: "dates", Value: bson.D{{Key: "$first", Value: "$dates"}}},
-				{Key: "hour", Value: bson.D{{Key: "$first", Value: "$hour"}}},
-				{Key: "enrollments", Value: bson.D{{Key: "$push", Value: "$enrollments"}}}, // รวม Enrollments กลับมาเป็น Array
-			},
-		}},
-
-		// 9️⃣ Project ค่าให้เป็นโครงสร้างที่เราต้องการ
+		// 8️⃣ Project ค่าให้เป็นโครงสร้าง Enrollment
 		{{
 			Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 1},
-				{Key: "activityId", Value: 1},
-				{Key: "name", Value: 1},
-				{Key: "description", Value: 1},
-				{Key: "maxParticipants", Value: 1},
-				{Key: "room", Value: 1},
-				{Key: "operator", Value: 1},
-				{Key: "dates", Value: 1},
-				{Key: "hour", Value: 1},
-				{Key: "enrollments", Value: 1}, // ส่ง Enrollments ที่รวม Student + Major มาแล้ว
-			},
-		}},
-	}
+				{Key: "_id", Value: "$enrollments._id"},
+				{Key: "registrationDate", Value: "$enrollments.registrationDate"},
+				{Key: "activityItemId", Value: "$enrollments.activityItemId"},
+				{Key: "studentId", Value: "$enrollments.studentId"},
+				{Key: "student", Value: "$enrollments.student"},
+			}},
+		}}
+
 }

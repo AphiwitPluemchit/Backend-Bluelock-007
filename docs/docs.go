@@ -335,7 +335,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Enrollment"
                         }
                     },
                     "404": {

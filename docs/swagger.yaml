@@ -422,7 +422,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.ActivityDto'
+            $ref: '#/definitions/models.Enrollment'
         "404":
           description: Not Found
           schema:
