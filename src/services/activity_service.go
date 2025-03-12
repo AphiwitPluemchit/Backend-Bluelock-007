@@ -192,35 +192,17 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 	return nil, fmt.Errorf("activity not found")
 }
 
-type EnrollmentSummary struct {
-	MaxParticipants  int               `json:"maxParticipants"`
-	TotalRegistered  int               `json:"totalRegistered"`
-	RemainingSlots   int               `json:"remainingSlots"`
-	ActivityItemSums []ActivityItemSum `json:"activityItemSums"`
-}
-
-type ActivityItemSum struct {
-	ActivityItemName  string            `json:"activityItemName"`
-	RegisteredByMajor []MajorEnrollment `json:"registeredByMajor"`
-}
-
-// โครงสร้างสำหรับแยกจำนวนลงทะเบียนตามสาขา
-type MajorEnrollment struct {
-	MajorName string `json:"majorName"`
-	Count     int    `json:"count"`
-}
-
-func GetActivityEnrollSummary(activityID string) (EnrollmentSummary, error) {
+func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(activityID)
 	if err != nil {
-		return EnrollmentSummary{}, err
+		return models.EnrollmentSummary{}, err
 	}
 
-	var result EnrollmentSummary
+	var result models.EnrollmentSummary
 
 	pipeline := GetActivityStatisticsPipeline(objectID)
 
@@ -240,6 +222,32 @@ func GetActivityEnrollSummary(activityID string) (EnrollmentSummary, error) {
 	}
 
 	return result, err
+}
+
+func GetEnrollmentByActivityID(activityID string) ([]models.ActivityItem, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	objectID, err := primitive.ObjectIDFromHex(activityID)
+	if err != nil {
+		return nil, err
+	}
+
+	pipeline := GetEnrollmentByActivityIDPipeline(objectID)
+	cursor, err := activityItemCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		log.Println("Error fetching enrollments:", err)
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []models.ActivityItem
+	if err = cursor.All(ctx, &results); err != nil {
+		log.Println("Error decoding enrollments:", err)
+		return nil, err
+	}
+
+	return results, nil
 }
 
 // GetActivityItemsByActivityID - ดึง ActivityItems ตาม ActivityID
@@ -623,6 +631,102 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 				{Key: "totalRegistered", Value: 1},
 				{Key: "remainingSlots", Value: 1},
 				{Key: "activityItemSums", Value: 1},
+			},
+		}},
+	}
+}
+
+func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID) mongo.Pipeline {
+	return mongo.Pipeline{
+		// 1️⃣ Match เฉพาะ ActivityItems ที่มี activityId ที่เราส่งเข้ามา
+		{{
+			Key: "$match", Value: bson.D{
+				{Key: "activityId", Value: activityID},
+			},
+		}},
+
+		// 2️⃣ Lookup Enrollments ของ ActivityItem แต่ละตัว
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "enrollments"},
+				{Key: "localField", Value: "_id"},
+				{Key: "foreignField", Value: "activityItemId"},
+				{Key: "as", Value: "enrollments"},
+			},
+		}},
+
+		// 3️⃣ Unwind Enrollments เพื่อดึง Student (ถ้าไม่มี enrollment ก็เก็บค่า null)
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$enrollments"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			},
+		}},
+
+		// 4️⃣ Lookup Students โดยอ้างอิงจาก studentId ใน Enrollments
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "students"},
+				{Key: "localField", Value: "enrollments.studentId"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "enrollments.student"},
+			}}},
+
+		// 5️⃣ Unwind Student (ให้ Student เป็น Object เดียว ไม่ใช่ Array)
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$enrollments.student"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			},
+		}},
+
+		// 6️⃣ Lookup Majors เพื่อดึง majorName
+		{{
+			Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "majors"},
+				{Key: "localField", Value: "enrollments.student.majorId"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "enrollments.student.major"},
+			},
+		}},
+
+		// 7️⃣ Unwind Major (ให้ Major เป็น Object เดียว ไม่ใช่ Array)
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$enrollments.student.major"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			},
+		}},
+
+		// 8️⃣ Group เพื่อรวม Enrollment ทั้งหมดให้กลับไปอยู่ใน ActivityItem
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$_id"},
+				{Key: "activityId", Value: bson.D{{Key: "$first", Value: "$activityId"}}},
+				{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
+				{Key: "description", Value: bson.D{{Key: "$first", Value: "$description"}}},
+				{Key: "maxParticipants", Value: bson.D{{Key: "$first", Value: "$maxParticipants"}}},
+				{Key: "room", Value: bson.D{{Key: "$first", Value: "$room"}}},
+				{Key: "operator", Value: bson.D{{Key: "$first", Value: "$operator"}}},
+				{Key: "dates", Value: bson.D{{Key: "$first", Value: "$dates"}}},
+				{Key: "hour", Value: bson.D{{Key: "$first", Value: "$hour"}}},
+				{Key: "enrollments", Value: bson.D{{Key: "$push", Value: "$enrollments"}}}, // รวม Enrollments กลับมาเป็น Array
+			},
+		}},
+
+		// 9️⃣ Project ค่าให้เป็นโครงสร้างที่เราต้องการ
+		{{
+			Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 1},
+				{Key: "activityId", Value: 1},
+				{Key: "name", Value: 1},
+				{Key: "description", Value: 1},
+				{Key: "maxParticipants", Value: 1},
+				{Key: "room", Value: 1},
+				{Key: "operator", Value: 1},
+				{Key: "dates", Value: 1},
+				{Key: "hour", Value: 1},
+				{Key: "enrollments", Value: 1}, // ส่ง Enrollments ที่รวม Student + Major มาแล้ว
 			},
 		}},
 	}

@@ -127,7 +127,7 @@ func GetStudentsByActivity(c *fiber.Ctx) error {
 // @Produce      json
 // @Param        studentId path string true "Student ID"
 // @Param        activityItemId path string true "Activity Item ID"
-// @Success      200  {object}  models.Enrollment
+// @Success      200  {object}  models.EnrollmentSummary
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      404  {object}  models.ErrorResponse
 // @Router       /enrollments/student/{studentId}/activity/{activityItemId} [get]

@@ -7,6 +7,10 @@ definitions:
       file:
         example: image.jpg
         type: string
+      foodVotes:
+        items:
+          $ref: '#/definitions/models.FoodVote'
+        type: array
       id:
         type: string
       majorIds:
@@ -54,7 +58,6 @@ definitions:
           $ref: '#/definitions/models.Major'
         type: array
       name:
-        example: Football Tournament
         type: string
       skill:
         example: hard
@@ -69,7 +72,6 @@ definitions:
           type: integer
         type: array
       type:
-        example: one
         type: string
     type: object
   models.ActivityItem:
@@ -159,6 +161,17 @@ definitions:
       name:
         type: string
     type: object
+  models.FoodVote:
+    properties:
+      activityID:
+        type: string
+      foodID:
+        type: string
+      id:
+        type: string
+      score:
+        type: integer
+    type: object
   models.Major:
     properties:
       id:
@@ -176,6 +189,8 @@ definitions:
         type: integer
       id:
         type: string
+      major:
+        $ref: '#/definitions/models.Major'
       majorId:
         type: string
       name:
@@ -390,6 +405,33 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get enrollment summary by activity ID
+      tags:
+      - activitys
+  /activitys/{id}/enrollments:
+    get:
+      description: Get enrollment by activity ID
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ActivityDto'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get enrollment by activity ID
       tags:
       - activitys
   /admins:

@@ -167,6 +167,39 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(enrollmentSummary)
 }
 
+// GetEnrollmentByActivityID - ดึงข้อมูลสรุปการลงทะเบียน
+// GetEnrollmentByActivityID - godoc
+// @Summary      Get enrollment by activity ID
+// @Description  Get enrollment by activity ID
+// @Tags         activitys
+// @Produce      json
+// @Param        id   path  string  true  "Activity ID"
+// @Success      200  {object}  models.ActivityDto
+// @Failure      404  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id}/enrollments [get]
+func GetEnrollmentByActivityID(c *fiber.Ctx) error {
+	id := c.Params("id")
+	activityID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
+	}
+
+	// ดึงข้อมูลสรุปการลงทะเบียน
+	enrollments, err := services.GetEnrollmentByActivityID(activityID.Hex())
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":   "Activity not found",
+			"message": err.Error(),
+		})
+	}
+
+	// ส่งข้อมูลกลับ
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": enrollments,
+	})
+}
+
 // UpdateActivity - อัพเดตข้อมูลกิจกรรม พร้อม ActivityItems
 // UpdateActivity - godoc
 // @Summary      Update an activity

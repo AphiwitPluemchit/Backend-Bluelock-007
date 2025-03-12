@@ -49,3 +49,21 @@ type ActivityDto struct {
 	Majors        []Major            `json:"majors"`
 	ActivityItems []ActivityItem     `json:"activityItems"`
 }
+
+type EnrollmentSummary struct {
+	MaxParticipants  int               `json:"maxParticipants"`
+	TotalRegistered  int               `json:"totalRegistered"`
+	RemainingSlots   int               `json:"remainingSlots"`
+	ActivityItemSums []ActivityItemSum `json:"activityItemSums"`
+}
+
+type ActivityItemSum struct {
+	ActivityItemName  string            `json:"activityItemName"`
+	RegisteredByMajor []MajorEnrollment `json:"registeredByMajor"`
+}
+
+// โครงสร้างสำหรับแยกจำนวนลงทะเบียนตามสาขา
+type MajorEnrollment struct {
+	MajorName string `json:"majorName"`
+	Count     int    `json:"count"`
+}

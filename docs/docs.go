@@ -312,6 +312,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/activitys/{id}/enrollments": {
+            "get": {
+                "description": "Get enrollment by activity ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get enrollment by activity ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ActivityDto"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admins": {
             "get": {
                 "description": "Get admins with pagination, search, and sorting",
@@ -757,6 +798,12 @@ const docTemplate = `{
                     "type": "string",
                     "example": "image.jpg"
                 },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -823,8 +870,7 @@ const docTemplate = `{
                     }
                 },
                 "name": {
-                    "type": "string",
-                    "example": "Football Tournament"
+                    "type": "string"
                 },
                 "skill": {
                     "type": "string",
@@ -843,8 +889,7 @@ const docTemplate = `{
                     ]
                 },
                 "type": {
-                    "type": "string",
-                    "example": "one"
+                    "type": "string"
                 }
             }
         },
@@ -978,6 +1023,23 @@ const docTemplate = `{
                 }
             }
         },
+        "models.FoodVote": {
+            "type": "object",
+            "properties": {
+                "activityID": {
+                    "type": "string"
+                },
+                "foodID": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.Major": {
             "type": "object",
             "properties": {
@@ -1003,6 +1065,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "major": {
+                    "$ref": "#/definitions/models.Major"
                 },
                 "majorId": {
                     "type": "string"

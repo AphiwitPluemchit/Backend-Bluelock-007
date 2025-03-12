@@ -15,4 +15,5 @@ type Student struct {
 	SoftSkill int                `json:"softSkill,omitempty" bson:"softSkill,omitempty"`
 	HardSkill int                `json:"hardSkill,omitempty" bson:"hardSkill,omitempty"`
 	MajorID   primitive.ObjectID `json:"majorId,omitempty" bson:"majorId,omitempty"`
+	Major     Major              `json:"major,omitempty" `
 }
