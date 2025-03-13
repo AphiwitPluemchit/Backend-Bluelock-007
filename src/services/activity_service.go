@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
@@ -35,15 +34,9 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
+func CreateActivity(activity *models.Activity) (*models.Activity, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	// ✅ แปลง Majors เป็น ObjectID List
-	var majorIDs []primitive.ObjectID
-	for _, major := range activity.Majors {
-		majorIDs = append(majorIDs, major.ID)
-	}
 
 	// ✅ สร้าง ID สำหรับ Activity
 	activity.ID = primitive.NewObjectID()
@@ -56,8 +49,6 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		ActivityState: activity.ActivityState,
 		Skill:         activity.Skill,
 		File:          activity.File,
-		StudentYears:  activity.StudentYears,
-		MajorIDs:      majorIDs,
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
@@ -68,6 +59,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 
 	// ✅ บันทึก ActivityItems
 	for i := range activity.ActivityItems {
+		fmt.Println("ActivityItem:", activity.ActivityItems[i])
 		activity.ActivityItems[i].ID = primitive.NewObjectID()
 		activity.ActivityItems[i].ActivityID = activity.ID
 
@@ -96,8 +88,8 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
-func GetAllActivities(params models.PaginationParams, skills []string, states []string, majorNames []string, studentYears []string) ([]models.ActivityDto, int64, int, error) {
-	var results []models.ActivityDto
+func GetAllActivities(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int) ([]models.Activity, int64, int, error) {
+	var results []models.Activity
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -132,27 +124,13 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 		filter["activityState"] = bson.M{"$in": states}
 	}
 
-	// 🔍 ค้นหาตาม StudentYear (ถ้ามี)
-	if len(studentYears) > 0 && studentYears[0] != "" {
-		var years []int
-		for _, year := range studentYears {
-			y, err := strconv.Atoi(year)
-			if err == nil {
-				years = append(years, y)
-			}
-		}
-		if len(years) > 0 {
-			filter["studentYears"] = bson.M{"$in": years}
-		}
-	}
-
 	// นับจำนวนเอกสารทั้งหมด
 	total, err := activityCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	pipeline := getActivityPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majorNames)
+	pipeline := getActivitiesPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majors, studentYears)
 
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -172,7 +150,7 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 	return results, total, totalPages, nil
 }
 
-func GetActivityByID(activityID string) (*models.ActivityDto, error) {
+func GetActivityByID(activityID string) (*models.Activity, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -181,7 +159,7 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 		return nil, fmt.Errorf("invalid activity ID format")
 	}
 
-	var result models.ActivityDto
+	var result models.Activity
 
 	pipeline := GetOneActivityPipeline(objectID)
 
@@ -285,15 +263,9 @@ func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.Activ
 	return activityItems, nil
 }
 
-func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models.ActivityDto, error) {
+func UpdateActivity(id primitive.ObjectID, activity models.Activity) (*models.Activity, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	// ✅ แปลง Majors เป็น ObjectID List
-	var majorIDs []primitive.ObjectID
-	for _, major := range activity.Majors {
-		majorIDs = append(majorIDs, major.ID)
-	}
 
 	// ✅ อัปเดต Activity หลัก
 	update := bson.M{
@@ -303,8 +275,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			"activityState": activity.ActivityState,
 			"skill":         activity.Skill,
 			"file":          activity.File,
-			"studentYears":  activity.StudentYears,
-			"majorIds":      majorIDs,
 			"foodVotes":     activity.FoodVotes,
 		},
 	}
@@ -355,6 +325,8 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 					"dates":           newItem.Dates,
 					"hour":            newItem.Hour,
 					"operator":        newItem.Operator,
+					"studentYears":    newItem.StudentYears,
+					"majors":          newItem.Majors,
 				}},
 			)
 			if err != nil {
@@ -456,7 +428,7 @@ func DeleteActivity(id primitive.ObjectID) error {
 	return err
 }
 
-func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majorNames []string) mongo.Pipeline {
+func getActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majors []string, studentYears []int) mongo.Pipeline {
 	pipeline := mongo.Pipeline{
 		// 🔍 Match เฉพาะ Activity ที่ต้องการ
 		{{Key: "$match", Value: filter}},
@@ -469,26 +441,46 @@ func getActivityPipeline(filter bson.M, sortField string, sortOrder int, skip in
 			{Key: "as", Value: "activityItems"},
 		}}},
 
-		// 🔗 Lookup Majors
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "majors"},
-			{Key: "localField", Value: "majorIds"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "majors"},
+		// 🔥 Unwind ActivityItems เพื่อให้สามารถกรองได้
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$activityItems"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
 		}}},
 	}
 
 	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า majorNames**
-	if majorNames[0] != "" {
-		fmt.Println("Filtering by majorNames:", majorNames) // Debugging log
+	if len(majors) > 0 && majors[0] != "" {
+		fmt.Println("Filtering by major:", majors) // Debugging log
 		pipeline = append(pipeline, bson.D{
 			{Key: "$match", Value: bson.D{
-				{Key: "majors.majorName", Value: bson.D{{Key: "$in", Value: majorNames}}},
+				{Key: "activityItems.majors", Value: bson.D{{Key: "$in", Value: majors}}},
 			}},
 		})
 	} else {
 		fmt.Println("Skipping majorName filtering")
 	}
+
+	// ✅ กรองเฉพาะ StudentYears ที่ต้องการ **ถ้ามีค่า studentYears**
+	if len(studentYears) > 0 {
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{
+				{Key: "activityItems.studentYears", Value: bson.D{{Key: "$in", Value: studentYears}}},
+			}},
+		})
+	}
+
+	// ✅ Group ActivityItems กลับเข้าไปใน Activity
+	pipeline = append(pipeline, bson.D{
+		{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id"},
+			{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
+			{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
+			{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
+			{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
+			{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
+			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}}, // เก็บ ActivityItems เป็น Array
+		}},
+	})
 
 	// ✅ ตรวจสอบและเพิ่ม `$sort` เฉพาะกรณีที่ต้องใช้
 	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
@@ -535,14 +527,6 @@ func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 			{Key: "localField", Value: "activityItems._id"},
 			{Key: "foreignField", Value: "activityItemId"},
 			{Key: "as", Value: "activityItems.enrollments"},
-		}}},
-
-		// 🔗 Lookup Majors
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "majors"},
-			{Key: "localField", Value: "majorIds"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "majors"},
 		}}},
 
 		// Lookup FoodVote

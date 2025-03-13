@@ -1,46 +1,6 @@
 definitions:
   models.Activity:
     properties:
-      activityState:
-        example: planning
-        type: string
-      file:
-        example: image.jpg
-        type: string
-      foodVotes:
-        items:
-          $ref: '#/definitions/models.FoodVote'
-        type: array
-      id:
-        type: string
-      majorIds:
-        example:
-        - 67bf0bd48873e448798fed34
-        - 67bf0bda8873e448798fed35
-        items:
-          type: string
-        type: array
-      name:
-        example: Football Tournament
-        type: string
-      skill:
-        example: hard
-        type: string
-      studentYears:
-        example:
-        - 1
-        - 2
-        - 3
-        - 4
-        items:
-          type: integer
-        type: array
-      type:
-        example: one
-        type: string
-    type: object
-  models.ActivityDto:
-    properties:
       activityItems:
         items:
           $ref: '#/definitions/models.ActivityItem'
@@ -57,25 +17,14 @@ definitions:
         type: array
       id:
         type: string
-      majors:
-        items:
-          $ref: '#/definitions/models.Major'
-        type: array
       name:
+        example: Football Tournament
         type: string
       skill:
         example: hard
         type: string
-      studentYears:
-        example:
-        - 1
-        - 2
-        - 3
-        - 4
-        items:
-          type: integer
-        type: array
       type:
+        example: one
         type: string
     type: object
   models.ActivityItem:
@@ -98,6 +47,15 @@ definitions:
         type: integer
       id:
         type: string
+      majors:
+        example:
+        - CS
+        - SE
+        - ITDI
+        - AAI
+        items:
+          type: string
+        type: array
       maxParticipants:
         example: 22
         type: integer
@@ -113,6 +71,15 @@ definitions:
         - Room 2
         items:
           type: string
+        type: array
+      studentYears:
+        example:
+        - 1
+        - 2
+        - 3
+        - 4
+        items:
+          type: integer
         type: array
     type: object
   models.ActivityItemSum:
@@ -196,7 +163,9 @@ definitions:
       activityId:
         type: string
       food:
-        $ref: '#/definitions/models.Food'
+        allOf:
+        - $ref: '#/definitions/models.Food'
+        description: ❌ ห้ามบันทึก Food ลง MongoDB
       foodId:
         type: string
       id:
@@ -317,7 +286,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/models.ActivityDto'
+          $ref: '#/definitions/models.Activity'
       produces:
       - application/json
       responses:
@@ -375,7 +344,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.ActivityDto'
+            $ref: '#/definitions/models.Activity'
         "404":
           description: Not Found
           schema:
@@ -400,14 +369,14 @@ paths:
         name: activity
         required: true
         schema:
-          $ref: '#/definitions/models.ActivityDto'
+          $ref: '#/definitions/models.Activity'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.ActivityDto'
+            $ref: '#/definitions/models.Activity'
         "400":
           description: Bad Request
           schema:

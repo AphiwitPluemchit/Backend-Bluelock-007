@@ -18,14 +18,14 @@ import (
 // @Tags         activitys
 // @Accept       json
 // @Produce      json
-// @Param        body body models.ActivityDto true "Activity and ActivityItems"
+// @Param        body body models.Activity true "Activity and ActivityItems"
 // @Success      201  {object}  models.Activity
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [post]
 // CreateActivity - สร้างกิจกรรมใหม่
 func CreateActivity(c *fiber.Ctx) error {
-	var request models.ActivityDto
+	var request models.Activity
 
 	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
@@ -84,7 +84,14 @@ func GetAllActivities(c *fiber.Ctx) error {
 	skillFilter := strings.Split(skills, ",")
 	stateFilter := strings.Split(activityStates, ",")
 	majorFilter := strings.Split(majors, ",")
-	yearFilter := strings.Split(studentYears, ",")
+	// Convert studentYear to int array
+	yearFilter := make([]int, 0)
+	for _, yearStr := range strings.Split(studentYears, ",") {
+		year, err := strconv.Atoi(yearStr)
+		if err == nil {
+			yearFilter = append(yearFilter, year)
+		}
+	}
 
 	// ดึงข้อมูลจาก Service
 	activities, total, totalPages, err := services.GetAllActivities(params, skillFilter, stateFilter, majorFilter, yearFilter)
@@ -113,7 +120,7 @@ func GetAllActivities(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Success      200  {object}  models.ActivityDto
+// @Success      200  {object}  models.Activity
 // @Failure      404  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id} [get]
@@ -207,8 +214,8 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Param        activity  body  models.ActivityDto  true  "Activity object"
-// @Success      200  {object}  models.ActivityDto
+// @Param        activity  body  models.Activity  true  "Activity object"
+// @Success      200  {object}  models.Activity
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id} [put]
@@ -220,7 +227,7 @@ func UpdateActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	var request models.ActivityDto
+	var request models.Activity
 	// ✅ แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})

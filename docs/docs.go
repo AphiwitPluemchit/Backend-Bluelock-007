@@ -120,7 +120,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Activity"
                         }
                     }
                 ],
@@ -169,7 +169,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Activity"
                         }
                     },
                     "404": {
@@ -209,7 +209,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Activity"
                         }
                     }
                 ],
@@ -217,7 +217,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Activity"
                         }
                     },
                     "400": {
@@ -790,62 +790,6 @@ const docTemplate = `{
         "models.Activity": {
             "type": "object",
             "properties": {
-                "activityState": {
-                    "type": "string",
-                    "example": "planning"
-                },
-                "file": {
-                    "type": "string",
-                    "example": "image.jpg"
-                },
-                "foodVotes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.FoodVote"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "majorIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "67bf0bd48873e448798fed34",
-                        "67bf0bda8873e448798fed35"
-                    ]
-                },
-                "name": {
-                    "type": "string",
-                    "example": "Football Tournament"
-                },
-                "skill": {
-                    "type": "string",
-                    "example": "hard"
-                },
-                "studentYears": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    },
-                    "example": [
-                        1,
-                        2,
-                        3,
-                        4
-                    ]
-                },
-                "type": {
-                    "type": "string",
-                    "example": "one"
-                }
-            }
-        },
-        "models.ActivityDto": {
-            "type": "object",
-            "properties": {
                 "activityItems": {
                     "type": "array",
                     "items": {
@@ -869,33 +813,17 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "majors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Major"
-                    }
-                },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Football Tournament"
                 },
                 "skill": {
                     "type": "string",
                     "example": "hard"
                 },
-                "studentYears": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    },
-                    "example": [
-                        1,
-                        2,
-                        3,
-                        4
-                    ]
-                },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "one"
                 }
             }
         },
@@ -928,6 +856,18 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "majors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "CS",
+                        "SE",
+                        "ITDI",
+                        "AAI"
+                    ]
+                },
                 "maxParticipants": {
                     "type": "integer",
                     "example": 22
@@ -948,6 +888,18 @@ const docTemplate = `{
                     "example": [
                         "Room 1",
                         "Room 2"
+                    ]
+                },
+                "studentYears": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
                     ]
                 }
             }
@@ -1076,7 +1028,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "food": {
-                    "$ref": "#/definitions/models.Food"
+                    "description": "❌ ห้ามบันทึก Food ลง MongoDB",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    ]
                 },
                 "foodId": {
                     "type": "string"
