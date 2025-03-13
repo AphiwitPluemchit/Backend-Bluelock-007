@@ -285,7 +285,7 @@ func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.Activ
 	return activityItems, nil
 }
 
-func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.ActivityDto, error) {
+func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -311,17 +311,17 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 
 	_, err := activityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
 	if err != nil {
-		return models.ActivityDto{}, err
+		return nil, err
 	}
 
 	// ✅ ดึงรายการ `ActivityItems` ที่มีอยู่
 	var existingItems []models.ActivityItem
 	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": id})
 	if err != nil {
-		return models.ActivityDto{}, err
+		return nil, err
 	}
 	if err := cursor.All(ctx, &existingItems); err != nil {
-		return models.ActivityDto{}, err
+		return nil, err
 	}
 
 	// ✅ สร้าง Map ของ `existingItems` เพื่อเช็คว่าตัวไหนมีอยู่แล้ว
@@ -339,7 +339,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 			newItem.ActivityID = id
 			_, err := activityItemCollection.InsertOne(ctx, newItem)
 			if err != nil {
-				return models.ActivityDto{}, err
+				return nil, err
 			}
 		} else {
 			// ✅ ถ้ามี `_id` → อัปเดต
@@ -358,7 +358,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 				}},
 			)
 			if err != nil {
-				return models.ActivityDto{}, err
+				return nil, err
 			}
 		}
 	}
@@ -372,7 +372,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 			}
 			_, err = activityItemCollection.DeleteOne(ctx, bson.M{"_id": objID})
 			if err != nil {
-				return models.ActivityDto{}, err
+				return nil, err
 			}
 		}
 	}
@@ -381,10 +381,10 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 	var existingFoodVotes []models.FoodVote
 	cursor, err = foodVoteCollection.Find(ctx, bson.M{"activityId": id})
 	if err != nil {
-		return activity, err
+		return nil, err
 	}
 	if err := cursor.All(ctx, &existingFoodVotes); err != nil {
-		return activity, err
+		return nil, err
 	}
 
 	// สร้าง Map ของ `existingFoodVotes` เพื่อเช็คว่าตัวไหนมีอยู่แล้ว
@@ -404,7 +404,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 
 			_, err := foodVoteCollection.InsertOne(ctx, newFoodVote)
 			if err != nil {
-				return activity, err
+				return nil, err
 			}
 		} else {
 			// ถ้ามี `_id` → อัปเดต
@@ -419,7 +419,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 				}},
 			)
 			if err != nil {
-				return activity, err
+				return nil, err
 			}
 		}
 	}
@@ -433,13 +433,14 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 			}
 			_, err = foodVoteCollection.DeleteOne(ctx, bson.M{"_id": objID})
 			if err != nil {
-				return activity, err
+				return nil, err
 			}
 		}
 
 	}
 
-	return activity, nil
+	// ✅ ดึงข้อมูล Activity ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
+	return GetActivityByID(id.Hex())
 }
 
 // DeleteActivity - ลบกิจกรรมและ ActivityItems ที่เกี่ยวข้อง
