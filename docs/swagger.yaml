@@ -51,6 +51,10 @@ definitions:
       file:
         example: image.jpg
         type: string
+      foodVotes:
+        items:
+          $ref: '#/definitions/models.FoodVote'
+        type: array
       id:
         type: string
       majors:
@@ -103,9 +107,13 @@ definitions:
       operator:
         example: Operator 1
         type: string
-      room:
-        example: Stadium A
-        type: string
+      rooms:
+        example:
+        - Room 1
+        - Room 2
+        items:
+          type: string
+        type: array
     type: object
   models.ActivityItemSum:
     properties:
@@ -185,13 +193,15 @@ definitions:
     type: object
   models.FoodVote:
     properties:
-      activityID:
+      activityId:
         type: string
-      foodID:
+      food:
+        $ref: '#/definitions/models.Food'
+      foodId:
         type: string
       id:
         type: string
-      score:
+      vote:
         type: integer
     type: object
   models.Major:

@@ -860,6 +860,12 @@ const docTemplate = `{
                     "type": "string",
                     "example": "image.jpg"
                 },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -934,9 +940,15 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Operator 1"
                 },
-                "room": {
-                    "type": "string",
-                    "example": "Stadium A"
+                "rooms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "Room 1",
+                        "Room 2"
+                    ]
                 }
             }
         },
@@ -1060,16 +1072,19 @@ const docTemplate = `{
         "models.FoodVote": {
             "type": "object",
             "properties": {
-                "activityID": {
+                "activityId": {
                     "type": "string"
                 },
-                "foodID": {
+                "food": {
+                    "$ref": "#/definitions/models.Food"
+                },
+                "foodId": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "score": {
+                "vote": {
                     "type": "integer"
                 }
             }

@@ -35,7 +35,7 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
+func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -61,13 +61,10 @@ func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
-	res, err := activityCollection.InsertOne(ctx, activityToInsert)
+	_, err := activityCollection.InsertOne(ctx, activityToInsert)
 	if err != nil {
-		return models.ActivityDto{}, err
+		return nil, err
 	}
-
-	// ✅ อัปเดต activity.ID จาก MongoDB
-	activity.ID = res.InsertedID.(primitive.ObjectID)
 
 	// ✅ บันทึก ActivityItems
 	for i := range activity.ActivityItems {
@@ -76,12 +73,26 @@ func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
 
 		_, err := activityItemCollection.InsertOne(ctx, activity.ActivityItems[i])
 		if err != nil {
-			return models.ActivityDto{}, err
+			return nil, err
+		}
+	}
+
+	// ✅ บันทึก FoodVotes
+	for i := range activity.FoodVotes {
+		activity.FoodVotes[i].ID = primitive.NewObjectID()
+		activity.FoodVotes[i].ActivityID = activity.ID
+		activity.FoodVotes[i].FoodID = activity.FoodVotes[i].Food.ID
+
+		_, err := foodVoteCollection.InsertOne(ctx, activity.FoodVotes[i])
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
-	return models.ActivityDto{}, err
+
+	// ✅ ดึงข้อมูล Activity ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
+	return GetActivityByID(activity.ID.Hex())
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
@@ -294,6 +305,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 			"file":          activity.File,
 			"studentYears":  activity.StudentYears,
 			"majorIds":      majorIDs,
+			"foodVotes":     activity.FoodVotes,
 		},
 	}
 
@@ -365,7 +377,68 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 		}
 	}
 
-	// ✅ คืนค่า Activity ที่อัปเดต
+	// ดึงรายการ FoodVote ที่มีอยู่
+	var existingFoodVotes []models.FoodVote
+	cursor, err = foodVoteCollection.Find(ctx, bson.M{"activityId": id})
+	if err != nil {
+		return activity, err
+	}
+	if err := cursor.All(ctx, &existingFoodVotes); err != nil {
+		return activity, err
+	}
+
+	// สร้าง Map ของ `existingFoodVotes` เพื่อเช็คว่าตัวไหนมีอยู่แล้ว
+	existingFoodVoteMap := make(map[string]models.FoodVote)
+	for _, foodVote := range existingFoodVotes {
+		existingFoodVoteMap[foodVote.ID.Hex()] = foodVote
+	}
+
+	// สร้าง `Set` สำหรับเก็บ `ID` ของรายการใหม่
+	newFoodVoteIDs := make(map[string]bool)
+	for _, newFoodVote := range activity.FoodVotes {
+		if newFoodVote.ID.IsZero() {
+			// ถ้าไม่มี `_id` ให้สร้างใหม่
+			newFoodVote.ID = primitive.NewObjectID()
+			newFoodVote.ActivityID = id
+			newFoodVote.FoodID = newFoodVote.Food.ID
+
+			_, err := foodVoteCollection.InsertOne(ctx, newFoodVote)
+			if err != nil {
+				return activity, err
+			}
+		} else {
+			// ถ้ามี `_id` → อัปเดต
+			newFoodVoteIDs[newFoodVote.ID.Hex()] = true
+
+			_, err := foodVoteCollection.UpdateOne(ctx,
+				bson.M{"_id": newFoodVote.ID},
+				bson.M{"$set": bson.M{
+					//  newFoodVote.FoodID || newFoodVote.Food.id
+					"foodId": newFoodVote.Food.ID,
+					"vote":   newFoodVote.Vote,
+				}},
+			)
+			if err != nil {
+				return activity, err
+			}
+		}
+	}
+
+	// ลบ `FoodVotes` ที่ไม่มีในรายการใหม่
+	for existingID := range existingFoodVoteMap {
+		if !newFoodVoteIDs[existingID] {
+			objID, err := primitive.ObjectIDFromHex(existingID) // 🔥 แปลง `string` เป็น `ObjectID`
+			if err != nil {
+				continue
+			}
+			_, err = foodVoteCollection.DeleteOne(ctx, bson.M{"_id": objID})
+			if err != nil {
+				return activity, err
+			}
+		}
+
+	}
+
 	return activity, nil
 }
 
@@ -441,73 +514,57 @@ func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 			},
 		}},
 
-		// 2️⃣ Lookup ActivityItems ที่เกี่ยวข้อง
-		{{
-			Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "activityItems"},
-				{Key: "localField", Value: "_id"},
-				{Key: "foreignField", Value: "activityId"},
-				{Key: "as", Value: "activityItems"},
-			},
-		}},
+		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
 
-		// 3️⃣ **Unwind ActivityItems** เพื่อทำ Lookup Enrollments ได้
-		{{
-			Key: "$unwind", Value: bson.D{
-				{Key: "path", Value: "$activityItems"},
-				{Key: "preserveNullAndEmptyArrays", Value: true}, // กรณีไม่มี ActivityItem ให้เก็บค่า null
-			},
-		}},
+		// 🔥 Unwind ActivityItems เพื่อให้สามารถใช้ Lookup Enrollments ได้
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$activityItems"},
+			{Key: "preserveNullAndEmptyArrays", Value: true}, // กรณีไม่มี ActivityItem ให้เก็บค่า null
+		}}},
 
-		// // 4️⃣ Lookup Enrollments ของแต่ละ ActivityItem
-		// {{
-		// 	Key: "$lookup", Value: bson.D{
-		// 		{Key: "from", Value: "enrollments"},
-		// 		{Key: "localField", Value: "activityItems._id"},
-		// 		{Key: "foreignField", Value: "activityItemId"},
-		// 		{Key: "as", Value: "activityItems.enrollments"},
-		// 	},
-		// }},
+		// 🔗 Lookup Enrollments ที่เกี่ยวข้องกับ ActivityItems
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "enrollments"},
+			{Key: "localField", Value: "activityItems._id"},
+			{Key: "foreignField", Value: "activityItemId"},
+			{Key: "as", Value: "activityItems.enrollments"},
+		}}},
 
-		// 5️⃣ **Group ActivityItems กลับเป็น Array** เพื่อให้ ActivityItems กลับมาอยู่ใน List
-		{{
-			Key: "$group", Value: bson.D{
-				{Key: "_id", Value: "$_id"},
-				{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
-				{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
-				{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
-				{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
-				{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
-				{Key: "studentYears", Value: bson.D{{Key: "$first", Value: "$studentYears"}}},
-				{Key: "majorIds", Value: bson.D{{Key: "$first", Value: "$majorIds"}}},
-				{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
-			},
-		}},
+		// 🔗 Lookup Majors
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "majors"},
+			{Key: "localField", Value: "majorIds"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "majors"},
+		}}},
 
-		// 3️⃣ Lookup Majors จาก majorIds
-		{{
-			Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "majors"},
-				{Key: "localField", Value: "majorIds"},
-				{Key: "foreignField", Value: "_id"},
-				{Key: "as", Value: "majors"},
-			},
-		}},
+		// Lookup FoodVote
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "foodVotes"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "foodVotes"},
+		}}},
 
-		// 4️⃣ จัดรูปแบบข้อมูลให้เหมาะสม
-		{{
-			Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 1},
-				{Key: "name", Value: 1},
-				{Key: "type", Value: 1},
-				{Key: "activityState", Value: 1},
-				{Key: "skill", Value: 1},
-				{Key: "file", Value: 1},
-				{Key: "studentYears", Value: 1},
-				{Key: "majors", Value: 1},
-				{Key: "activityItems", Value: 1},
-			},
-		}},
+		// 🔥 Group ActivityItems กลับเข้าไปใน Activity  ฟังก์ชัน $mergeObjects ที่สามารถรวม Fields ทั้งหมดของ Document เข้าไป
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id"},
+			{Key: "activityData", Value: bson.D{{Key: "$mergeObjects", Value: "$$ROOT"}}},
+			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
+		}}},
+
+		// 🔄 แปลงโครงสร้างกลับให้อยู่ในรูปแบบที่ถูกต้อง
+		{{Key: "$replaceRoot", Value: bson.D{
+			{Key: "newRoot", Value: bson.D{
+				{Key: "$mergeObjects", Value: bson.A{"$activityData", bson.D{{Key: "activityItems", Value: "$activityItems"}}}},
+			}},
+		}}},
 	}
 }
 
