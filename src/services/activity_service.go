@@ -515,19 +515,19 @@ func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 			{Key: "as", Value: "activityItems"},
 		}}},
 
-		// 🔥 Unwind ActivityItems เพื่อให้สามารถใช้ Lookup Enrollments ได้
-		{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$activityItems"},
-			{Key: "preserveNullAndEmptyArrays", Value: true}, // กรณีไม่มี ActivityItem ให้เก็บค่า null
-		}}},
+		// // 🔥 Unwind ActivityItems เพื่อให้สามารถใช้ Lookup Enrollments ได้
+		// {{Key: "$unwind", Value: bson.D{
+		// 	{Key: "path", Value: "$activityItems"},
+		// 	{Key: "preserveNullAndEmptyArrays", Value: true}, // กรณีไม่มี ActivityItem ให้เก็บค่า null
+		// }}},
 
-		// 🔗 Lookup Enrollments ที่เกี่ยวข้องกับ ActivityItems
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "enrollments"},
-			{Key: "localField", Value: "activityItems._id"},
-			{Key: "foreignField", Value: "activityItemId"},
-			{Key: "as", Value: "activityItems.enrollments"},
-		}}},
+		// // 🔗 Lookup Enrollments ที่เกี่ยวข้องกับ ActivityItems
+		// {{Key: "$lookup", Value: bson.D{
+		// 	{Key: "from", Value: "enrollments"},
+		// 	{Key: "localField", Value: "activityItems._id"},
+		// 	{Key: "foreignField", Value: "activityItemId"},
+		// 	{Key: "as", Value: "activityItems.enrollments"},
+		// }}},
 
 		// Lookup FoodVote
 		{{Key: "$lookup", Value: bson.D{
@@ -537,19 +537,19 @@ func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 			{Key: "as", Value: "foodVotes"},
 		}}},
 
-		// 🔥 Group ActivityItems กลับเข้าไปใน Activity  ฟังก์ชัน $mergeObjects ที่สามารถรวม Fields ทั้งหมดของ Document เข้าไป
-		{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$_id"},
-			{Key: "activityData", Value: bson.D{{Key: "$mergeObjects", Value: "$$ROOT"}}},
-			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
-		}}},
+		// // 🔥 Group ActivityItems กลับเข้าไปใน Activity  ฟังก์ชัน $mergeObjects ที่สามารถรวม Fields ทั้งหมดของ Document เข้าไป
+		// {{Key: "$group", Value: bson.D{
+		// 	{Key: "_id", Value: "$_id"},
+		// 	{Key: "activityData", Value: bson.D{{Key: "$mergeObjects", Value: "$$ROOT"}}},
+		// 	{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
+		// }}},
 
-		// 🔄 แปลงโครงสร้างกลับให้อยู่ในรูปแบบที่ถูกต้อง
-		{{Key: "$replaceRoot", Value: bson.D{
-			{Key: "newRoot", Value: bson.D{
-				{Key: "$mergeObjects", Value: bson.A{"$activityData", bson.D{{Key: "activityItems", Value: "$activityItems"}}}},
-			}},
-		}}},
+		// // 🔄 แปลงโครงสร้างกลับให้อยู่ในรูปแบบที่ถูกต้อง
+		// {{Key: "$replaceRoot", Value: bson.D{
+		// 	{Key: "newRoot", Value: bson.D{
+		// 		{Key: "$mergeObjects", Value: bson.A{"$activityData", bson.D{{Key: "activityItems", Value: "$activityItems"}}}},
+		// 	}},
+		// }}},
 	}
 }
 
