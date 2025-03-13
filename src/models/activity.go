@@ -22,7 +22,7 @@ type ActivityItem struct {
 	Name            *string            `json:"name" bson:"name" example:"Quarter Final"`
 	Description     *string            `json:"description" bson:"description" example:"Quarter Final"`
 	MaxParticipants *int               `json:"maxParticipants" bson:"maxParticipants" example:"22"`
-	Room            *string            `json:"room" bson:"room" example:"Stadium A"`
+	Rooms           *[]string          `json:"rooms" bson:"rooms" example:"Room 1,Room 2"`
 	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
 	Dates           []Dates            `json:"dates" bson:"dates"`
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`

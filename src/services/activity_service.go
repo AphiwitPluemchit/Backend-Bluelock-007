@@ -339,7 +339,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 					"name":            newItem.Name,
 					"description":     newItem.Description,
 					"maxParticipants": newItem.MaxParticipants,
-					"room":            newItem.Room,
+					"rooms":           newItem.Rooms,
 					"dates":           newItem.Dates,
 					"hour":            newItem.Hour,
 					"operator":        newItem.Operator,
