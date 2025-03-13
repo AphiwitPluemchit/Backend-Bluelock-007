@@ -29,60 +29,6 @@ func init() {
 	}
 }
 
-// ✅ ฟังก์ชันเข้ารหัส Password
-func hashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(bytes), err
-}
-
-// ✅ ตรวจสอบว่ามี Student ที่ `code` หรือ `email` ซ้ำกันหรือไม่
-func isStudentExists(code, email string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	count, err := studentCollection.CountDocuments(ctx, bson.M{
-		"$or": []bson.M{
-			{"code": code},
-			{"email": email},
-		},
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	return count > 0, nil
-}
-
-// ✅ CreateStudent - เพิ่ม Student ลงใน MongoDB
-func CreateStudent(student *models.Student) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// 1️⃣ ตรวจสอบว่ามี Student ที่ `code` หรือ `email` ซ้ำหรือไม่
-	exists, err := isStudentExists(student.Code, student.Email)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return errors.New("student with the same code or email already exists")
-	}
-
-	// 2️⃣ เข้ารหัส Password ก่อนบันทึก
-	hashedPassword, err := hashPassword(student.Password)
-	if err != nil {
-		return errors.New("failed to hash password")
-	}
-	student.Password = hashedPassword
-
-	// 3️⃣ กำหนดค่า `ID` อัตโนมัติ
-	student.ID = primitive.NewObjectID()
-
-	// 4️⃣ บันทึกข้อมูลลง MongoDB
-	_, err = studentCollection.InsertOne(ctx, student)
-	return err
-}
-
 // GetAllStudents - ดึงข้อมูลผู้ใช้ทั้งหมด
 func GetStudentsWithFilter(params models.PaginationParams, majors []string, years []string) ([]bson.M, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -171,6 +117,74 @@ func GetStudentByCode(code string) (*models.Student, error) {
 	return &student, nil
 }
 
+// ✅ ฟังก์ชันเข้ารหัส Password
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+// ✅ ตรวจสอบว่ามี Student ที่ `code` หรือ `email` ซ้ำกันหรือไม่
+func isStudentExists(code, email string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	count, err := studentCollection.CountDocuments(ctx, bson.M{
+		"$or": []bson.M{
+			{"code": code},
+			{"email": email},
+		},
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// ✅ สร้าง Student พร้อมเพิ่ม User
+func CreateStudent(student *models.Student) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	exists, err := isStudentExists(student.Code, student.Email)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("student already exists")
+	}
+
+	hashedPassword, err := hashPassword(student.Password)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+	student.Password = hashedPassword
+	student.ID = primitive.NewObjectID()
+
+	_, err = studentCollection.InsertOne(ctx, student)
+	if err != nil {
+		return err
+	}
+
+	user := models.User{
+		ID:        primitive.NewObjectID(),
+		Email:     student.Email,
+		Password:  student.Password,
+		Role:      "Student",
+		StudentID: &student.ID,
+		AdminID:   nil,
+	}
+	userCollection := database.GetCollection("BluelockDB", "users")
+	_, err = userCollection.InsertOne(ctx, user)
+	if err != nil {
+		studentCollection.DeleteOne(ctx, bson.M{"_id": student.ID})
+		return err
+	}
+
+	return nil
+}
+
 // UpdateStudent - อัปเดตข้อมูลผู้ใช้
 func UpdateStudent(id string, student *models.Student) error {
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -185,11 +199,17 @@ func UpdateStudent(id string, student *models.Student) error {
 	return err
 }
 
-// DeleteStudent - ลบข้อมูลผู้ใช้
+// ✅ ลบ Student พร้อมลบ User ที่เกี่ยวข้อง
 func DeleteStudent(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return errors.New("invalid student ID")
+	}
+
+	userCollection := database.GetCollection("BluelockDB", "users")
+	_, err = userCollection.DeleteOne(context.Background(), bson.M{"studentId": objID})
+	if err != nil {
+		return err
 	}
 
 	_, err = studentCollection.DeleteOne(context.Background(), bson.M{"_id": objID})

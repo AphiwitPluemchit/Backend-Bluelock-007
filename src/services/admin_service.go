@@ -30,20 +30,6 @@ func init() {
 	}
 }
 
-// CreateAdmin - เพิ่มข้อมูลผู้ใช้ใน MongoDB
-func CreateAdmin(admin *models.Admin) error {
-	admin.ID = primitive.NewObjectID()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := adminCollection.InsertOne(ctx, admin)
-	if err != nil {
-		log.Println("❌ Error inserting admin:", err)
-		return errors.New("failed to insert admin")
-	}
-	return nil
-}
-
 // GetAllAdmins - ดึงข้อมูล Admin พร้อม Pagination, Search, Sort
 func GetAllAdmins(params models.PaginationParams) ([]models.Admin, int64, int, error) {
 	var admins []models.Admin
@@ -127,6 +113,42 @@ func GetAdminByID(id string) (*models.Admin, error) {
 	return &admin, nil
 }
 
+// ✅ สร้าง Admin พร้อมเพิ่ม User
+func CreateAdmin(admin *models.Admin) error {
+	admin.ID = primitive.NewObjectID()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	hashedPassword, err := hashPassword(admin.Password)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+	admin.Password = hashedPassword
+
+	_, err = adminCollection.InsertOne(ctx, admin)
+	if err != nil {
+		log.Println("❌ Error inserting admin:", err)
+		return errors.New("failed to insert admin")
+	}
+
+	userCollection := database.GetCollection("BluelockDB", "users")
+	user := models.User{
+		ID:        primitive.NewObjectID(),
+		Email:     admin.Email,
+		Password:  admin.Password,
+		Role:      "Admin",
+		AdminID:   &admin.ID,
+		StudentID: nil,
+	}
+	_, err = userCollection.InsertOne(ctx, user)
+	if err != nil {
+		adminCollection.DeleteOne(ctx, bson.M{"_id": admin.ID})
+		return errors.New("failed to create user for admin")
+	}
+
+	return nil
+}
+
 // UpdateAdmin - อัปเดตข้อมูลผู้ใช้
 func UpdateAdmin(id string, admin *models.Admin) error {
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -141,11 +163,17 @@ func UpdateAdmin(id string, admin *models.Admin) error {
 	return err
 }
 
-// DeleteAdmin - ลบข้อมูลผู้ใช้
+// ✅ ลบ Admin พร้อมลบ User ที่เกี่ยวข้อง
 func DeleteAdmin(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return errors.New("invalid admin ID")
+	}
+
+	userCollection := database.GetCollection("BluelockDB", "users")
+	_, err = userCollection.DeleteOne(context.Background(), bson.M{"adminId": objID})
+	if err != nil {
+		return err
 	}
 
 	_, err = adminCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
