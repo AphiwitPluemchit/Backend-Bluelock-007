@@ -47,4 +47,5 @@ type ActivityDto struct {
 	StudentYears  []int              `json:"studentYears" bson:"studentYears" example:"1,2,3,4"`
 	Majors        []Major            `json:"majors"`
 	ActivityItems []ActivityItem     `json:"activityItems"`
+	FoodVotes     []FoodVote         `json:"foodVotes" `
 }
