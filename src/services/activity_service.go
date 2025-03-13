@@ -35,7 +35,7 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
+func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -61,13 +61,10 @@ func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
-	res, err := activityCollection.InsertOne(ctx, activityToInsert)
+	_, err := activityCollection.InsertOne(ctx, activityToInsert)
 	if err != nil {
-		return models.ActivityDto{}, err
+		return nil, err
 	}
-
-	// ✅ อัปเดต activity.ID จาก MongoDB
-	activity.ID = res.InsertedID.(primitive.ObjectID)
 
 	// ✅ บันทึก ActivityItems
 	for i := range activity.ActivityItems {
@@ -76,12 +73,26 @@ func CreateActivity(activity *models.ActivityDto) (models.ActivityDto, error) {
 
 		_, err := activityItemCollection.InsertOne(ctx, activity.ActivityItems[i])
 		if err != nil {
-			return models.ActivityDto{}, err
+			return nil, err
+		}
+	}
+
+	// ✅ บันทึก FoodVotes
+	for i := range activity.FoodVotes {
+		activity.FoodVotes[i].ID = primitive.NewObjectID()
+		activity.FoodVotes[i].ActivityID = activity.ID
+		activity.FoodVotes[i].FoodID = activity.FoodVotes[i].Food.ID
+
+		_, err := foodVoteCollection.InsertOne(ctx, activity.FoodVotes[i])
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
-	return models.ActivityDto{}, err
+
+	// ✅ ดึงข้อมูล Activity ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
+	return GetActivityByID(activity.ID.Hex())
 }
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
@@ -186,6 +197,7 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 			log.Println("Error decoding activity:", err)
 			return nil, err
 		}
+
 		return &result, nil
 	}
 
@@ -352,7 +364,66 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (models.
 		}
 	}
 
-	// ✅ คืนค่า Activity ที่อัปเดต
+	// ดึงรายการ FoodVote ที่มีอยู่
+	var existingFoodVotes []models.FoodVote
+	cursor, err = foodVoteCollection.Find(ctx, bson.M{"activityId": id})
+	if err != nil {
+		return activity, err
+	}
+	if err := cursor.All(ctx, &existingFoodVotes); err != nil {
+		return activity, err
+	}
+
+	// สร้าง Map ของ `existingFoodVotes` เพื่อเช็คว่าตัวไหนมีอยู่แล้ว
+	existingFoodVoteMap := make(map[string]models.FoodVote)
+	for _, foodVote := range existingFoodVotes {
+		existingFoodVoteMap[foodVote.ID.Hex()] = foodVote
+	}
+
+	// สร้าง `Set` สำหรับเก็บ `ID` ของรายการใหม่
+	newFoodVoteIDs := make(map[string]bool)
+	for _, newFoodVote := range activity.FoodVotes {
+		if newFoodVote.ID.IsZero() {
+			// ถ้าไม่มี `_id` ให้สร้างใหม่
+			newFoodVote.ID = primitive.NewObjectID()
+			newFoodVote.ActivityID = id
+			_, err := foodVoteCollection.InsertOne(ctx, newFoodVote)
+			if err != nil {
+				return activity, err
+			}
+		} else {
+			// ถ้ามี `_id` → อัปเดต
+			newFoodVoteIDs[newFoodVote.ID.Hex()] = true
+
+			_, err := foodVoteCollection.UpdateOne(ctx,
+				bson.M{"_id": newFoodVote.ID},
+				bson.M{"$set": bson.M{
+					"foodId": newFoodVote.FoodID,
+					"food":   newFoodVote.Food,
+					"vote":   newFoodVote.Vote,
+				}},
+			)
+			if err != nil {
+				return activity, err
+			}
+		}
+	}
+
+	// ลบ `FoodVotes` ที่ไม่มีในรายการใหม่
+	for existingID := range existingFoodVoteMap {
+		if !newFoodVoteIDs[existingID] {
+			objID, err := primitive.ObjectIDFromHex(existingID) // 🔥 แปลง `string` เป็น `ObjectID`
+			if err != nil {
+				continue
+			}
+			_, err = foodVoteCollection.DeleteOne(ctx, bson.M{"_id": objID})
+			if err != nil {
+				return activity, err
+			}
+		}
+
+	}
+
 	return activity, nil
 }
 
@@ -454,14 +525,26 @@ func GetOneActivityPipeline(filter bson.M) mongo.Pipeline {
 			{Key: "as", Value: "majors"},
 		}}},
 
+		// Lookup FoodVote
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "foodVotes"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "foodVotes"},
+		}}},
+
 		// 🔥 Group ActivityItems กลับเข้าไปใน Activity  ฟังก์ชัน $mergeObjects ที่สามารถรวม Fields ทั้งหมดของ Document เข้าไป
-		// "activityData" จะเก็บ ทุก Field ของ Activity
-		// "activityItems" จะเก็บ Array ของ ActivityItems
-		// ไม่ต้องเขียน $first ให้ทุก Field ของ Activity อีกต่อไป
 		{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: "$_id"},
 			{Key: "activityData", Value: bson.D{{Key: "$mergeObjects", Value: "$$ROOT"}}},
 			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}},
+		}}},
+
+		// 🔄 แปลงโครงสร้างกลับให้อยู่ในรูปแบบที่ถูกต้อง
+		{{Key: "$replaceRoot", Value: bson.D{
+			{Key: "newRoot", Value: bson.D{
+				{Key: "$mergeObjects", Value: bson.A{"$activityData", bson.D{{Key: "activityItems", Value: "$activityItems"}}}},
+			}},
 		}}},
 	}
 }

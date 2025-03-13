@@ -813,6 +813,12 @@ const docTemplate = `{
                     "type": "string",
                     "example": "image.jpg"
                 },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -975,6 +981,29 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "models.FoodVote": {
+            "type": "object",
+            "properties": {
+                "activity": {
+                    "$ref": "#/definitions/models.Activity"
+                },
+                "activityId": {
+                    "type": "string"
+                },
+                "food": {
+                    "$ref": "#/definitions/models.Food"
+                },
+                "foodId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "vote": {
+                    "type": "integer"
                 }
             }
         },
