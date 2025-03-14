@@ -15,7 +15,7 @@ func CreateStudent(c *fiber.Ctx) error {
 		Name      string `json:"name"`
 		Email     string `json:"email"`
 		Password  string `json:"password"`
-		Status    string `json:"status"`
+		Status    int    `json:"status"`
 		SoftSkill int    `json:"softSkill"`
 		HardSkill int    `json:"hardSkill"`
 		Major     string `json:"major"`

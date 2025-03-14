@@ -329,19 +329,59 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by name or email",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort by field (default: name)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort order (asc or desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by major",
+                        "name": "major",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.Enrollment"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "500": {
@@ -1028,7 +1068,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "food": {
-                    "description": "❌ ห้ามบันทึก Food ลง MongoDB",
+                    "description": "not sent food out to client",
                     "allOf": [
                         {
                             "$ref": "#/definitions/models.Food"
@@ -1043,17 +1083,6 @@ const docTemplate = `{
                 },
                 "vote": {
                     "type": "integer"
-                }
-            }
-        },
-        "models.Major": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "majorName": {
-                    "type": "string"
                 }
             }
         },
@@ -1084,9 +1113,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "major": {
-                    "$ref": "#/definitions/models.Major"
-                },
-                "majorId": {
                     "type": "string"
                 },
                 "name": {
@@ -1096,7 +1122,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "status": {
-                    "type": "string"
+                    "description": "0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว",
+                    "type": "integer"
                 }
             }
         },

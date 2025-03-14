@@ -165,20 +165,13 @@ definitions:
       food:
         allOf:
         - $ref: '#/definitions/models.Food'
-        description: ❌ ห้ามบันทึก Food ลง MongoDB
+        description: not sent food out to client
       foodId:
         type: string
       id:
         type: string
       vote:
         type: integer
-    type: object
-  models.Major:
-    properties:
-      id:
-        type: string
-      majorName:
-        type: string
     type: object
   models.MajorEnrollment:
     properties:
@@ -198,15 +191,14 @@ definitions:
       id:
         type: string
       major:
-        $ref: '#/definitions/models.Major'
-      majorId:
         type: string
       name:
         type: string
       softSkill:
         type: integer
       status:
-        type: string
+        description: 0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว
+        type: integer
     type: object
   models.SuccessResponse:
     properties:
@@ -424,17 +416,45 @@ paths:
         name: id
         required: true
         type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search by name or email
+        in: query
+        name: search
+        type: string
+      - description: 'Sort by field (default: name)'
+        in: query
+        name: sortBy
+        type: string
+      - default: asc
+        description: Sort order (asc or desc)
+        in: query
+        name: order
+        type: string
+      - description: Filter by major
+        in: query
+        name: major
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Enrollment'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:

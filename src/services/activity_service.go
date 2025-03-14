@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"reflect"
 	"strings"
 	"time"
 
@@ -211,32 +212,6 @@ func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, erro
 	}
 
 	return result, err
-}
-
-func GetEnrollmentByActivityID(activityID string) ([]models.Enrollment, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	objectID, err := primitive.ObjectIDFromHex(activityID)
-	if err != nil {
-		return nil, err
-	}
-
-	pipeline := GetEnrollmentByActivityIDPipeline(objectID)
-	cursor, err := activityItemCollection.Aggregate(ctx, pipeline) // เปลี่ยนเป็น `enrollmentCollection`
-	if err != nil {
-		log.Println("Error fetching enrollments:", err)
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var results []models.Enrollment
-	if err = cursor.All(ctx, &results); err != nil {
-		log.Println("Error decoding enrollments:", err)
-		return nil, err
-	}
-
-	return results, nil
 }
 
 // GetActivityItemsByActivityID - ดึง ActivityItems ตาม ActivityID
@@ -660,59 +635,157 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 	}
 }
 
-func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID) mongo.Pipeline {
-	return mongo.Pipeline{
-		// 1️⃣ Match เฉพาะ ActivityItems ที่มี activityId ที่เราส่งเข้ามา
-		{{
-			Key: "$match", Value: bson.D{
-				{Key: "activityId", Value: activityID},
-			},
-		}},
+func GetEnrollmentByActivityID(activityID string, params models.PaginationParams, majors []string, statuses []int) ([]models.Enrollment, int64, int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-		// 2️⃣ Lookup Enrollments ของ ActivityItem แต่ละตัว
-		{{
-			Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "enrollments"},
-				{Key: "localField", Value: "_id"},
-				{Key: "foreignField", Value: "activityItemId"},
-				{Key: "as", Value: "enrollments"},
-			},
-		}},
+	objectID, err := primitive.ObjectIDFromHex(activityID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
 
-		// 3️⃣ Unwind Enrollments เพื่อดึง Student (ถ้าไม่มี enrollment ก็เก็บค่า null)
-		{{
-			Key: "$unwind", Value: bson.D{
-				{Key: "path", Value: "$enrollments"},
-				{Key: "preserveNullAndEmptyArrays", Value: true},
-			},
-		}},
+	// ✅ ค้นหา activityItemId จาก activityItemCollection
+	activityItemIDs, err := GetActivityItemIDsByActivityID(ctx, objectID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
 
-		// 4️⃣ Lookup Students โดยอ้างอิงจาก studentId ใน Enrollments
-		{{
-			Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "students"},
-				{Key: "localField", Value: "enrollments.studentId"},
-				{Key: "foreignField", Value: "_id"},
-				{Key: "as", Value: "enrollments.student"},
-			}}},
+	if len(activityItemIDs) == 0 {
+		return nil, 0, 0, nil // ไม่มีรายการ activityItem ที่เกี่ยวข้อง
+	}
 
-		// 5️⃣ Unwind Student (ให้ Student เป็น Object เดียว ไม่ใช่ Array)
-		{{
-			Key: "$unwind", Value: bson.D{
-				{Key: "path", Value: "$enrollments.student"},
-				{Key: "preserveNullAndEmptyArrays", Value: true},
-			},
-		}},
+	// ✅ ใช้ enrollmentCollection เพื่อดึงข้อมูล
+	pipeline := GetEnrollmentPipeline(activityItemIDs, params, majors, statuses)
 
-		// 8️⃣ Project ค่าให้เป็นโครงสร้าง Enrollment
-		{{
-			Key: "$project", Value: bson.D{
-				{Key: "_id", Value: "$enrollments._id"},
-				{Key: "registrationDate", Value: "$enrollments.registrationDate"},
-				{Key: "activityItemId", Value: "$enrollments.activityItemId"},
-				{Key: "studentId", Value: "$enrollments.studentId"},
-				{Key: "student", Value: "$enrollments.student"},
-			}},
-		}}
+	// ✅ นับจำนวนทั้งหมดก่อน Pagination
+	total, err := CountEnrollments(ctx, pipeline[:len(pipeline)-2])
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 
+	// ✅ ดึงข้อมูล Enrollment
+	cursor, err := enrollmentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []models.Enrollment
+	if err = cursor.All(ctx, &results); err != nil {
+		return nil, 0, 0, err
+	}
+
+	return results, total, totalPages, nil
+}
+
+func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.ObjectID) ([]primitive.ObjectID, error) {
+	var activityItems []models.ActivityItem
+	filter := bson.M{"activityId": activityID}
+	cursor, err := activityItemCollection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	if err = cursor.All(ctx, &activityItems); err != nil {
+		return nil, err
+	}
+
+	var activityItemIDs []primitive.ObjectID
+	for _, item := range activityItems {
+		activityItemIDs = append(activityItemIDs, item.ID)
+	}
+
+	fmt.Println(activityItemIDs)
+	return activityItemIDs, nil
+}
+
+func GetEnrollmentPipeline(activityItemIDs []primitive.ObjectID, params models.PaginationParams, majors []string, statuses []int) mongo.Pipeline {
+	skip := (params.Page - 1) * params.Limit
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "activityItemId", Value: bson.D{{Key: "$in", Value: activityItemIDs}}}}}},
+
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "students"},
+			{Key: "localField", Value: "studentId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "student"},
+		}}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$student"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+	}
+
+	matchFilter := bson.D{}
+	if len(majors) > 0 && majors[0] != "" {
+		matchFilter = append(matchFilter, bson.E{Key: "student.major", Value: bson.D{{Key: "$in", Value: majors}}})
+	}
+	if len(statuses) > 0 {
+		matchFilter = append(matchFilter, bson.E{Key: "student.status", Value: bson.D{{Key: "$in", Value: statuses}}})
+	}
+	if len(matchFilter) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: matchFilter}})
+	}
+
+	if params.Search != "" {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+			{Key: "student.name", Value: bson.D{{Key: "$regex", Value: params.Search}, {Key: "$options", Value: "i"}}},
+		}}})
+	}
+
+	// 6️⃣ Group เพื่อให้ Student อยู่ใน Enrollment
+	pipeline = append(pipeline, bson.D{{Key: "$group", Value: bson.D{
+		{Key: "_id", Value: "$_id"},
+		{Key: "registrationDate", Value: bson.D{{Key: "$first", Value: "$registrationDate"}}},
+		{Key: "activityItemId", Value: bson.D{{Key: "$first", Value: "$activityItemId"}}},
+		{Key: "studentId", Value: bson.D{{Key: "$first", Value: "$studentId"}}},
+		{Key: "students", Value: bson.D{{Key: "$push", Value: "$students"}}}, // ✅ เก็บ Student ใน array
+	}}})
+
+	sortOrder := 1
+	if strings.ToLower(params.Order) == "desc" {
+		sortOrder = -1
+	}
+	sortField := params.SortBy
+	if sortField == "" {
+		sortField = "student.code"
+	}
+	pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
+
+	if skip > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}})
+	}
+	if params.Limit > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$limit", Value: params.Limit}})
+	}
+
+	return pipeline
+}
+
+func CountEnrollments(ctx context.Context, pipeline mongo.Pipeline) (int64, error) {
+	countPipeline := append(pipeline, bson.D{{Key: "$count", Value: "total"}})
+	countCursor, err := enrollmentCollection.Aggregate(ctx, countPipeline)
+	if err != nil {
+		return 0, err
+	}
+	var countResult []bson.M
+	if err = countCursor.All(ctx, &countResult); err != nil {
+		return 0, err
+	}
+	if len(countResult) > 0 {
+		switch v := countResult[0]["total"].(type) {
+		case int32:
+			return int64(v), nil
+		case int64:
+			return v, nil
+		case float64:
+			return int64(v), nil
+		default:
+			return 0, fmt.Errorf("unexpected type for total count: %v", reflect.TypeOf(v))
+		}
+	}
+	return 0, nil
 }

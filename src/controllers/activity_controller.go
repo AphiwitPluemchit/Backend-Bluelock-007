@@ -181,29 +181,57 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Success      200  {object}  models.Enrollment
-// @Failure      404  {object}  models.ErrorResponse
+// @Param        page    query  int     false  "Page number"  default(1)
+// @Param        limit   query  int     false  "Items per page"  default(10)
+// @Param        search  query  string  false  "Search by name or email"
+// @Param        sortBy  query  string  false  "Sort by field (default: name)"
+// @Param        order   query  string  false  "Sort order (asc or desc)"  default(asc)
+// @Param        major   query  string  false  "Filter by major"
+// @Param        status  query  string  false  "Filter by status"
+// @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id}/enrollments [get]
 func GetEnrollmentByActivityID(c *fiber.Ctx) error {
-	id := c.Params("id")
-	activityID, err := primitive.ObjectIDFromHex(id)
+	params := models.DefaultPagination()
+
+	params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
+	params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
+	params.Search = c.Query("search", params.Search)
+	params.SortBy = c.Query("sortBy", params.SortBy)
+	params.Order = c.Query("order", params.Order)
+
+	majors := c.Query("major")
+	status := c.Query("status")
+
+	majorFilter := []string{}
+	if majors != "" {
+		majorFilter = strings.Split(majors, ",")
+	}
+
+	statusFilter := []int{}
+	for _, statusStr := range strings.Split(status, ",") {
+		if statusStr != "" {
+			status, err := strconv.Atoi(statusStr)
+			if err == nil {
+				statusFilter = append(statusFilter, status)
+			}
+		}
+	}
+
+	activityID, err := primitive.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	// ดึงข้อมูลสรุปการลงทะเบียน
-	enrollments, err := services.GetEnrollmentByActivityID(activityID.Hex())
+	enrollments, total, totalPages, err := services.GetEnrollmentByActivityID(activityID.Hex(), params, majorFilter, statusFilter)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error":   "Activity not found",
-			"message": err.Error(),
-		})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Activity not found", "message": err.Error()})
 	}
 
-	// ส่งข้อมูลกลับ
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": enrollments,
+		"data":       enrollments,
+		"total":      total,
+		"totalPages": totalPages,
 	})
 }
 
