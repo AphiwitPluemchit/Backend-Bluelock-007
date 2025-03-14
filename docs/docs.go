@@ -1064,21 +1064,7 @@ const docTemplate = `{
         "models.FoodVote": {
             "type": "object",
             "properties": {
-                "activityId": {
-                    "type": "string"
-                },
-                "food": {
-                    "description": "not sent food out to client",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.Food"
-                        }
-                    ]
-                },
-                "foodId": {
-                    "type": "string"
-                },
-                "id": {
+                "foodName": {
                     "type": "string"
                 },
                 "vote": {

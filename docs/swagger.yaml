@@ -160,15 +160,7 @@ definitions:
     type: object
   models.FoodVote:
     properties:
-      activityId:
-        type: string
-      food:
-        allOf:
-        - $ref: '#/definitions/models.Food'
-        description: not sent food out to client
-      foodId:
-        type: string
-      id:
+      foodName:
         type: string
       vote:
         type: integer

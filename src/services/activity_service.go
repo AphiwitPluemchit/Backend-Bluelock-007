@@ -70,17 +70,6 @@ func CreateActivity(activity *models.Activity) (*models.Activity, error) {
 		}
 	}
 
-	// ✅ บันทึก FoodVotes
-	for i := range activity.FoodVotes {
-		activity.FoodVotes[i].ID = primitive.NewObjectID()
-		activity.FoodVotes[i].ActivityID = activity.ID
-
-		_, err := foodVoteCollection.InsertOne(ctx, activity.FoodVotes[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	log.Println("Activity and ActivityItems created successfully")
 
 	// ✅ ดึงข้อมูล Activity ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
@@ -324,66 +313,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.Activity) (*models.Ac
 		}
 	}
 
-	// ดึงรายการ FoodVote ที่มีอยู่
-	var existingFoodVotes []models.FoodVote
-	cursor, err = foodVoteCollection.Find(ctx, bson.M{"activityId": id})
-	if err != nil {
-		return nil, err
-	}
-	if err := cursor.All(ctx, &existingFoodVotes); err != nil {
-		return nil, err
-	}
-
-	// สร้าง Map ของ `existingFoodVotes` เพื่อเช็คว่าตัวไหนมีอยู่แล้ว
-	existingFoodVoteMap := make(map[string]models.FoodVote)
-	for _, foodVote := range existingFoodVotes {
-		existingFoodVoteMap[foodVote.ID.Hex()] = foodVote
-	}
-
-	// สร้าง `Set` สำหรับเก็บ `ID` ของรายการใหม่
-	newFoodVoteIDs := make(map[string]bool)
-	for _, newFoodVote := range activity.FoodVotes {
-		if newFoodVote.ID.IsZero() {
-			// ถ้าไม่มี `_id` ให้สร้างใหม่
-			newFoodVote.ID = primitive.NewObjectID()
-			newFoodVote.ActivityID = id
-
-			_, err := foodVoteCollection.InsertOne(ctx, newFoodVote)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			// ถ้ามี `_id` → อัปเดต
-			newFoodVoteIDs[newFoodVote.ID.Hex()] = true
-
-			_, err := foodVoteCollection.UpdateOne(ctx,
-				bson.M{"_id": newFoodVote.ID},
-				bson.M{"$set": bson.M{
-					"foodName": newFoodVote.FoodName,
-					"vote":     newFoodVote.Vote,
-				}},
-			)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// ลบ `FoodVotes` ที่ไม่มีในรายการใหม่
-	for existingID := range existingFoodVoteMap {
-		if !newFoodVoteIDs[existingID] {
-			objID, err := primitive.ObjectIDFromHex(existingID) // 🔥 แปลง `string` เป็น `ObjectID`
-			if err != nil {
-				continue
-			}
-			_, err = foodVoteCollection.DeleteOne(ctx, bson.M{"_id": objID})
-			if err != nil {
-				return nil, err
-			}
-		}
-
-	}
-
 	// ✅ ดึงข้อมูล Activity ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
 	return GetActivityByID(id.Hex())
 }
@@ -501,14 +430,6 @@ func GetOneActivityPipeline(activityID primitive.ObjectID) mongo.Pipeline {
 		// 	{Key: "foreignField", Value: "activityItemId"},
 		// 	{Key: "as", Value: "activityItems.enrollments"},
 		// }}},
-
-		// Lookup FoodVote
-		{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "foodVotes"},
-			{Key: "localField", Value: "_id"},
-			{Key: "foreignField", Value: "activityId"},
-			{Key: "as", Value: "foodVotes"},
-		}}},
 
 		// // 🔥 Group ActivityItems กลับเข้าไปใน Activity  ฟังก์ชัน $mergeObjects ที่สามารถรวม Fields ทั้งหมดของ Document เข้าไป
 		// {{Key: "$group", Value: bson.D{

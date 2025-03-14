@@ -10,7 +10,7 @@ type Activity struct {
 	ActivityState string             `json:"activityState" bson:"activityState" example:"planning"`
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
-	FoodVotes     []FoodVote         `json:"foodVotes"`
+	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
 	ActivityItems []ActivityItem     `json:"activityItems" `
 }
 
@@ -52,4 +52,9 @@ type ActivityItemSum struct {
 type MajorEnrollment struct {
 	MajorName string `json:"majorName"`
 	Count     int    `json:"count"`
+}
+
+type FoodVote struct {
+	Vote     int    `json:"vote" bson:"vote"`
+	FoodName string `json:"foodName" bson:"foodName"`
 }

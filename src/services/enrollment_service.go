@@ -25,7 +25,6 @@ func init() {
 	enrollmentCollection = database.GetCollection("BluelockDB", "enrollments")
 	activityItemCollection = database.GetCollection("BluelockDB", "activityItems")
 	studentCollection = database.GetCollection("BluelockDB", "students")
-	foodVoteCollection = database.GetCollection("BluelockDB", "foodVotes")
 
 	if enrollmentCollection == nil || activityItemCollection == nil || studentCollection == nil {
 		log.Fatal("Failed to get necessary collections")
