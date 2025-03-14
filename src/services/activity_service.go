@@ -603,29 +603,11 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 			Key: "$group", Value: bson.D{
 				{Key: "_id", Value: bson.D{
 					{Key: "activityItemId", Value: "$_id"},
-					{Key: "majorId", Value: "$student.majorId"},
+					{Key: "majorName", Value: "$student.major"},
 				}},
 				{Key: "activityItemName", Value: bson.D{{Key: "$first", Value: "$name"}}},
 				{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
 				{Key: "maxParticipants", Value: bson.D{{Key: "$first", Value: "$maxParticipants"}}},
-			},
-		}},
-
-		// 7️⃣ Lookup Majors เพื่อดึง majorName
-		{{
-			Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "majors"},
-				{Key: "localField", Value: "_id.majorId"},
-				{Key: "foreignField", Value: "_id"},
-				{Key: "as", Value: "majorData"},
-			},
-		}},
-
-		// 8️⃣ Unwind majorData
-		{{
-			Key: "$unwind", Value: bson.D{
-				{Key: "path", Value: "$majorData"},
-				{Key: "preserveNullAndEmptyArrays", Value: true},
 			},
 		}},
 
@@ -638,7 +620,7 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 				{Key: "totalRegistered", Value: bson.D{{Key: "$sum", Value: "$count"}}},
 				{Key: "registeredByMajor", Value: bson.D{{
 					Key: "$push", Value: bson.D{
-						{Key: "majorName", Value: "$majorData.majorName"},
+						{Key: "majorName", Value: "$_id.majorName"},
 						{Key: "count", Value: "$count"},
 					},
 				}}},
@@ -718,24 +700,6 @@ func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID) mongo.Pipe
 		{{
 			Key: "$unwind", Value: bson.D{
 				{Key: "path", Value: "$enrollments.student"},
-				{Key: "preserveNullAndEmptyArrays", Value: true},
-			},
-		}},
-
-		// 6️⃣ Lookup Majors เพื่อดึง majorName
-		{{
-			Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "majors"},
-				{Key: "localField", Value: "enrollments.student.majorId"},
-				{Key: "foreignField", Value: "_id"},
-				{Key: "as", Value: "enrollments.student.major"},
-			},
-		}},
-
-		// 7️⃣ Unwind Major (ให้ Major เป็น Object เดียว ไม่ใช่ Array)
-		{{
-			Key: "$unwind", Value: bson.D{
-				{Key: "path", Value: "$enrollments.student.major"},
 				{Key: "preserveNullAndEmptyArrays", Value: true},
 			},
 		}},

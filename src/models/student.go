@@ -14,6 +14,5 @@ type Student struct {
 	Password  string             `json:"-" bson:"password,omitempty"` // ไม่ให้ส่ง Password ออกไป
 	SoftSkill int                `json:"softSkill,omitempty" bson:"softSkill,omitempty"`
 	HardSkill int                `json:"hardSkill,omitempty" bson:"hardSkill,omitempty"`
-	MajorID   primitive.ObjectID `json:"majorId,omitempty" bson:"majorId,omitempty"`
-	Major     Major              `json:"major,omitempty" `
+	Major     string             `json:"major,omitempty" bson:"major,omitempty"`
 }

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // ✅ CreateStudent - เพิ่ม Student
@@ -19,18 +18,12 @@ func CreateStudent(c *fiber.Ctx) error {
 		Status    string `json:"status"`
 		SoftSkill int    `json:"softSkill"`
 		HardSkill int    `json:"hardSkill"`
-		MajorID   string `json:"majorId"`
+		Major     string `json:"major"`
 	}
 
 	// 1️⃣ ดึงค่าจาก Body
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
-	}
-
-	// 2️⃣ แปลง MajorID เป็น ObjectID
-	majorID, err := primitive.ObjectIDFromHex(req.MajorID)
-	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid majorId format"})
 	}
 
 	// 3️⃣ สร้าง Student ใหม่
@@ -42,11 +35,11 @@ func CreateStudent(c *fiber.Ctx) error {
 		Status:    req.Status,
 		SoftSkill: req.SoftSkill,
 		HardSkill: req.HardSkill,
-		MajorID:   majorID,
+		Major:     req.Major,
 	}
 
 	// 4️⃣ เรียกใช้ Service เพื่อบันทึกข้อมูล
-	err = services.CreateStudent(&student)
+	err := services.CreateStudent(&student)
 	if err != nil {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 	}
