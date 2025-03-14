@@ -142,7 +142,7 @@ func isStudentExists(code, email string) (bool, error) {
 	return count > 0, nil
 }
 
-// ✅ สร้าง Student พร้อมเพิ่ม User
+// ✅ สร้าง Student พร้อมเพิ่ม User (ใช้ ID เดียวกัน)
 func CreateStudent(student *models.Student) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -160,7 +160,7 @@ func CreateStudent(student *models.Student) error {
 		return errors.New("failed to hash password")
 	}
 	student.Password = hashedPassword
-	student.ID = primitive.NewObjectID()
+	student.ID = primitive.NewObjectID() // ใช้ ID เดียวกันกับ User
 
 	_, err = studentCollection.InsertOne(ctx, student)
 	if err != nil {
@@ -168,7 +168,7 @@ func CreateStudent(student *models.Student) error {
 	}
 
 	user := models.User{
-		ID:        primitive.NewObjectID(),
+		ID:        student.ID, // ใช้ ID เดียวกัน
 		Email:     student.Email,
 		Password:  student.Password,
 		Role:      "Student",
@@ -207,7 +207,7 @@ func DeleteStudent(id string) error {
 	}
 
 	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.DeleteOne(context.Background(), bson.M{"studentId": objID})
+	_, err = userCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
 	if err != nil {
 		return err
 	}
