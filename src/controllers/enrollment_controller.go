@@ -107,12 +107,12 @@ func DeleteEnrollment(c *fiber.Ctx) error {
 
 // ✅ 4. Admin ดู Student ที่ลงทะเบียนในกิจกรรม
 func GetStudentsByActivity(c *fiber.Ctx) error {
-	activityItemID, err := primitive.ObjectIDFromHex(c.Params("activityItemId"))
+	activityId, err := primitive.ObjectIDFromHex(c.Params("activityId"))
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid activityItemId format"})
 	}
 
-	enrollmentData, err := services.GetStudentsByActivity(activityItemID)
+	enrollmentData, err := services.GetStudentsByActivity(activityId)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
 	}

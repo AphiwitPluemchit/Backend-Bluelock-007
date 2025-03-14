@@ -6,6 +6,7 @@ import (
 
 func InitRoutes(app *fiber.App) {
 	// เรียกใช้ฟังก์ชัน InitUserRoutes และ InitOrderRoutes
+	authRoutes(app)
 	activityRoutes(app)
 	activityStateRoutes(app)
 	adminRoutes(app)
@@ -24,4 +25,27 @@ func InitRoutes(app *fiber.App) {
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("✅ API is running...")
 	})
+
 }
+
+// func JWTMiddleware() fiber.Handler {
+// 	return func(c *fiber.Ctx) error {
+// 		authHeader := c.Get("Authorization")
+// 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+// 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing or invalid token"})
+// 		}
+
+// 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+// 		claims, err := utils.ParseJWT(tokenStr)
+// 		if err != nil {
+// 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
+// 		}
+
+// 		// ⏩ บันทึกไว้ใช้ใน route ถัดไป
+// 		c.Locals("userId", claims.UserID)
+// 		c.Locals("role", claims.Role)
+// 		c.Locals("email", claims.Email)
+
+// 		return c.Next()
+// 	}
+// }

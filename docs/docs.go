@@ -62,8 +62,26 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Status of the activity",
-                        "name": "status",
+                        "description": "Filter by skill",
+                        "name": "skill",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by activityState",
+                        "name": "activityState",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by major",
+                        "name": "major",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by studentYear",
+                        "name": "studentYear",
                         "in": "query"
                     }
                 ],
@@ -151,7 +169,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.Activity"
+                            "$ref": "#/definitions/models.ActivityDto"
                         }
                     },
                     "404": {
@@ -240,6 +258,47 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/activitys/{id}/enrollment-summary": {
+            "get": {
+                "description": "Get enrollment summary by activity ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get enrollment summary by activity ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ActivityDto"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -483,6 +542,207 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/foods": {
+            "get": {
+                "description": "ดึงข้อมูลอาหารที่มีอยู่ทั้งหมด",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ดึงรายการอาหารทั้งหมด",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "สร้างข้อมูลอาหารเป็น array",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "เพิ่มข้อมูลอาหารหลายรายการ",
+                "parameters": [
+                    {
+                        "description": "รายการอาหาร",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/foods/{id}": {
+            "get": {
+                "description": "ค้นหาข้อมูลอาหารโดยใช้ ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ดึงข้อมูลอาหารตาม ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "อัปเดตข้อมูลอาหารที่มีอยู่",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "อัปเดตข้อมูลอาหาร",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ข้อมูลอาหารที่ต้องการอัปเดต",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "ลบข้อมูลอาหารออกจากระบบ",
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ลบข้อมูลอาหาร",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -518,7 +778,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "hard"
                 },
-                "studentYear": {
+                "studentYears": {
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -553,6 +813,12 @@ const docTemplate = `{
                     "type": "string",
                     "example": "image.jpg"
                 },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -570,7 +836,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "hard"
                 },
-                "studentYear": {
+                "studentYears": {
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -590,23 +856,28 @@ const docTemplate = `{
         },
         "models.ActivityItem": {
             "type": "object",
-            "required": [
-                "hour",
-                "maxParticipants"
-            ],
             "properties": {
                 "activityId": {
                     "type": "string"
                 },
-                "date": {
+                "dates": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.Date"
+                        "$ref": "#/definitions/models.Dates"
+                    }
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Quarter Final"
+                },
+                "enrollments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Enrollment"
                     }
                 },
                 "hour": {
                     "type": "integer",
-                    "minimum": 1,
                     "example": 4
                 },
                 "id": {
@@ -614,12 +885,15 @@ const docTemplate = `{
                 },
                 "maxParticipants": {
                     "type": "integer",
-                    "minimum": 1,
                     "example": 22
                 },
                 "name": {
                     "type": "string",
                     "example": "Quarter Final"
+                },
+                "operator": {
+                    "type": "string",
+                    "example": "Operator 1"
                 },
                 "room": {
                     "type": "string",
@@ -644,7 +918,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Date": {
+        "models.Dates": {
             "type": "object",
             "properties": {
                 "date": {
@@ -661,6 +935,31 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Enrollment": {
+            "type": "object",
+            "properties": {
+                "activityItemId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "registrationDate": {
+                    "type": "string"
+                },
+                "student": {
+                    "description": "เพิ่ม ` + "`" + `Student` + "`" + ` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Student"
+                        }
+                    ]
+                },
+                "studentId": {
+                    "type": "string"
+                }
+            }
+        },
         "models.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -674,6 +973,40 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Food": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.FoodVote": {
+            "type": "object",
+            "properties": {
+                "activity": {
+                    "$ref": "#/definitions/models.Activity"
+                },
+                "activityId": {
+                    "type": "string"
+                },
+                "food": {
+                    "$ref": "#/definitions/models.Food"
+                },
+                "foodId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "vote": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.Major": {
             "type": "object",
             "properties": {
@@ -681,6 +1014,44 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "majorName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Student": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "hardSkill": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "majorId": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "softSkill": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
                     "type": "string"
                 }
             }

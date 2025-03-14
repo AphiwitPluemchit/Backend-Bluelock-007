@@ -4,6 +4,8 @@ import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -55,22 +57,49 @@ func CreateStudent(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Student created successfully"})
 }
 
-// GetStudents - ดึงข้อมูลผู้ใช้ทั้งหมด
-func GetStudents(c *fiber.Ctx) error {
-	students, err := services.GetAllStudents()
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error fetching students",
-		})
+func cleanList(arr []string) []string {
+	var result []string
+	for _, v := range arr {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			result = append(result, v)
+		}
 	}
-
-	return c.JSON(students)
+	return result
 }
 
-// GetStudentByID - ดึงข้อมูลผู้ใช้ตาม ID
-func GetStudentByID(c *fiber.Ctx) error {
-	id := c.Params("id")
-	student, err := services.GetStudentByID(id)
+// GetStudents - ดึงข้อมูลผู้ใช้ทั้งหมด
+func GetStudents(c *fiber.Ctx) error {
+	params := models.DefaultPagination()
+	params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
+	params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
+	params.Search = c.Query("search", params.Search)
+	params.SortBy = c.Query("sortBy", params.SortBy)
+	params.Order = c.Query("order", params.Order)
+
+	majors := cleanList(strings.Split(c.Query("major"), ","))
+	years := cleanList(strings.Split(c.Query("studentYear"), ","))
+
+	students, total, totalPages, err := services.GetStudentsWithFilter(params, majors, years)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching students"})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": students,
+		"meta": fiber.Map{
+			"page":       params.Page,
+			"limit":      params.Limit,
+			"total":      total,
+			"totalPages": totalPages,
+		},
+	})
+}
+
+// GetStudentByCode - ดึงข้อมูลผู้ใช้ตาม Code
+func GetStudentByCode(c *fiber.Ctx) error {
+	code := c.Params("code")
+	student, err := services.GetStudentByCode(code)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Student not found",

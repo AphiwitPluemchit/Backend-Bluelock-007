@@ -19,10 +19,13 @@ type ActivityItem struct {
 	ID              primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	ActivityID      primitive.ObjectID `json:"activityId,omitempty" bson:"activityId,omitempty"`
 	Name            *string            `json:"name" bson:"name" example:"Quarter Final"`
-	MaxParticipants *int               `json:"maxParticipants" bson:"maxParticipants" validate:"required,min=1" example:"22"`
+	Description     *string            `json:"description" bson:"description" example:"Quarter Final"`
+	MaxParticipants *int               `json:"maxParticipants" bson:"maxParticipants" example:"22"`
 	Room            *string            `json:"room" bson:"room" example:"Stadium A"`
+	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
 	Dates           []Dates            `json:"dates" bson:"dates"`
-	Hour            *int               `json:"hour" bson:"hour" validate:"required,min=1" example:"4"`
+	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
+	Enrollments     []Enrollment       `json:"enrollments" `
 }
 
 type Dates struct {
@@ -42,6 +45,7 @@ type ActivityDto struct {
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	StudentYears  []int              `json:"studentYears" bson:"studentYears" example:"1,2,3,4"`
-	Majors        []Major            `json:"majors" bson:"majors"`
+	Majors        []Major            `json:"majors"`
 	ActivityItems []ActivityItem     `json:"activityItems"`
+	FoodVotes     []FoodVote         `json:"foodVotes" `
 }
