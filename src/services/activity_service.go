@@ -74,7 +74,6 @@ func CreateActivity(activity *models.Activity) (*models.Activity, error) {
 	for i := range activity.FoodVotes {
 		activity.FoodVotes[i].ID = primitive.NewObjectID()
 		activity.FoodVotes[i].ActivityID = activity.ID
-		activity.FoodVotes[i].FoodID = activity.FoodVotes[i].Food.ID
 
 		_, err := foodVoteCollection.InsertOne(ctx, activity.FoodVotes[i])
 		if err != nil {
@@ -348,7 +347,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.Activity) (*models.Ac
 			// ถ้าไม่มี `_id` ให้สร้างใหม่
 			newFoodVote.ID = primitive.NewObjectID()
 			newFoodVote.ActivityID = id
-			newFoodVote.FoodID = newFoodVote.Food.ID
 
 			_, err := foodVoteCollection.InsertOne(ctx, newFoodVote)
 			if err != nil {
@@ -361,9 +359,8 @@ func UpdateActivity(id primitive.ObjectID, activity models.Activity) (*models.Ac
 			_, err := foodVoteCollection.UpdateOne(ctx,
 				bson.M{"_id": newFoodVote.ID},
 				bson.M{"$set": bson.M{
-					//  newFoodVote.FoodID || newFoodVote.Food.id
-					"foodId": newFoodVote.Food.ID,
-					"vote":   newFoodVote.Vote,
+					"foodName": newFoodVote.FoodName,
+					"vote":     newFoodVote.Vote,
 				}},
 			)
 			if err != nil {
