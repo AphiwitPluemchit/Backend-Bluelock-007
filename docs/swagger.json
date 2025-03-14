@@ -1,1040 +1,1129 @@
 {
-  "swagger": "2.0",
-  "info": {
-    "contact": {}
-  },
-  "paths": {
-    "/activitys": {
-      "get": {
-        "description": "Get all activities with pagination, search, and sorting",
-        "produces": ["application/json"],
-        "tags": ["activitys"],
-        "summary": "Get all activities with pagination, search, and sorting",
-        "parameters": [
-          {
-            "type": "integer",
-            "default": 1,
-            "description": "Page number",
-            "name": "page",
-            "in": "query"
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Number of items per page",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Search term",
-            "name": "search",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "default": "name",
-            "description": "Field to sort by",
-            "name": "sortBy",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "default": "asc",
-            "description": "Sort order (asc or desc)",
-            "name": "order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Filter by skill",
-            "name": "skill",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Filter by activityState",
-            "name": "activityState",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Filter by major",
-            "name": "major",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Filter by studentYear",
-            "name": "studentYear",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "type": "object",
-              "additionalProperties": true
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "Create a new activity",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "tags": ["activitys"],
-        "summary": "Create a new activity",
-        "parameters": [
-          {
-            "description": "Activity and ActivityItems",
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/models.Activity"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/models.Activity"
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      }
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
     },
-    "/activitys/{id}": {
-      "get": {
-        "description": "Get an activity by ID",
-        "produces": ["application/json"],
-        "tags": ["activitys"],
-        "summary": "Get an activity by ID",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Activity ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.ActivityDto"
+    "paths": {
+        "/activitys": {
+            "get": {
+                "description": "Get all activities with pagination, search, and sorting",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get all activities with pagination, search, and sorting",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "name",
+                        "description": "Field to sort by",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort order (asc or desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by skill",
+                        "name": "skill",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by activityState",
+                        "name": "activityState",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by major",
+                        "name": "major",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by studentYear",
+                        "name": "studentYear",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new activity",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Create a new activity",
+                "parameters": [
+                    {
+                        "description": "Activity and ActivityItems",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
             }
-          },
-          "404": {
-            "description": "Not Found",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
+        },
+        "/activitys/{id}": {
+            "get": {
+                "description": "Get an activity by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get an activity by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update an activity",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Update an activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Activity object",
+                        "name": "activity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Activity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an activity",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Delete an activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
             }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
+        },
+        "/activitys/{id}/enrollment-summary": {
+            "get": {
+                "description": "Get enrollment summary by activity ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get enrollment summary by activity ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.EnrollmentSummary"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
             }
-          }
+        },
+        "/activitys/{id}/enrollments": {
+            "get": {
+                "description": "Get enrollment by activity ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get enrollment by activity ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by name or email",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort by field (default: name)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort order (asc or desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by major",
+                        "name": "major",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admins": {
+            "get": {
+                "description": "Get admins with pagination, search, and sorting",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admins"
+                ],
+                "summary": "Get admins with pagination, search, and sorting",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by name or email",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort by field (default: name)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort order (asc or desc)",
+                        "name": "order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new admin",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admins"
+                ],
+                "summary": "Create a new admin",
+                "parameters": [
+                    {
+                        "description": "Admin object",
+                        "name": "admin",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Admin"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Admin"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admins/{id}": {
+            "get": {
+                "description": "Get an admin by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admins"
+                ],
+                "summary": "Get an admin by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Admin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Admin"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update an admin",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admins"
+                ],
+                "summary": "Update an admin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Admin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Admin object",
+                        "name": "admin",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Admin"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Admin"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an admin",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admins"
+                ],
+                "summary": "Delete an admin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Admin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Admin"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/foods": {
+            "get": {
+                "description": "ดึงข้อมูลอาหารที่มีอยู่ทั้งหมด",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ดึงรายการอาหารทั้งหมด",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "สร้างข้อมูลอาหารเป็น array",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "เพิ่มข้อมูลอาหารหลายรายการ",
+                "parameters": [
+                    {
+                        "description": "รายการอาหาร",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Food"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/foods/{id}": {
+            "get": {
+                "description": "ค้นหาข้อมูลอาหารโดยใช้ ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ดึงข้อมูลอาหารตาม ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "อัปเดตข้อมูลอาหารที่มีอยู่",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "foods"
+                ],
+                "summary": "อัปเดตข้อมูลอาหาร",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ข้อมูลอาหารที่ต้องการอัปเดต",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "ลบข้อมูลอาหารออกจากระบบ",
+                "tags": [
+                    "foods"
+                ],
+                "summary": "ลบข้อมูลอาหาร",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Food ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
-      },
-      "put": {
-        "description": "Update an activity",
-        "produces": ["application/json"],
-        "tags": ["activitys"],
-        "summary": "Update an activity",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Activity ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Activity object",
-            "name": "activity",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/models.Activity"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.Activity"
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "delete": {
-        "description": "Delete an activity",
-        "produces": ["application/json"],
-        "tags": ["activitys"],
-        "summary": "Delete an activity",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Activity ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      }
     },
-    "/activitys/{id}/enrollment-summary": {
-      "get": {
-        "description": "Get enrollment summary by activity ID",
-        "produces": ["application/json"],
-        "tags": ["activitys"],
-        "summary": "Get enrollment summary by activity ID",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Activity ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.EnrollmentSummary"
+    "definitions": {
+        "models.Activity": {
+            "type": "object",
+            "properties": {
+                "activityItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItem"
+                    }
+                },
+                "activityState": {
+                    "type": "string",
+                    "example": "planning"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
+                },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Football Tournament"
+                },
+                "skill": {
+                    "type": "string",
+                    "example": "hard"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "one"
+                }
             }
-          },
-          "404": {
-            "description": "Not Found",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
+        },
+        "models.ActivityItem": {
+            "type": "object",
+            "properties": {
+                "activityId": {
+                    "type": "string"
+                },
+                "dates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Dates"
+                    }
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Quarter Final"
+                },
+                "enrollments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Enrollment"
+                    }
+                },
+                "hour": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "id": {
+                    "type": "string"
+                },
+                "majors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "CS",
+                        "SE",
+                        "ITDI",
+                        "AAI"
+                    ]
+                },
+                "maxParticipants": {
+                    "type": "integer",
+                    "example": 22
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Quarter Final"
+                },
+                "operator": {
+                    "type": "string",
+                    "example": "Operator 1"
+                },
+                "rooms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "Room 1",
+                        "Room 2"
+                    ]
+                },
+                "studentYears": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
+                    ]
+                }
             }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
+        },
+        "models.ActivityItemSum": {
+            "type": "object",
+            "properties": {
+                "activityItemName": {
+                    "type": "string"
+                },
+                "registeredByMajor": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MajorEnrollment"
+                    }
+                }
             }
-          }
+        },
+        "models.Admin": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Dates": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "example": "2025-03-11"
+                },
+                "etime": {
+                    "type": "string",
+                    "example": "12:00"
+                },
+                "stime": {
+                    "type": "string",
+                    "example": "10:00"
+                }
+            }
+        },
+        "models.Enrollment": {
+            "type": "object",
+            "properties": {
+                "activityItemId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "registrationDate": {
+                    "type": "string"
+                },
+                "student": {
+                    "description": "เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Student"
+                        }
+                    ]
+                },
+                "studentId": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.EnrollmentSummary": {
+            "type": "object",
+            "properties": {
+                "activityItemSums": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItemSum"
+                    }
+                },
+                "maxParticipants": {
+                    "type": "integer"
+                },
+                "remainingSlots": {
+                    "type": "integer"
+                },
+                "totalRegistered": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "description": "รายละเอียดของ Error",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "HTTP Status Code",
+                    "type": "integer"
+                }
+            }
+        },
+        "models.Food": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.FoodVote": {
+            "type": "object",
+            "properties": {
+                "activityId": {
+                    "type": "string"
+                },
+                "food": {
+                    "description": "not sent food out to client",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    ]
+                },
+                "foodId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "vote": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.MajorEnrollment": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "majorName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Student": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "hardSkill": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "major": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "softSkill": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว",
+                    "type": "integer"
+                }
+            }
+        },
+        "models.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string"
+                }
+            }
         }
-      }
-    },
-    "/activitys/{id}/enrollments": {
-      "get": {
-        "description": "Get enrollment by activity ID",
-        "produces": ["application/json"],
-        "tags": ["activitys"],
-        "summary": "Get enrollment by activity ID",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Activity ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "integer",
-            "default": 1,
-            "description": "Page number",
-            "name": "page",
-            "in": "query"
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Items per page",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Search by name or email",
-            "name": "search",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Sort by field (default: name)",
-            "name": "sortBy",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "default": "asc",
-            "description": "Sort order (asc or desc)",
-            "name": "order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Filter by major",
-            "name": "major",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Filter by status",
-            "name": "status",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "type": "object",
-              "additionalProperties": true
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      }
-    },
-    "/admins": {
-      "get": {
-        "description": "Get admins with pagination, search, and sorting",
-        "produces": ["application/json"],
-        "tags": ["admins"],
-        "summary": "Get admins with pagination, search, and sorting",
-        "parameters": [
-          {
-            "type": "integer",
-            "default": 1,
-            "description": "Page number",
-            "name": "page",
-            "in": "query"
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Items per page",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Search by name or email",
-            "name": "search",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Sort by field (default: name)",
-            "name": "sortBy",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "default": "asc",
-            "description": "Sort order (asc or desc)",
-            "name": "order",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "type": "object",
-              "additionalProperties": true
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "Create a new admin",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "tags": ["admins"],
-        "summary": "Create a new admin",
-        "parameters": [
-          {
-            "description": "Admin object",
-            "name": "admin",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/models.Admin"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/models.Admin"
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      }
-    },
-    "/admins/{id}": {
-      "get": {
-        "description": "Get an admin by ID",
-        "produces": ["application/json"],
-        "tags": ["admins"],
-        "summary": "Get an admin by ID",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Admin ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.Admin"
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "put": {
-        "description": "Update an admin",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "tags": ["admins"],
-        "summary": "Update an admin",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Admin ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Admin object",
-            "name": "admin",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/models.Admin"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.Admin"
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "delete": {
-        "description": "Delete an admin",
-        "produces": ["application/json"],
-        "tags": ["admins"],
-        "summary": "Delete an admin",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Admin ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.Admin"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      }
-    },
-    "/foods": {
-      "get": {
-        "description": "ดึงข้อมูลอาหารที่มีอยู่ทั้งหมด",
-        "produces": ["application/json"],
-        "tags": ["foods"],
-        "summary": "ดึงรายการอาหารทั้งหมด",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/models.Food"
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "สร้างข้อมูลอาหารเป็น array",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "tags": ["foods"],
-        "summary": "เพิ่มข้อมูลอาหารหลายรายการ",
-        "parameters": [
-          {
-            "description": "รายการอาหาร",
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/models.Food"
-              }
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Created",
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/models.Food"
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      }
-    },
-    "/foods/{id}": {
-      "get": {
-        "description": "ค้นหาข้อมูลอาหารโดยใช้ ID",
-        "produces": ["application/json"],
-        "tags": ["foods"],
-        "summary": "ดึงข้อมูลอาหารตาม ID",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Food ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.Food"
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "put": {
-        "description": "อัปเดตข้อมูลอาหารที่มีอยู่",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "tags": ["foods"],
-        "summary": "อัปเดตข้อมูลอาหาร",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Food ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "ข้อมูลอาหารที่ต้องการอัปเดต",
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/models.Food"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.SuccessResponse"
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      },
-      "delete": {
-        "description": "ลบข้อมูลอาหารออกจากระบบ",
-        "tags": ["foods"],
-        "summary": "ลบข้อมูลอาหาร",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Food ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/models.SuccessResponse"
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "schema": {
-              "$ref": "#/definitions/models.ErrorResponse"
-            }
-          }
-        }
-      }
     }
-  },
-  "definitions": {
-    "models.Activity": {
-      "type": "object",
-      "properties": {
-        "activityItems": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/models.ActivityItem"
-          }
-        },
-        "activityState": {
-          "type": "string",
-          "example": "planning"
-        },
-        "file": {
-          "type": "string",
-          "example": "image.jpg"
-        },
-        "foodVotes": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/models.FoodVote"
-          }
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "example": "Football Tournament"
-        },
-        "skill": {
-          "type": "string",
-          "example": "hard"
-        },
-        "type": {
-          "type": "string",
-          "example": "one"
-        }
-      }
-    },
-    "models.ActivityItem": {
-      "type": "object",
-      "properties": {
-        "activityId": {
-          "type": "string"
-        },
-        "dates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/models.Dates"
-          }
-        },
-        "description": {
-          "type": "string",
-          "example": "Quarter Final"
-        },
-        "enrollments": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/models.Enrollment"
-          }
-        },
-        "hour": {
-          "type": "integer",
-          "example": 4
-        },
-        "id": {
-          "type": "string"
-        },
-        "majors": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": ["CS", "SE", "ITDI", "AAI"]
-        },
-        "maxParticipants": {
-          "type": "integer",
-          "example": 22
-        },
-        "name": {
-          "type": "string",
-          "example": "Quarter Final"
-        },
-        "operator": {
-          "type": "string",
-          "example": "Operator 1"
-        },
-        "rooms": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": ["Room 1", "Room 2"]
-        },
-        "studentYears": {
-          "type": "array",
-          "items": {
-            "type": "integer"
-          },
-          "example": [1, 2, 3, 4]
-        }
-      }
-    },
-    "models.ActivityItemSum": {
-      "type": "object",
-      "properties": {
-        "activityItemName": {
-          "type": "string"
-        },
-        "registeredByMajor": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/models.MajorEnrollment"
-          }
-        }
-      }
-    },
-    "models.Admin": {
-      "type": "object",
-      "properties": {
-        "email": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "password": {
-          "type": "string"
-        }
-      }
-    },
-    "models.Dates": {
-      "type": "object",
-      "properties": {
-        "date": {
-          "type": "string",
-          "example": "2025-03-11"
-        },
-        "etime": {
-          "type": "string",
-          "example": "12:00"
-        },
-        "stime": {
-          "type": "string",
-          "example": "10:00"
-        }
-      }
-    },
-    "models.Enrollment": {
-      "type": "object",
-      "properties": {
-        "activityItemId": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "registrationDate": {
-          "type": "string"
-        },
-        "student": {
-          "description": "เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB",
-          "allOf": [
-            {
-              "$ref": "#/definitions/models.Student"
-            }
-          ]
-        },
-        "studentId": {
-          "type": "string"
-        }
-      }
-    },
-    "models.EnrollmentSummary": {
-      "type": "object",
-      "properties": {
-        "activityItemSums": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/models.ActivityItemSum"
-          }
-        },
-        "maxParticipants": {
-          "type": "integer"
-        },
-        "remainingSlots": {
-          "type": "integer"
-        },
-        "totalRegistered": {
-          "type": "integer"
-        }
-      }
-    },
-    "models.ErrorResponse": {
-      "type": "object",
-      "properties": {
-        "message": {
-          "description": "รายละเอียดของ Error",
-          "type": "string"
-        },
-        "status": {
-          "description": "HTTP Status Code",
-          "type": "integer"
-        }
-      }
-    },
-    "models.Food": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      }
-    },
-    "models.FoodVote": {
-      "type": "object",
-      "properties": {
-        "activityId": {
-          "type": "string"
-        },
-        "food": {
-          "description": "not sent food out to client",
-          "allOf": [
-            {
-              "$ref": "#/definitions/models.Food"
-            }
-          ]
-        },
-        "foodId": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "vote": {
-          "type": "integer"
-        }
-      }
-    },
-    "models.MajorEnrollment": {
-      "type": "object",
-      "properties": {
-        "count": {
-          "type": "integer"
-        },
-        "majorName": {
-          "type": "string"
-        }
-      }
-    },
-    "models.Student": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "type": "string"
-        },
-        "email": {
-          "type": "string"
-        },
-        "hardSkill": {
-          "type": "integer"
-        },
-        "id": {
-          "type": "string"
-        },
-        "major": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "softSkill": {
-          "type": "integer"
-        },
-        "status": {
-          "description": "0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว",
-          "type": "integer"
-        }
-      }
-    },
-    "models.SuccessResponse": {
-      "type": "object",
-      "properties": {
-        "data": {},
-        "message": {
-          "type": "string"
-        }
-      }
-    }
-  }
 }
