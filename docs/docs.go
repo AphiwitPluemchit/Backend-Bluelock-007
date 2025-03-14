@@ -120,7 +120,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Activity"
                         }
                     }
                 ],
@@ -209,7 +209,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Activity"
                         }
                     }
                 ],
@@ -217,7 +217,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.Activity"
                         }
                     },
                     "400": {
@@ -294,13 +294,94 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
+                            "$ref": "#/definitions/models.EnrollmentSummary"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/activitys/{id}/enrollments": {
+            "get": {
+                "description": "Get enrollment by activity ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get enrollment by activity ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by name or email",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort by field (default: name)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort order (asc or desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by major",
+                        "name": "major",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "500": {
@@ -749,56 +830,6 @@ const docTemplate = `{
         "models.Activity": {
             "type": "object",
             "properties": {
-                "activityState": {
-                    "type": "string",
-                    "example": "planning"
-                },
-                "file": {
-                    "type": "string",
-                    "example": "image.jpg"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "majorIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "67bf0bd48873e448798fed34",
-                        "67bf0bda8873e448798fed35"
-                    ]
-                },
-                "name": {
-                    "type": "string",
-                    "example": "Football Tournament"
-                },
-                "skill": {
-                    "type": "string",
-                    "example": "hard"
-                },
-                "studentYears": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    },
-                    "example": [
-                        1,
-                        2,
-                        3,
-                        4
-                    ]
-                },
-                "type": {
-                    "type": "string",
-                    "example": "one"
-                }
-            }
-        },
-        "models.ActivityDto": {
-            "type": "object",
-            "properties": {
                 "activityItems": {
                     "type": "array",
                     "items": {
@@ -822,12 +853,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "majors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Major"
-                    }
-                },
                 "name": {
                     "type": "string",
                     "example": "Football Tournament"
@@ -835,18 +860,6 @@ const docTemplate = `{
                 "skill": {
                     "type": "string",
                     "example": "hard"
-                },
-                "studentYears": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    },
-                    "example": [
-                        1,
-                        2,
-                        3,
-                        4
-                    ]
                 },
                 "type": {
                     "type": "string",
@@ -883,6 +896,18 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "majors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "CS",
+                        "SE",
+                        "ITDI",
+                        "AAI"
+                    ]
+                },
                 "maxParticipants": {
                     "type": "integer",
                     "example": 22
@@ -895,9 +920,41 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Operator 1"
                 },
-                "room": {
-                    "type": "string",
-                    "example": "Stadium A"
+                "rooms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "Room 1",
+                        "Room 2"
+                    ]
+                },
+                "studentYears": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
+                    ]
+                }
+            }
+        },
+        "models.ActivityItemSum": {
+            "type": "object",
+            "properties": {
+                "activityItemName": {
+                    "type": "string"
+                },
+                "registeredByMajor": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MajorEnrollment"
+                    }
                 }
             }
         },
@@ -960,6 +1017,26 @@ const docTemplate = `{
                 }
             }
         },
+        "models.EnrollmentSummary": {
+            "type": "object",
+            "properties": {
+                "activityItemSums": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItemSum"
+                    }
+                },
+                "maxParticipants": {
+                    "type": "integer"
+                },
+                "remainingSlots": {
+                    "type": "integer"
+                },
+                "totalRegistered": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -987,14 +1064,16 @@ const docTemplate = `{
         "models.FoodVote": {
             "type": "object",
             "properties": {
-                "activity": {
-                    "$ref": "#/definitions/models.Activity"
-                },
                 "activityId": {
                     "type": "string"
                 },
                 "food": {
-                    "$ref": "#/definitions/models.Food"
+                    "description": "not sent food out to client",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Food"
+                        }
+                    ]
                 },
                 "foodId": {
                     "type": "string"
@@ -1007,11 +1086,11 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Major": {
+        "models.MajorEnrollment": {
             "type": "object",
             "properties": {
-                "id": {
-                    "type": "string"
+                "count": {
+                    "type": "integer"
                 },
                 "majorName": {
                     "type": "string"
@@ -1033,7 +1112,7 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "majorId": {
+                "major": {
                     "type": "string"
                 },
                 "name": {
@@ -1043,7 +1122,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "status": {
-                    "type": "string"
+                    "description": "0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว",
+                    "type": "integer"
                 }
             }
         },

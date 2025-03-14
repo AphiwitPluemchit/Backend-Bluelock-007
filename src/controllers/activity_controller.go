@@ -18,14 +18,14 @@ import (
 // @Tags         activitys
 // @Accept       json
 // @Produce      json
-// @Param        body body models.ActivityDto true "Activity and ActivityItems"
+// @Param        body body models.Activity true "Activity and ActivityItems"
 // @Success      201  {object}  models.Activity
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [post]
 // CreateActivity - สร้างกิจกรรมใหม่
 func CreateActivity(c *fiber.Ctx) error {
-	var request models.ActivityDto
+	var request models.Activity
 
 	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
@@ -84,7 +84,14 @@ func GetAllActivities(c *fiber.Ctx) error {
 	skillFilter := strings.Split(skills, ",")
 	stateFilter := strings.Split(activityStates, ",")
 	majorFilter := strings.Split(majors, ",")
-	yearFilter := strings.Split(studentYears, ",")
+	// Convert studentYear to int array
+	yearFilter := make([]int, 0)
+	for _, yearStr := range strings.Split(studentYears, ",") {
+		year, err := strconv.Atoi(yearStr)
+		if err == nil {
+			yearFilter = append(yearFilter, year)
+		}
+	}
 
 	// ดึงข้อมูลจาก Service
 	activities, total, totalPages, err := services.GetAllActivities(params, skillFilter, stateFilter, majorFilter, yearFilter)
@@ -143,7 +150,7 @@ func GetActivityByID(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Success      200  {object}  models.ActivityDto
+// @Success      200  {object} 	models.EnrollmentSummary
 // @Failure      404  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id}/enrollment-summary [get]
@@ -167,6 +174,67 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(enrollmentSummary)
 }
 
+// GetEnrollmentByActivityID - ดึงข้อมูลสรุปการลงทะเบียน
+// GetEnrollmentByActivityID - godoc
+// @Summary      Get enrollment by activity ID
+// @Description  Get enrollment by activity ID
+// @Tags         activitys
+// @Produce      json
+// @Param        id   path  string  true  "Activity ID"
+// @Param        page    query  int     false  "Page number"  default(1)
+// @Param        limit   query  int     false  "Items per page"  default(10)
+// @Param        search  query  string  false  "Search by name or email"
+// @Param        sortBy  query  string  false  "Sort by field (default: name)"
+// @Param        order   query  string  false  "Sort order (asc or desc)"  default(asc)
+// @Param        major   query  string  false  "Filter by major"
+// @Param        status  query  string  false  "Filter by status"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id}/enrollments [get]
+func GetEnrollmentByActivityID(c *fiber.Ctx) error {
+	params := models.DefaultPagination()
+
+	params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
+	params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
+	params.Search = c.Query("search", params.Search)
+	params.SortBy = c.Query("sortBy", params.SortBy)
+	params.Order = c.Query("order", params.Order)
+
+	majors := c.Query("major")
+	status := c.Query("status")
+
+	majorFilter := []string{}
+	if majors != "" {
+		majorFilter = strings.Split(majors, ",")
+	}
+
+	statusFilter := []int{}
+	for _, statusStr := range strings.Split(status, ",") {
+		if statusStr != "" {
+			status, err := strconv.Atoi(statusStr)
+			if err == nil {
+				statusFilter = append(statusFilter, status)
+			}
+		}
+	}
+
+	activityID, err := primitive.ObjectIDFromHex(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
+	}
+
+	enrollments, total, totalPages, err := services.GetEnrollmentByActivityID(activityID.Hex(), params, majorFilter, statusFilter)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Activity not found", "message": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data":       enrollments,
+		"total":      total,
+		"totalPages": totalPages,
+	})
+}
+
 // UpdateActivity - อัพเดตข้อมูลกิจกรรม พร้อม ActivityItems
 // UpdateActivity - godoc
 // @Summary      Update an activity
@@ -174,8 +242,8 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Param        activity  body  models.ActivityDto  true  "Activity object"
-// @Success      200  {object}  models.ActivityDto
+// @Param        activity  body  models.Activity  true  "Activity object"
+// @Success      200  {object}  models.Activity
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id} [put]
@@ -187,7 +255,7 @@ func UpdateActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	var request models.ActivityDto
+	var request models.Activity
 	// ✅ แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})

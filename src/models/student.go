@@ -10,9 +10,9 @@ type Student struct {
 	Code      string             `json:"code" bson:"code"`
 	Name      string             `json:"name" bson:"name"`
 	Email     string             `json:"email,omitempty" bson:"email,omitempty"`
-	Status    string             `json:"status" bson:"status"`
+	Status    int                `json:"status" bson:"status"`        // 0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว
 	Password  string             `json:"-" bson:"password,omitempty"` // ไม่ให้ส่ง Password ออกไป
 	SoftSkill int                `json:"softSkill,omitempty" bson:"softSkill,omitempty"`
 	HardSkill int                `json:"hardSkill,omitempty" bson:"hardSkill,omitempty"`
-	MajorID   primitive.ObjectID `json:"majorId,omitempty" bson:"majorId,omitempty"`
+	Major     string             `json:"major,omitempty" bson:"major,omitempty"`
 }

@@ -11,5 +11,7 @@ type FoodVote struct {
 	Vote       int                `json:"vote" bson:"vote"`
 	ActivityID primitive.ObjectID `json:"activityId" bson:"activityId"`
 	FoodID     primitive.ObjectID `json:"foodId" bson:"foodId"`
-	Food       Food               `json:"food"`
+
+	// not sent food out to client
+	Food *Food `json:"food" ` // ❌ ห้ามบันทึก Food ลง MongoDB
 }
