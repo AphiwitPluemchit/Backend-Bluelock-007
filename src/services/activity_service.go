@@ -553,7 +553,7 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 	}
 }
 
-func GetEnrollmentByActivityID(activityID string, pagination models.PaginationParams) ([]models.Enrollment, int64, error) {
+func GetEnrollmentByActivityID(activityID string, pagination models.PaginationParams, majors []string, status []int) ([]models.Enrollment, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -562,7 +562,7 @@ func GetEnrollmentByActivityID(activityID string, pagination models.PaginationPa
 		return nil, 0, err
 	}
 
-	pipeline := GetEnrollmentByActivityIDPipeline(objectID, pagination)
+	pipeline := GetEnrollmentByActivityIDPipeline(objectID, pagination, majors, status)
 	cursor, err := activityItemCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.Println("Error fetching enrollments:", err)
@@ -606,37 +606,57 @@ func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.Ob
 	return activityItemIDs, nil
 }
 
-func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID, pagination models.PaginationParams) mongo.Pipeline {
-	return mongo.Pipeline{
-		{{
-			Key: "$match", Value: bson.D{{Key: "activityId", Value: activityID}},
-		}},
-		{{
-			Key: "$lookup", Value: bson.D{{Key: "from", Value: "enrollments"}, {Key: "localField", Value: "_id"}, {Key: "foreignField", Value: "activityItemId"}, {Key: "as", Value: "enrollments"}},
-		}},
-		{{
-			Key: "$unwind", Value: bson.D{{Key: "path", Value: "$enrollments"}, {Key: "preserveNullAndEmptyArrays", Value: true}},
-		}},
-		{{
-			Key: "$lookup", Value: bson.D{{Key: "from", Value: "students"}, {Key: "localField", Value: "enrollments.studentId"}, {Key: "foreignField", Value: "_id"}, {Key: "as", Value: "enrollments.student"}},
-		}},
-		{{
-			Key: "$unwind", Value: bson.D{{Key: "path", Value: "$enrollments.student"}, {Key: "preserveNullAndEmptyArrays", Value: true}},
-		}},
-		{{
-			Key: "$project", Value: bson.D{
-				{Key: "_id", Value: "$enrollments._id"},
-				{Key: "registrationDate", Value: "$enrollments.registrationDate"},
-				{Key: "activityItemId", Value: "$enrollments.activityItemId"},
-				{Key: "studentId", Value: "$enrollments.studentId"},
-				{Key: "student", Value: "$enrollments.student"},
-			},
-		}},
-		{{
-			Key: "$skip", Value: (pagination.Page - 1) * pagination.Limit,
-		}},
-		{{
-			Key: "$limit", Value: pagination.Limit,
-		}},
+func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID, pagination models.PaginationParams, majors []string, status []int) mongo.Pipeline {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "activityId", Value: activityID}}}},
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "enrollments"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityItemId"},
+			{Key: "as", Value: "enrollments"},
+		}}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$enrollments"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "students"},
+			{Key: "localField", Value: "enrollments.studentId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "enrollments.student"},
+		}}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$enrollments.student"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+
+		// เพิ่ม `$addFields` เพื่อแยก `major` ออกมาก่อนทำ `$match`
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "studentMajor", Value: "$enrollments.student.major"},
+		}}},
 	}
+
+	// Apply filter for student majors if provided
+	if len(majors) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "studentMajor", Value: bson.M{"$in": majors}}}}})
+	}
+
+	// Apply filter for student status if provided
+	if len(status) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "enrollments.student.status", Value: bson.M{"$in": status}}}}})
+	}
+
+	pipeline = append(pipeline,
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: "$enrollments._id"},
+			{Key: "registrationDate", Value: "$enrollments.registrationDate"},
+			{Key: "activityItemId", Value: "$enrollments.activityItemId"},
+			{Key: "studentId", Value: "$enrollments.studentId"},
+			{Key: "student", Value: "$enrollments.student"},
+		}}},
+		bson.D{{Key: "$skip", Value: (pagination.Page - 1) * pagination.Limit}},
+		bson.D{{Key: "$limit", Value: pagination.Limit}},
+	)
+
+	return pipeline
 }

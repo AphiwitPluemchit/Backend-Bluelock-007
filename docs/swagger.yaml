@@ -400,6 +400,54 @@ paths:
       summary: Get enrollment summary by activity ID
       tags:
       - activitys
+  /activitys/{id}/enrollments:
+    get:
+      description: Get enrollments by activity ID
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Filter by majors
+        in: query
+        name: majors
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get enrollments by activity ID
+      tags:
+      - activitys
   /admins:
     get:
       description: Get admins with pagination, search, and sorting

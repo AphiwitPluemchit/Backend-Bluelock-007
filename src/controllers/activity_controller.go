@@ -174,6 +174,22 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(enrollmentSummary)
 }
 
+// GetEnrollmentByActivityID - ดึงข้อมูลการลงทะเบียนตาม ID กิจกรรม
+// GetEnrollmentByActivityID - godoc
+// @Summary      Get enrollments by activity ID
+// @Description  Get enrollments by activity ID
+// @Tags         activitys
+// @Produce      json
+// @Param        id   path  string  true  "Activity ID"
+// @Param        majors   query  string  false  "Filter by majors"
+// @Param        status   query  string  false  "Filter by status"
+// @Param        page   query  int  false  "Page number"
+// @Param        limit   query  int  false  "Items per page"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      404  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id}/enrollments [get]
 func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	activityID, err := primitive.ObjectIDFromHex(id)
@@ -194,7 +210,27 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 		pagination.Limit = 10
 	}
 
-	enrollments, total, err := services.GetEnrollmentByActivityID(activityID.Hex(), pagination)
+	// รับค่า query param ของ major และ status
+	studentMajors := c.Query("majors") // Expecting comma-separated values
+	studentStatus := c.Query("status") // Expecting int value
+
+	var majorFilter []string
+	if studentMajors != "" {
+		majorFilter = strings.Split(studentMajors, ",")
+	}
+
+	var statusFilter []int
+	if studentStatus != "" {
+		statusValues := strings.Split(studentStatus, ",")
+		for _, val := range statusValues {
+			num, err := strconv.Atoi(val)
+			if err == nil {
+				statusFilter = append(statusFilter, num)
+			}
+		}
+	}
+
+	enrollments, total, err := services.GetEnrollmentByActivityID(activityID.Hex(), pagination, majorFilter, statusFilter)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error":   "Activity not found",
@@ -202,7 +238,6 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 		})
 	}
 
-	// ส่งข้อมูลกลับ พร้อม meta สำหรับ pagination
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": enrollments,
 		"meta": fiber.Map{
