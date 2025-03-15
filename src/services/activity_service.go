@@ -49,6 +49,7 @@ func CreateActivity(activity *models.Activity) (*models.Activity, error) {
 		ActivityState: activity.ActivityState,
 		Skill:         activity.Skill,
 		File:          activity.File,
+		FoodVotes:     activity.FoodVotes,
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
