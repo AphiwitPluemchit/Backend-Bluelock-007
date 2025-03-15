@@ -48,6 +48,9 @@ func main() {
 		appURI = "8888" // ใช้ 8888 เป็นค่าเริ่มต้น
 	}
 
+	// ✅ ให้บริการไฟล์ใน uploads/activity/images/
+	app.Static("/uploads/activity/images", "./uploads/activity/images")
+
 	// เริ่มเซิร์ฟเวอร์
 	log.Println("Server is running on port " + appURI)
 	err = app.Listen(fmt.Sprintf(":%s", url.PathEscape(appURI)))

@@ -77,6 +77,20 @@ func CreateActivity(activity *models.Activity) (*models.Activity, error) {
 	return GetActivityByID(activity.ID.Hex())
 }
 
+func UploadActivityImage(activityID string, fileName string) error {
+	// string to primitive.ObjectID
+	objectID, err := primitive.ObjectIDFromHex(activityID)
+	if err != nil {
+		return err
+	}
+
+	// update image
+	filter := bson.M{"_id": objectID}
+	update := bson.M{"$set": bson.M{"file": fileName}}
+	_, err = activityCollection.UpdateOne(context.Background(), filter, update)
+	return err
+}
+
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
 func GetAllActivities(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int) ([]models.Activity, int64, int, error) {
 	var results []models.Activity
