@@ -24,8 +24,9 @@ import (
 // ✅ 1. Student ลงทะเบียนกิจกรรม
 func CreateEnrollment(c *fiber.Ctx) error {
 	var req struct {
-		ActivityItemID string `json:"activityItemId"`
-		StudentID      string `json:"studentId"`
+		ActivityItemID string  `json:"activityItemId"`
+		StudentID      string  `json:"studentId"`
+		Food           *string `json:"food"` // ✅ รับชื่ออาหาร ถ้ามี
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -35,7 +36,7 @@ func CreateEnrollment(c *fiber.Ctx) error {
 	activityItemID, _ := primitive.ObjectIDFromHex(req.ActivityItemID)
 	studentID, _ := primitive.ObjectIDFromHex(req.StudentID)
 
-	err := services.RegisterStudent(activityItemID, studentID)
+	err := services.RegisterStudent(activityItemID, studentID, req.Food) // ✅ ส่ง food ไปด้วย
 	if err != nil {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 	}

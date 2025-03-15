@@ -13,6 +13,7 @@ type Enrollment struct {
 	ActivityItemID   primitive.ObjectID `json:"activityItemId" bson:"activityItemId"`
 	StudentID        primitive.ObjectID `json:"studentId" bson:"studentId"`
 	Student          Student            `json:"student" ` // เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
+	Food             *string            `bson:"food"`
 }
 
 // SuccessResponse ใช้เป็นโครงสร้าง JSON Response ที่ Swagger ใช้

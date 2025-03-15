@@ -32,14 +32,13 @@ func init() {
 }
 
 // ✅ 1. Student ลงทะเบียนกิจกรรม (ลงซ้ำไม่ได้)
-func RegisterStudent(activityItemID, studentID primitive.ObjectID) error {
+func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// ✅ ตรวจสอบว่า ActivityItem และ Student มีอยู่จริงไหม
 	var activityItem models.ActivityItem
-	err := activityItemCollection.FindOne(ctx, bson.M{"_id": activityItemID}).Decode(&activityItem)
-	if err != nil {
+	if err := activityItemCollection.FindOne(ctx, bson.M{"_id": activityItemID}).Decode(&activityItem); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return errors.New("activity item not found")
 		}
@@ -47,8 +46,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID) error {
 	}
 
 	var student models.Student
-	err = studentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student)
-	if err != nil {
+	if err := studentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return errors.New("student not found")
 		}
@@ -63,17 +61,17 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID) error {
 	if err != nil {
 		return err
 	}
-
 	if count > 0 {
 		return errors.New("already enrolled in this activity")
 	}
 
-	// ✅ สร้าง Enrollment ใหม่
+	// ✅ สร้าง Enrollment ใหม่ พร้อม food ถ้ามี
 	newEnrollment := models.Enrollment{
 		ID:               primitive.NewObjectID(),
 		StudentID:        studentID,
 		ActivityItemID:   activityItemID,
 		RegistrationDate: time.Now(),
+		Food:             food, // ✅ เก็บค่าอาหารที่ส่งมา หรือ nil
 	}
 
 	_, err = enrollmentCollection.InsertOne(ctx, newEnrollment)
