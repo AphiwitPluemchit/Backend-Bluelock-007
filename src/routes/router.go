@@ -8,15 +8,12 @@ func InitRoutes(app *fiber.App) {
 	// เรียกใช้ฟังก์ชัน InitUserRoutes และ InitOrderRoutes
 	authRoutes(app)
 	activityRoutes(app)
-	activityStateRoutes(app)
 	adminRoutes(app)
 	checkInOutRoutes(app)
 	enrollmentRoutes(app)
 	evaluationScoreRoutes(app)
 	foodRoutes(app)
 	formEvaluationRoutes(app)
-	majorRoutes(app)
-	skillRoutes(app)
 	studentRoutes(app)
 	suggestionRoutes(app)
 
