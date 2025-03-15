@@ -174,64 +174,43 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(enrollmentSummary)
 }
 
-// GetEnrollmentByActivityID - ดึงข้อมูลสรุปการลงทะเบียน
-// GetEnrollmentByActivityID - godoc
-// @Summary      Get enrollment by activity ID
-// @Description  Get enrollment by activity ID
-// @Tags         activitys
-// @Produce      json
-// @Param        id   path  string  true  "Activity ID"
-// @Param        page    query  int     false  "Page number"  default(1)
-// @Param        limit   query  int     false  "Items per page"  default(10)
-// @Param        search  query  string  false  "Search by name or email"
-// @Param        sortBy  query  string  false  "Sort by field (default: name)"
-// @Param        order   query  string  false  "Sort order (asc or desc)"  default(asc)
-// @Param        major   query  string  false  "Filter by major"
-// @Param        status  query  string  false  "Filter by status"
-// @Success      200  {object}  map[string]interface{}
-// @Failure      500  {object}  models.ErrorResponse
-// @Router       /activitys/{id}/enrollments [get]
 func GetEnrollmentByActivityID(c *fiber.Ctx) error {
-	params := models.DefaultPagination()
-
-	params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
-	params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
-	params.Search = c.Query("search", params.Search)
-	params.SortBy = c.Query("sortBy", params.SortBy)
-	params.Order = c.Query("order", params.Order)
-
-	majors := c.Query("major")
-	status := c.Query("status")
-
-	majorFilter := []string{}
-	if majors != "" {
-		majorFilter = strings.Split(majors, ",")
-	}
-
-	statusFilter := []int{}
-	for _, statusStr := range strings.Split(status, ",") {
-		if statusStr != "" {
-			status, err := strconv.Atoi(statusStr)
-			if err == nil {
-				statusFilter = append(statusFilter, status)
-			}
-		}
-	}
-
-	activityID, err := primitive.ObjectIDFromHex(c.Params("id"))
+	id := c.Params("id")
+	activityID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	enrollments, total, totalPages, err := services.GetEnrollmentByActivityID(activityID.Hex(), params, majorFilter, statusFilter)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Activity not found", "message": err.Error()})
+	// อ่านค่าพารามิเตอร์การแบ่งหน้า
+	pagination := models.DefaultPagination()
+	if err := c.QueryParser(&pagination); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
 	}
 
+	if pagination.Page < 1 {
+		pagination.Page = 1
+	}
+	if pagination.Limit < 1 {
+		pagination.Limit = 10
+	}
+
+	enrollments, total, err := services.GetEnrollmentByActivityID(activityID.Hex(), pagination)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":   "Activity not found",
+			"message": err.Error(),
+		})
+	}
+
+	// ส่งข้อมูลกลับ พร้อม meta สำหรับ pagination
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data":       enrollments,
-		"total":      total,
-		"totalPages": totalPages,
+		"data": enrollments,
+		"meta": fiber.Map{
+			"currentPage": pagination.Page,
+			"perPage":     pagination.Limit,
+			"total":       total,
+			"totalPages":  (total + int64(pagination.Limit) - 1) / int64(pagination.Limit),
+		},
 	})
 }
 

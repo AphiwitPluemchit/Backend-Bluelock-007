@@ -25,7 +25,7 @@ type ActivityItem struct {
 	Majors          []string           `json:"majors" bson:"majors" example:"CS,SE,ITDI,AAI"`
 	Rooms           *[]string          `json:"rooms" bson:"rooms" example:"Room 1,Room 2"`
 	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
-	Dates           []Dates            `json:"dates" bson:"dates"`
+	Dates           []Dates            `json:"dates" bson:"dates" `
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
 	Enrollments     []Enrollment       `json:"enrollments" `
 }
@@ -50,11 +50,11 @@ type ActivityItemSum struct {
 
 // โครงสร้างสำหรับแยกจำนวนลงทะเบียนตามสาขา
 type MajorEnrollment struct {
-	MajorName string `json:"majorName"`
+	MajorName string `json:"majorName" `
 	Count     int    `json:"count"`
 }
 
 type FoodVote struct {
 	Vote     int    `json:"vote" bson:"vote"`
-	FoodName string `json:"foodName" bson:"foodName"`
+	FoodName string `json:"foodName" bson:"foodName" example:"Pizza"`
 }

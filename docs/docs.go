@@ -312,87 +312,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/activitys/{id}/enrollments": {
-            "get": {
-                "description": "Get enrollment by activity ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Get enrollment by activity ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "Items per page",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Search by name or email",
-                        "name": "search",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Sort by field (default: name)",
-                        "name": "sortBy",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "asc",
-                        "description": "Sort order (asc or desc)",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by major",
-                        "name": "major",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by status",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/admins": {
             "get": {
                 "description": "Get admins with pagination, search, and sorting",
@@ -1065,7 +984,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "foodName": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Pizza"
                 },
                 "vote": {
                     "type": "integer"

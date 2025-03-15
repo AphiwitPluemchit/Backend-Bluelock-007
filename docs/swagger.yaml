@@ -161,6 +161,7 @@ definitions:
   models.FoodVote:
     properties:
       foodName:
+        example: Pizza
         type: string
       vote:
         type: integer
@@ -397,61 +398,6 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get enrollment summary by activity ID
-      tags:
-      - activitys
-  /activitys/{id}/enrollments:
-    get:
-      description: Get enrollment by activity ID
-      parameters:
-      - description: Activity ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: Items per page
-        in: query
-        name: limit
-        type: integer
-      - description: Search by name or email
-        in: query
-        name: search
-        type: string
-      - description: 'Sort by field (default: name)'
-        in: query
-        name: sortBy
-        type: string
-      - default: asc
-        description: Sort order (asc or desc)
-        in: query
-        name: order
-        type: string
-      - description: Filter by major
-        in: query
-        name: major
-        type: string
-      - description: Filter by status
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get enrollment by activity ID
       tags:
       - activitys
   /admins:
