@@ -203,12 +203,7 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
 	}
 
-	if pagination.Page < 1 {
-		pagination.Page = 1
-	}
-	if pagination.Limit < 1 {
-		pagination.Limit = 10
-	}
+	fmt.Println("Pagination:", pagination)
 
 	// รับค่า query param ของ major และ status
 	studentMajors := c.Query("majors") // Expecting comma-separated values
