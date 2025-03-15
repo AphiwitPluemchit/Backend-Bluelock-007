@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -554,7 +555,7 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 	}
 }
 
-func GetEnrollmentByActivityID(activityID string, pagination models.PaginationParams, majors []string, status []int) ([]models.Enrollment, int64, error) {
+func GetEnrollmentByActivityID(activityID string, pagination models.PaginationParams, majors []string, status []int, studentYears []int) ([]models.Enrollment, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -563,7 +564,7 @@ func GetEnrollmentByActivityID(activityID string, pagination models.PaginationPa
 		return nil, 0, err
 	}
 
-	pipeline := GetEnrollmentByActivityIDPipeline(objectID, pagination, majors, status)
+	pipeline := GetEnrollmentByActivityIDPipeline(objectID, pagination, majors, status, studentYears)
 	cursor, err := activityItemCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.Println("Error fetching enrollments:", err)
@@ -607,7 +608,7 @@ func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.Ob
 	return activityItemIDs, nil
 }
 
-func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID, pagination models.PaginationParams, majors []string, status []int) mongo.Pipeline {
+func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID, pagination models.PaginationParams, majors []string, status []int, studentYears []int) mongo.Pipeline {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{{Key: "activityId", Value: activityID}}}},
 		{{Key: "$lookup", Value: bson.D{
@@ -647,6 +648,24 @@ func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID, pagination
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "enrollments.student.status", Value: bson.M{"$in": status}}}}})
 	}
 
+	// Apply student year filter if provided
+	if len(studentYears) > 0 {
+		studentCodePrefixes := generateStudentCodeFilter(studentYears)
+
+		var regexFilters []bson.D
+		for _, prefix := range studentCodePrefixes {
+			regexFilters = append(regexFilters, bson.D{
+				{Key: "enrollments.student.code", Value: bson.M{"$regex": "^" + prefix, "$options": "i"}}, // ใช้ ^ ใน "$regex": "^" + prefix เพื่อให้แน่ใจว่า เลขที่ต้องการอยู่ต้นรหัสนิสิต
+			})
+		}
+
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{
+				{Key: "$or", Value: regexFilters}, // ใช้ $or เพื่อรองรับหลายปี เช่น ["67", "66", "65", "64"]
+			}},
+		})
+	}
+
 	// Apply search filter if provided
 	if pagination.Search != "" {
 		searchRegex := bson.M{"$regex": pagination.Search, "$options": "i"} // Case-insensitive search
@@ -671,4 +690,30 @@ func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID, pagination
 	)
 
 	return pipeline
+}
+
+// 🔢 คำนวณปีการศึกษาปัจจุบัน (พ.ศ.)
+func getCurrentAcademicYear() int {
+	now := time.Now()        // เวลาปัจจุบัน
+	year := now.Year() + 543 // แปลง ค.ศ. เป็น พ.ศ.
+
+	// ถ้ายังไม่ถึงเดือนกรกฎาคม ถือว่ายังเป็นปีการศึกษาที่แล้ว
+	if now.Month() < 7 {
+		year -= 1
+	}
+	return year % 100 // ✅ เอาเฉพาะ 2 หลักท้าย (2568 → 68)
+}
+
+// 🎯 ฟังก์ชันสำหรับสร้างเงื่อนไขการคัดกรองรหัสนิสิต
+func generateStudentCodeFilter(studentYears []int) []string {
+	currentYear := getCurrentAcademicYear()
+	var codes []string
+
+	for _, year := range studentYears {
+		if year >= 1 && year <= 4 {
+			studentYearPrefix := strconv.Itoa(currentYear - (year - 1))
+			codes = append(codes, studentYearPrefix) // เพิ่ม Prefix 67, 66, 65, 64 ตามปี
+		}
+	}
+	return codes
 }

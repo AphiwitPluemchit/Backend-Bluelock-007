@@ -371,6 +371,12 @@ const docTemplate = `{
                         "description": "Filter by status",
                         "name": "status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by student years",
+                        "name": "years",
+                        "in": "query"
                     }
                 ],
                 "responses": {

@@ -188,6 +188,7 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 // @Param        order    query  string  false  "Sort order"
 // @Param        majors   query  string  false  "Filter by majors"
 // @Param        status   query  string  false  "Filter by status"
+// @Param        years    query  string  false  "Filter by student years"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      404  {object}  models.ErrorResponse
@@ -211,6 +212,7 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 	// รับค่า query param ของ major และ status
 	studentMajors := c.Query("majors") // Expecting comma-separated values
 	studentStatus := c.Query("status") // Expecting int value
+	studentYears := c.Query("years")
 
 	var majorFilter []string
 	if studentMajors != "" {
@@ -228,7 +230,18 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 		}
 	}
 
-	enrollments, total, err := services.GetEnrollmentByActivityID(activityID.Hex(), pagination, majorFilter, statusFilter)
+	var studentYearsFilter []int
+	if studentYears != "" {
+		studentYearsValues := strings.Split(studentYears, ",")
+		for _, val := range studentYearsValues {
+			num, err := strconv.Atoi(val)
+			if err == nil {
+				studentYearsFilter = append(studentYearsFilter, num)
+			}
+		}
+	}
+
+	enrollments, total, err := services.GetEnrollmentByActivityID(activityID.Hex(), pagination, majorFilter, statusFilter, studentYearsFilter)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error":   "Activity not found",
