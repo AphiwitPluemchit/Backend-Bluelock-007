@@ -647,6 +647,17 @@ func GetEnrollmentByActivityIDPipeline(activityID primitive.ObjectID, pagination
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "enrollments.student.status", Value: bson.M{"$in": status}}}}})
 	}
 
+	// Apply search filter if provided
+	if pagination.Search != "" {
+		searchRegex := bson.M{"$regex": pagination.Search, "$options": "i"} // Case-insensitive search
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+			{Key: "$or", Value: bson.A{
+				bson.D{{Key: "enrollments.student.name", Value: searchRegex}},
+				bson.D{{Key: "enrollments.student.code", Value: searchRegex}},
+			}},
+		}}})
+	}
+
 	pipeline = append(pipeline,
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: "$enrollments._id"},

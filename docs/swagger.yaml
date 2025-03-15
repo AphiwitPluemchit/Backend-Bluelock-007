@@ -409,14 +409,6 @@ paths:
         name: id
         required: true
         type: string
-      - description: Filter by majors
-        in: query
-        name: majors
-        type: string
-      - description: Filter by status
-        in: query
-        name: status
-        type: string
       - description: Page number
         in: query
         name: page
@@ -425,6 +417,26 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      - description: Sort by field
+        in: query
+        name: sortBy
+        type: string
+      - description: Sort order
+        in: query
+        name: order
+        type: string
+      - description: Filter by majors
+        in: query
+        name: majors
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
       produces:
       - application/json
       responses:

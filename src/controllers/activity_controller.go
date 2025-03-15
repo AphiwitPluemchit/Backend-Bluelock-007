@@ -181,10 +181,13 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 // @Tags         activitys
 // @Produce      json
 // @Param        id   path  string  true  "Activity ID"
-// @Param        majors   query  string  false  "Filter by majors"
-// @Param        status   query  string  false  "Filter by status"
 // @Param        page   query  int  false  "Page number"
 // @Param        limit   query  int  false  "Items per page"
+// @Param        search   query  string  false  "Search query"
+// @Param        sortBy   query  string  false  "Sort by field"
+// @Param        order    query  string  false  "Sort order"
+// @Param        majors   query  string  false  "Filter by majors"
+// @Param        status   query  string  false  "Filter by status"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      404  {object}  models.ErrorResponse
