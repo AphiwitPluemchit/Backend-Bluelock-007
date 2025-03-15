@@ -578,12 +578,26 @@ func GetEnrollmentByActivityID(activityID string, pagination models.PaginationPa
 		return nil, 0, err
 	}
 
-	total, err := activityItemCollection.CountDocuments(ctx, bson.M{"activityId": objectID})
+	// ใช้ aggregation เพื่อให้ได้นับเฉพาะ enrollments ที่ผ่าน filter จริง ๆ
+	countPipeline := append(pipeline[:len(pipeline)-2], bson.D{{Key: "$count", Value: "total"}})
+	countCursor, err := activityItemCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
+		log.Println("Error counting enrollments:", err)
 		return nil, 0, err
 	}
+	defer countCursor.Close(ctx)
 
-	return results, total, nil
+	var countResult struct {
+		Total int64 `bson:"total"`
+	}
+	if countCursor.Next(ctx) {
+		if err := countCursor.Decode(&countResult); err != nil {
+			log.Println("Error decoding count result:", err)
+			return nil, 0, err
+		}
+	}
+
+	return results, countResult.Total, nil
 }
 
 func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.ObjectID) ([]primitive.ObjectID, error) {
