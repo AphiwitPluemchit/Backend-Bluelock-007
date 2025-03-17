@@ -77,6 +77,20 @@ func CreateActivity(activity *models.Activity) (*models.Activity, error) {
 	return GetActivityByID(activity.ID.Hex())
 }
 
+func UploadActivityImage(activityID string, fileName string) error {
+	// string to primitive.ObjectID
+	objectID, err := primitive.ObjectIDFromHex(activityID)
+	if err != nil {
+		return err
+	}
+
+	// update image
+	filter := bson.M{"_id": objectID}
+	update := bson.M{"$set": bson.M{"file": fileName}}
+	_, err = activityCollection.UpdateOne(context.Background(), filter, update)
+	return err
+}
+
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
 func GetAllActivities(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int) ([]models.Activity, int64, int, error) {
 	var results []models.Activity
@@ -578,12 +592,26 @@ func GetEnrollmentByActivityID(activityID string, pagination models.PaginationPa
 		return nil, 0, err
 	}
 
-	total, err := activityItemCollection.CountDocuments(ctx, bson.M{"activityId": objectID})
+	// ใช้ aggregation เพื่อให้ได้นับเฉพาะ enrollments ที่ผ่าน filter จริง ๆ
+	countPipeline := append(pipeline[:len(pipeline)-2], bson.D{{Key: "$count", Value: "total"}})
+	countCursor, err := activityItemCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
+		log.Println("Error counting enrollments:", err)
 		return nil, 0, err
 	}
+	defer countCursor.Close(ctx)
 
-	return results, total, nil
+	var countResult struct {
+		Total int64 `bson:"total"`
+	}
+	if countCursor.Next(ctx) {
+		if err := countCursor.Decode(&countResult); err != nil {
+			log.Println("Error decoding count result:", err)
+			return nil, 0, err
+		}
+	}
+
+	return results, countResult.Total, nil
 }
 
 func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.ObjectID) ([]primitive.ObjectID, error) {

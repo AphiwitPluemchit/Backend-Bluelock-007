@@ -9,8 +9,10 @@ import (
 // ActivityRoutes กำหนดเส้นทางสำหรับ Activity API
 func activityRoutes(app *fiber.App) {
 	activityRoutes := app.Group("/activitys")
-	activityRoutes.Get("/", controllers.GetAllActivities)     // ดึงผู้ใช้ทั้งหมด
-	activityRoutes.Post("/", controllers.CreateActivity)      // สร้างผู้ใช้ใหม่
+	activityRoutes.Get("/", controllers.GetAllActivities) // ดึงผู้ใช้ทั้งหมด
+	activityRoutes.Post("/", controllers.CreateActivity)  // สร้างผู้ใช้ใหม่
+	activityRoutes.Post(":id/image", controllers.UploadActivityImage)
+	activityRoutes.Delete(":id/image", controllers.DeleteActivityImage)
 	activityRoutes.Get("/:id", controllers.GetActivityByID)   // ดึงข้อมูลผู้ใช้ตาม ID
 	activityRoutes.Put("/:id", controllers.UpdateActivity)    // อัปเดตข้อมูลผู้ใช้
 	activityRoutes.Delete("/:id", controllers.DeleteActivity) // ลบผู้ใช้

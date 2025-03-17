@@ -464,6 +464,70 @@ paths:
       summary: Get enrollments by activity ID
       tags:
       - activitys
+  /activitys/{id}/image:
+    delete:
+      description: Delete an image for an activity
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File name
+        in: query
+        name: filename
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete an image for an activity
+      tags:
+      - activitys
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload an image for an activity
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File name
+        in: query
+        name: filename
+        type: string
+      - description: Image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Upload an image for an activity
+      tags:
+      - activitys
   /admins:
     get:
       description: Get admins with pagination, search, and sorting

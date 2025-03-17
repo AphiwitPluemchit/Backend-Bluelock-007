@@ -5,12 +5,18 @@ import (
 	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/utils"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+var path = "./uploads/activity/images/"
 
 // CreateActivity godoc
 // @Summary      Create a new activity
@@ -46,6 +52,91 @@ func CreateActivity(c *fiber.Ctx) error {
 	})
 }
 
+// UploadActivityImage godoc
+// @Summary      Upload an image for an activity
+// @Description  Upload an image for an activity
+// @Tags         activitys
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        id path string true "Activity ID"
+// @Param        filename query string false "File name"
+// @Param        file formData file true "Image file"
+// @Success      200
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id}/image [post]
+func UploadActivityImage(c *fiber.Ctx) error {
+	id := c.Params("id")
+	fileName := c.Query("filename")
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Failed to upload file: "+err.Error())
+	}
+
+	// if fileName != ""  then delete old file
+	if fileName != "" {
+		// 🔥 ลบไฟล์ที่อัปโหลดหากเกิดข้อผิดพลาด
+		removeErr := os.Remove(path + fileName)
+		if removeErr != nil {
+			log.Println("Failed to remove uploaded file:", removeErr)
+		}
+	}
+
+	fileName = fmt.Sprintf("%d%s", time.Now().UnixNano(), filepath.Ext(file.Filename))
+	filePath := fmt.Sprintf(path+"%s", fileName)
+	c.SaveFile(file, filePath)
+
+	//
+
+	// ✅ อัปเดต MongoDB ให้เก็บ Path ไฟล์ที่อัปโหลด
+
+	err = services.UploadActivityImage(id, fileName)
+	if err != nil {
+
+		// 🔥 ลบไฟล์ที่อัปโหลดหากเกิดข้อผิดพลาด
+		removeErr := os.Remove(filePath)
+		if removeErr != nil {
+			log.Println("Failed to remove uploaded file:", removeErr)
+		}
+
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update MongoDB: "+err.Error())
+
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "File uploaded", "file": filePath})
+}
+
+// DeleteActivityImage godoc
+// @Summary      Delete an image for an activity
+// @Description  Delete an image for an activity
+// @Tags         activitys
+// @Produce      json
+// @Param        id path string true "Activity ID"
+// @Param        filename query string false "File name"
+// @Success      200
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/{id}/image [delete]
+func DeleteActivityImage(c *fiber.Ctx) error {
+	id := c.Params("id")
+	fileName := c.Query("filename")
+
+	removeErr := os.Remove(path + fileName)
+	if removeErr != nil {
+		log.Println("Failed to remove uploaded file:", removeErr)
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to remove uploaded file: "+removeErr.Error())
+	}
+
+	// Update activity file name to empty string
+	err := services.UploadActivityImage(id, "")
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update MongoDB: "+err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "File deleted"})
+}
+
 // GetAllActivities godoc
 // @Summary      Get all activities with pagination, search, and sorting
 // @Description  Get all activities with pagination, search, and sorting
@@ -56,10 +147,10 @@ func CreateActivity(c *fiber.Ctx) error {
 // @Param        search query  string  false  "Search term"
 // @Param        sortBy query  string  false  "Field to sort by" default(name)
 // @Param        order  query  string  false  "Sort order (asc or desc)" default(asc)
-// @Param        skill          query  string  false  "Filter by skill"
-// @Param        activityState  query  string  false  "Filter by activityState"
-// @Param        major          query  string  false  "Filter by major"
-// @Param        studentYear    query  string  false  "Filter by studentYear"
+// @Param        skills          query  string  false  "Filter by skill"
+// @Param        activityStates  query  string  false  "Filter by activityState"
+// @Param        majors          query  string  false  "Filter by major"
+// @Param        studentYears    query  string  false  "Filter by studentYear"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [get]
@@ -75,10 +166,10 @@ func GetAllActivities(c *fiber.Ctx) error {
 	params.Order = c.Query("order", params.Order)
 
 	// ดึงค่าจาก Query Parameters และแปลงเป็น array
-	skills := c.Query("skill")                 // เช่น skill=soft,hard
-	activityStates := c.Query("activityState") // เช่น activityState=open,planning
-	majors := c.Query("major")                 // เช่น major=CS,SE
-	studentYears := c.Query("studentYear")     // เช่น studentYear=1,2,3
+	skills := c.Query("skills")                 // เช่น skill=soft,hard
+	activityStates := c.Query("activityStates") // เช่น activityState=open,planning
+	majors := c.Query("majors")                 // เช่น major=CS,SE
+	studentYears := c.Query("studentYears")     // เช่น studentYear=1,2,3
 
 	// Convert comma-separated values into arrays
 	skillFilter := strings.Split(skills, ",")
