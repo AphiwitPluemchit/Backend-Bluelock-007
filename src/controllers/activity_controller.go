@@ -147,10 +147,10 @@ func DeleteActivityImage(c *fiber.Ctx) error {
 // @Param        search query  string  false  "Search term"
 // @Param        sortBy query  string  false  "Field to sort by" default(name)
 // @Param        order  query  string  false  "Sort order (asc or desc)" default(asc)
-// @Param        skill          query  string  false  "Filter by skill"
-// @Param        activityState  query  string  false  "Filter by activityState"
-// @Param        major          query  string  false  "Filter by major"
-// @Param        studentYear    query  string  false  "Filter by studentYear"
+// @Param        skills          query  string  false  "Filter by skill"
+// @Param        activityStates  query  string  false  "Filter by activityState"
+// @Param        majors          query  string  false  "Filter by major"
+// @Param        studentYears    query  string  false  "Filter by studentYear"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys [get]
@@ -166,10 +166,10 @@ func GetAllActivities(c *fiber.Ctx) error {
 	params.Order = c.Query("order", params.Order)
 
 	// ดึงค่าจาก Query Parameters และแปลงเป็น array
-	skills := c.Query("skill")                 // เช่น skill=soft,hard
-	activityStates := c.Query("activityState") // เช่น activityState=open,planning
-	majors := c.Query("major")                 // เช่น major=CS,SE
-	studentYears := c.Query("studentYear")     // เช่น studentYear=1,2,3
+	skills := c.Query("skills")                 // เช่น skill=soft,hard
+	activityStates := c.Query("activityStates") // เช่น activityState=open,planning
+	majors := c.Query("majors")                 // เช่น major=CS,SE
+	studentYears := c.Query("studentYears")     // เช่น studentYear=1,2,3
 
 	// Convert comma-separated values into arrays
 	skillFilter := strings.Split(skills, ",")
