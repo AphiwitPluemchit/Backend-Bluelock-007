@@ -363,9 +363,17 @@ func getActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip 
 			{Key: "path", Value: "$activityItems"},
 			{Key: "preserveNullAndEmptyArrays", Value: true},
 		}}},
+
+		// 3️⃣ Lookup Enrollments ในแต่ละ ActivityItem
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "enrollments"},
+			{Key: "localField", Value: "activityItems._id"},
+			{Key: "foreignField", Value: "activityItemId"},
+			{Key: "as", Value: "activityItems.enrollments"},
+		}}},
 	}
 
-	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า majorNames**
+	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า major**
 	if len(majors) > 0 && majors[0] != "" {
 		fmt.Println("Filtering by major:", majors) // Debugging log
 		pipeline = append(pipeline, bson.D{
@@ -385,6 +393,15 @@ func getActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip 
 			}},
 		})
 	}
+
+	// 5️⃣ Add enrollmentCount ใน activityItems
+	pipeline = append(pipeline, bson.D{
+		{Key: "$addFields", Value: bson.D{
+			{Key: "activityItems.enrollmentCount", Value: bson.D{
+				{Key: "$size", Value: "$activityItems.enrollments"},
+			}},
+		}},
+	})
 
 	// ✅ Group ActivityItems กลับเข้าไปใน Activity
 	pipeline = append(pipeline, bson.D{

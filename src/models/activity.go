@@ -28,6 +28,7 @@ type ActivityItem struct {
 	Dates           []Dates            `json:"dates" bson:"dates" `
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
 	Enrollments     []Enrollment       `json:"enrollments" `
+	EnrollmentCount int                `json:"enrollmentCount" `
 }
 
 type Dates struct {
