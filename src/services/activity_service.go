@@ -364,12 +364,28 @@ func getActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip 
 			{Key: "preserveNullAndEmptyArrays", Value: true},
 		}}},
 
-		// 3️⃣ Lookup Enrollments ในแต่ละ ActivityItem
+		// 3️⃣ Lookup EnrollmentCount แทนที่จะดึงทั้ง array
 		{{Key: "$lookup", Value: bson.D{
 			{Key: "from", Value: "enrollments"},
-			{Key: "localField", Value: "activityItems._id"},
-			{Key: "foreignField", Value: "activityItemId"},
-			{Key: "as", Value: "activityItems.enrollments"},
+			{Key: "let", Value: bson.D{{Key: "itemId", Value: "$activityItems._id"}}},
+			{Key: "pipeline", Value: bson.A{
+				bson.D{{Key: "$match", Value: bson.D{
+					{Key: "$expr", Value: bson.D{
+						{Key: "$eq", Value: bson.A{"$activityItemId", "$$itemId"}},
+					}},
+				}}},
+				bson.D{{Key: "$count", Value: "count"}},
+			}},
+			{Key: "as", Value: "activityItems.enrollmentCountData"},
+		}}},
+
+		// 4️⃣ Add enrollmentCount field จาก enrollmentCountData
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "activityItems.enrollmentCount", Value: bson.D{
+				{Key: "$ifNull", Value: bson.A{bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$activityItems.enrollmentCountData.count", 0}},
+				}, 0}},
+			}},
 		}}},
 	}
 
@@ -393,15 +409,6 @@ func getActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip 
 			}},
 		})
 	}
-
-	// 5️⃣ Add enrollmentCount ใน activityItems
-	pipeline = append(pipeline, bson.D{
-		{Key: "$addFields", Value: bson.D{
-			{Key: "activityItems.enrollmentCount", Value: bson.D{
-				{Key: "$size", Value: "$activityItems.enrollments"},
-			}},
-		}},
-	})
 
 	// ✅ Group ActivityItems กลับเข้าไปใน Activity
 	pipeline = append(pipeline, bson.D{
