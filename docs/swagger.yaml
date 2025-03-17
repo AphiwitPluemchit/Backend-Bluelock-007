@@ -118,6 +118,8 @@ definitions:
     properties:
       activityItemId:
         type: string
+      food:
+        type: string
       id:
         type: string
       registrationDate:
@@ -232,19 +234,19 @@ paths:
         type: string
       - description: Filter by skill
         in: query
-        name: skill
+        name: skills
         type: string
       - description: Filter by activityState
         in: query
-        name: activityState
+        name: activityStates
         type: string
       - description: Filter by major
         in: query
-        name: major
+        name: majors
         type: string
       - description: Filter by studentYear
         in: query
-        name: studentYear
+        name: studentYears
         type: string
       produces:
       - application/json

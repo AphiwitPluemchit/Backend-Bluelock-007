@@ -63,25 +63,25 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Filter by skill",
-                        "name": "skill",
+                        "name": "skills",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Filter by activityState",
-                        "name": "activityState",
+                        "name": "activityStates",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Filter by major",
-                        "name": "major",
+                        "name": "majors",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Filter by studentYear",
-                        "name": "studentYear",
+                        "name": "studentYears",
                         "in": "query"
                     }
                 ],
@@ -1107,6 +1107,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "activityItemId": {
+                    "type": "string"
+                },
+                "food": {
                     "type": "string"
                 },
                 "id": {
