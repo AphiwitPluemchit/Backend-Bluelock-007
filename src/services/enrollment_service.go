@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var enrollmentCollection *mongo.Collection
@@ -43,6 +44,29 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 			return errors.New("activity item not found")
 		}
 		return err
+	}
+
+	if food != nil {
+		activityID := activityItem.ActivityID
+
+		// ✅ Update +1 vote ของ foodName ที่ตรงกับชื่ออาหาร
+		filter := bson.M{"_id": activityID}
+		update := bson.M{
+			"$inc": bson.M{"foodVotes.$[elem].vote": 1},
+		}
+		arrayFilter := options.Update().SetArrayFilters(options.ArrayFilters{
+			Filters: []any{
+				bson.M{"elem.foodName": *food},
+			},
+		})
+
+		// ✅ Run update
+		_, err := activityCollection.UpdateOne(ctx, filter, update, arrayFilter)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Updated food vote for:", *food)
 	}
 
 	var student models.Student
@@ -157,8 +181,45 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// ✅ ตรวจสอบว่ามี Enrollment จริงไหม
 	filter := bson.M{"_id": enrollmentID}
+
+	// get enrollment
+	var enrollment models.Enrollment
+	err := enrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
+	if err != nil {
+		return err
+	}
+
+	var activityItem models.ActivityItem
+	if err := activityItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ActivityItemID}).Decode(&activityItem); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return errors.New("activity item not found")
+		}
+		return err
+	}
+
+	if enrollment.Food != nil {
+		activityID := activityItem.ActivityID
+
+		// ✅ Update -1 vote ของ foodName ที่ตรงกับชื่ออาหาร
+		filter := bson.M{"_id": activityID}
+		update := bson.M{
+			"$inc": bson.M{"foodVotes.$[elem].vote": -1},
+		}
+		arrayFilter := options.Update().SetArrayFilters(options.ArrayFilters{
+			Filters: []any{
+				bson.M{"elem.foodName": *enrollment.Food},
+			},
+		})
+
+		// ✅ Run update
+		_, err := activityCollection.UpdateOne(ctx, filter, update, arrayFilter)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Updated food vote for:", *enrollment.Food)
+	}
 
 	res, err := enrollmentCollection.DeleteOne(ctx, filter)
 	if err != nil {
