@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -102,78 +104,74 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 	return err
 }
 
-// ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว
-func GetEnrollmentsByStudent(studentID primitive.ObjectID) ([]bson.M, error) {
+// ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
+func GetActivitiesByStudent(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int, studentID primitive.ObjectID) ([]models.Activity, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 🔍 ตรวจสอบว่ามี Enrollment หรือไม่
-	count, err := enrollmentCollection.CountDocuments(ctx, bson.M{"studentId": studentID})
+	// 🔍 หา activityItemId ที่นิสิตเคยลงทะเบียนไว้
+	enrollmentFilter := bson.M{"studentId": studentID}
+	cursor, err := enrollmentCollection.Find(ctx, enrollmentFilter)
 	if err != nil {
-		return nil, fmt.Errorf("database error: %v", err)
-	}
-	if count == 0 {
-		return []bson.M{}, nil // ✅ คืนค่า `[]` แทน `null`
-	}
-
-	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID}}},
-		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activityItems",
-			"localField":   "activityItemId",
-			"foreignField": "_id",
-			"as":           "activityItemDetails",
-		}}},
-		bson.D{{Key: "$unwind", Value: "$activityItemDetails"}},
-		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activitys",
-			"localField":   "activityItemDetails.activityId",
-			"foreignField": "_id",
-			"as":           "activityDetails",
-		}}},
-		bson.D{{Key: "$unwind", Value: "$activityDetails"}},
-		bson.D{{Key: "$project", Value: bson.M{
-			"_id":              0,
-			"id":               "$_id",
-			"registrationDate": "$registrationDate",
-			"studentId":        "$studentId",
-			"activity": bson.M{
-				"id":              "$activityDetails._id",
-				"name":            "$activityDetails.name",
-				"type":            "$activityDetails.type",
-				"adminId":         "$activityDetails.adminId",
-				"activityStateId": "$activityDetails.activityStateId",
-				"skillId":         "$activityDetails.skillId",
-				"majorIds":        "$activityDetails.majorIds",
-				"activityItems": bson.M{
-					"id":              "$activityItemDetails._id",
-					"activityId":      "$activityItemDetails.activityId",
-					"name":            "$activityItemDetails.name",
-					"maxParticipants": "$activityItemDetails.maxParticipants",
-					"description":     "$activityItemDetails.description",
-					"room":            "$activityItemDetails.room",
-					"startDate":       "$activityItemDetails.startDate",
-					"endDate":         "$activityItemDetails.endDate",
-					"duration":        "$activityItemDetails.duration",
-					"operator":        "$activityItemDetails.operator",
-					"hour":            "$activityItemDetails.hour",
-				},
-			},
-		}}},
-	}
-
-	cursor, err := enrollmentCollection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, fmt.Errorf("aggregation error: %v", err)
+		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	var result []bson.M
-	if err := cursor.All(ctx, &result); err != nil {
-		return nil, fmt.Errorf("cursor error: %v", err)
+	activityItemIDs := make([]primitive.ObjectID, 0)
+	for cursor.Next(ctx) {
+		var enrollment models.Enrollment
+		if err := cursor.Decode(&enrollment); err == nil {
+			activityItemIDs = append(activityItemIDs, enrollment.ActivityItemID)
+		}
+	}
+	if len(activityItemIDs) == 0 {
+		return []models.Activity{}, 0, 0, nil
 	}
 
-	return result, nil
+	// สร้าง Filter สำหรับ activity ที่มี itemId เหล่านี้
+	filter := bson.M{"activityItems._id": bson.M{"$in": activityItemIDs}}
+
+	// Filter เพิ่มเติม
+	if params.Search != "" {
+		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
+	}
+	if len(skills) > 0 && skills[0] != "" {
+		filter["skill"] = bson.M{"$in": skills}
+	}
+	if len(states) > 0 && states[0] != "" {
+		filter["activityState"] = bson.M{"$in": states}
+	}
+
+	skip := int64((params.Page - 1) * params.Limit)
+	sortField := params.SortBy
+	if sortField == "" {
+		sortField = "name"
+	}
+	sortOrder := 1
+	if strings.ToLower(params.Order) == "desc" {
+		sortOrder = -1
+	}
+
+	total, err := activityCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	pipeline := getActivitiesPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majors, studentYears)
+
+	cursor, err = activityCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []models.Activity
+	if err = cursor.All(ctx, &results); err != nil {
+		return nil, 0, 0, err
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+
+	return results, total, totalPages, nil
 }
 
 // ✅ 3. ยกเลิกการลงทะเบียน
