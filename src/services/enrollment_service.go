@@ -105,51 +105,49 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 }
 
 // ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
-func GetActivitiesByStudent(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int, studentID primitive.ObjectID) ([]models.Activity, int64, int, error) {
+func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.Activity, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 🔍 หา activityItemId ที่นิสิตเคยลงทะเบียนไว้
-	enrollmentFilter := bson.M{"studentId": studentID}
-	cursor, err := enrollmentCollection.Find(ctx, enrollmentFilter)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	defer cursor.Close(ctx)
+	// ✅ Step 1: ดึง activityItemIds จาก enrollment ที่ student ลงทะเบียน
+	matchStage := bson.D{{Key: "$match", Value: bson.M{"studentId": studentID}}}
+	lookupActivityItem := bson.D{{Key: "$lookup", Value: bson.M{
+		"from":         "activityItems",
+		"localField":   "activityItemId",
+		"foreignField": "_id",
+		"as":           "activityItemDetails",
+	}}}
+	unwindActivityItem := bson.D{{Key: "$unwind", Value: "$activityItemDetails"}}
+	groupActivityIDs := bson.D{{Key: "$group", Value: bson.M{
+		"_id":             nil,
+		"activityItemIds": bson.M{"$addToSet": "$activityItemDetails._id"},
+		"activityIds":     bson.M{"$addToSet": "$activityItemDetails.activityId"},
+	}}}
 
-	activityItemIDs := make([]primitive.ObjectID, 0)
-	for cursor.Next(ctx) {
-		var enrollment models.Enrollment
-		if err := cursor.Decode(&enrollment); err == nil {
-			activityItemIDs = append(activityItemIDs, enrollment.ActivityItemID)
-		}
+	enrollmentStage := mongo.Pipeline{matchStage, lookupActivityItem, unwindActivityItem, groupActivityIDs}
+	cur, err := enrollmentCollection.Aggregate(ctx, enrollmentStage)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("error fetching enrollments: %v", err)
 	}
-	if len(activityItemIDs) == 0 {
+	var enrollmentResult []bson.M
+	if err := cur.All(ctx, &enrollmentResult); err != nil || len(enrollmentResult) == 0 {
 		return []models.Activity{}, 0, 0, nil
 	}
+	activityIDs := enrollmentResult[0]["activityIds"].(primitive.A)
 
-	// สร้าง Filter สำหรับ activity ที่มี itemId เหล่านี้
-	filter := bson.M{"activityItems._id": bson.M{"$in": activityItemIDs}}
+	// ✅ Step 2: Filter + Paginate + Lookup activities เหมือน GetAllActivities
+	skip := int64((params.Page - 1) * params.Limit)
+	sort := bson.D{{Key: params.SortBy, Value: 1}}
+	if strings.ToLower(params.Order) == "desc" {
+		sort[0].Value = -1
+	}
 
-	// Filter เพิ่มเติม
+	filter := bson.M{"_id": bson.M{"$in": activityIDs}}
 	if params.Search != "" {
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
 	}
-	if len(skills) > 0 && skills[0] != "" {
-		filter["skill"] = bson.M{"$in": skills}
-	}
-	if len(states) > 0 && states[0] != "" {
-		filter["activityState"] = bson.M{"$in": states}
-	}
-
-	skip := int64((params.Page - 1) * params.Limit)
-	sortField := params.SortBy
-	if sortField == "" {
-		sortField = "name"
-	}
-	sortOrder := 1
-	if strings.ToLower(params.Order) == "desc" {
-		sortOrder = -1
+	if len(skillFilter) > 0 && skillFilter[0] != "" {
+		filter["skill"] = bson.M{"$in": skillFilter}
 	}
 
 	total, err := activityCollection.CountDocuments(ctx, filter)
@@ -157,21 +155,20 @@ func GetActivitiesByStudent(params models.PaginationParams, skills []string, sta
 		return nil, 0, 0, err
 	}
 
-	pipeline := getActivitiesPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majors, studentYears)
-
-	cursor, err = activityCollection.Aggregate(ctx, pipeline)
+	pipeline := getActivitiesPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
+	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	var results []models.Activity
-	if err = cursor.All(ctx, &results); err != nil {
+	var activities []models.Activity
+	if err := cursor.All(ctx, &activities); err != nil {
 		return nil, 0, 0, err
 	}
-	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 
-	return results, total, totalPages, nil
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+	return activities, total, totalPages, nil
 }
 
 // ✅ 3. ยกเลิกการลงทะเบียน
