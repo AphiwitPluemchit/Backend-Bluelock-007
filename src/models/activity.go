@@ -11,7 +11,7 @@ type Activity struct {
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
-	ActivityItems []ActivityItem     `json:"activityItems" bson:"-"`
+	ActivityItems []ActivityItem     `json:"activityItems" `
 }
 
 // ActivityItem รายละเอียดกิจกรรมย่อย
@@ -27,13 +27,18 @@ type ActivityItem struct {
 	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
 	Dates           []Dates            `json:"dates" bson:"dates" `
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
-	EnrollmentCount int                `json:"enrollmentCount"  bson:"-"`
+	EnrollmentCount int                `json:"enrollmentCount"  `
 }
 
 type Dates struct {
 	Date  string `json:"date" bson:"date" example:"2025-03-11"`
 	Stime string `json:"stime" bson:"stime" example:"10:00"`
 	Etime string `json:"etime" bson:"etime" example:"12:00"`
+}
+
+type FoodVote struct {
+	Vote     int    `json:"vote" bson:"vote"`
+	FoodName string `json:"foodName" bson:"foodName" example:"Pizza"`
 }
 
 type EnrollmentSummary struct {
@@ -52,9 +57,4 @@ type ActivityItemSum struct {
 type MajorEnrollment struct {
 	MajorName string `json:"majorName" `
 	Count     int    `json:"count"`
-}
-
-type FoodVote struct {
-	Vote     int    `json:"vote" bson:"vote"`
-	FoodName string `json:"foodName" bson:"foodName" example:"Pizza"`
 }
