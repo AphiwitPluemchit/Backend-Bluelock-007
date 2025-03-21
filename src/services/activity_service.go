@@ -133,9 +133,16 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 
 	// 🔍 ค้นหาตามชื่อกิจกรรม (case-insensitive)
 	if params.Search != "" {
-		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
-	}
+		searchRegex := bson.M{"$regex": params.Search, "$options": "i"}
 
+		filter["$or"] = bson.A{
+			bson.M{"name": searchRegex},
+			bson.M{"skill": searchRegex},
+			bson.M{"type": searchRegex},
+			bson.M{"activityState": searchRegex},
+		}
+	}
+	fmt.Println(filter)
 	// 🔍 ค้นหาตาม Skill (ถ้ามี)
 	if len(skills) > 0 && skills[0] != "" {
 		filter["skill"] = bson.M{"$in": skills}
