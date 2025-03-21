@@ -467,6 +467,45 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 
 	return result[0], nil // ✅ ส่ง Object เดียว
 }
+func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1️⃣ ดึง activityItems ทั้งหมดที่อยู่ใน activity นี้
+	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	if err != nil {
+		return false, err
+	}
+	defer cursor.Close(ctx)
+
+	itemIDs := []primitive.ObjectID{}
+	for cursor.Next(ctx) {
+		var item struct {
+			ID primitive.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&item); err == nil {
+			itemIDs = append(itemIDs, item.ID)
+		}
+	}
+
+	if len(itemIDs) == 0 {
+		return false, nil // ไม่มีกิจกรรมย่อยเลย
+	}
+
+	// 2️⃣ ตรวจสอบว่านิสิตลงทะเบียนใน item ใดๆ เหล่านี้หรือไม่
+	filter := bson.M{
+		"studentId":      studentID,
+		"activityItemId": bson.M{"$in": itemIDs},
+	}
+
+	count, err := enrollmentCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func isTimeOverlap(start1, end1, start2, end2 string) bool {
 	// ตัวอย่าง: 09:00 < 10:00 -> true (มีเวลาทับซ้อน)
 	return !(end1 <= start2 || end2 <= start1)
