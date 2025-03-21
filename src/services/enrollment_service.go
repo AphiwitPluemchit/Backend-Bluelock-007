@@ -71,6 +71,38 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		fmt.Println("Updated food vote for:", *food)
 	}
 
+	// ✅ ตรวจสอบเวลาทับซ้อนก่อนลงทะเบียน
+	existingEnrollmentsCursor, err := enrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
+	if err != nil {
+		return err
+	}
+	defer existingEnrollmentsCursor.Close(ctx)
+
+	for existingEnrollmentsCursor.Next(ctx) {
+		var existing models.Enrollment
+		if err := existingEnrollmentsCursor.Decode(&existing); err != nil {
+			continue
+		}
+
+		// ดึง activityItem เดิมที่เคยลง
+		var existingItem models.ActivityItem
+		if err := activityItemCollection.FindOne(ctx, bson.M{"_id": existing.ActivityItemID}).Decode(&existingItem); err != nil {
+			continue
+		}
+
+		// เปรียบเทียบวัน
+		for _, dOld := range existingItem.Dates {
+			for _, dNew := range activityItem.Dates {
+				if dOld.Date == dNew.Date {
+					// ✅ ถ้าวันตรงกัน ให้เช็คเวลาทับซ้อน
+					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
+						return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว")
+					}
+				}
+			}
+		}
+	}
+
 	var student models.Student
 	if err := studentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -434,4 +466,8 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 	}
 
 	return result[0], nil // ✅ ส่ง Object เดียว
+}
+func isTimeOverlap(start1, end1, start2, end2 string) bool {
+	// ตัวอย่าง: 09:00 < 10:00 -> true (มีเวลาทับซ้อน)
+	return !(end1 <= start2 || end2 <= start1)
 }
