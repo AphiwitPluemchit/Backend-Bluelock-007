@@ -250,10 +250,8 @@ func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, erro
 			}
 
 			// ถ้ามี RegisteredByMajor เหลือ → เก็บไว้
-			if len(cleanedMajors) > 0 {
-				item.RegisteredByMajor = cleanedMajors
-				cleanedActivityItems = append(cleanedActivityItems, item)
-			}
+			item.RegisteredByMajor = cleanedMajors
+			cleanedActivityItems = append(cleanedActivityItems, item)
 		}
 
 		// อัปเดต result ใหม่
