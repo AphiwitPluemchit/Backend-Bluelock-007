@@ -11,7 +11,7 @@ type Activity struct {
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
-	ActivityItems []ActivityItem     `json:"activityItems" `
+	ActivityItems []ActivityItem     `json:"activityItems" bson:"-"`
 }
 
 // ActivityItem รายละเอียดกิจกรรมย่อย
@@ -27,7 +27,7 @@ type ActivityItem struct {
 	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
 	Dates           []Dates            `json:"dates" bson:"dates" `
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
-	EnrollmentCount int                `json:"enrollmentCount" `
+	EnrollmentCount int                `json:"enrollmentCount"  bson:"-"`
 }
 
 type Dates struct {
