@@ -21,7 +21,7 @@ type ActivityDto struct {
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
-	ActivityItems []ActivityItem     `json:"activityItems" `
+	ActivityItems []ActivityItemDto  `json:"activityItems" `
 }
 
 // ActivityItem รายละเอียดกิจกรรมย่อย
