@@ -173,3 +173,27 @@ func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 
 	return c.JSON(enrollment)
 }
+
+func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
+	studentIDHex := c.Params("studentId")
+	activityIDHex := c.Params("activityId")
+
+	studentID, err := primitive.ObjectIDFromHex(studentIDHex)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid studentId"})
+	}
+
+	activityID, err := primitive.ObjectIDFromHex(activityIDHex)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid activityId"})
+	}
+
+	isEnrolled, err := services.IsStudentEnrolledInActivity(studentID, activityID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"isEnrolled": isEnrolled,
+	})
+}

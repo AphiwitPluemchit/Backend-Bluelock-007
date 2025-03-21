@@ -71,6 +71,38 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		fmt.Println("Updated food vote for:", *food)
 	}
 
+	// ✅ ตรวจสอบเวลาทับซ้อนก่อนลงทะเบียน
+	existingEnrollmentsCursor, err := enrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
+	if err != nil {
+		return err
+	}
+	defer existingEnrollmentsCursor.Close(ctx)
+
+	for existingEnrollmentsCursor.Next(ctx) {
+		var existing models.Enrollment
+		if err := existingEnrollmentsCursor.Decode(&existing); err != nil {
+			continue
+		}
+
+		// ดึง activityItem เดิมที่เคยลง
+		var existingItem models.ActivityItem
+		if err := activityItemCollection.FindOne(ctx, bson.M{"_id": existing.ActivityItemID}).Decode(&existingItem); err != nil {
+			continue
+		}
+
+		// เปรียบเทียบวัน
+		for _, dOld := range existingItem.Dates {
+			for _, dNew := range activityItem.Dates {
+				if dOld.Date == dNew.Date {
+					// ✅ ถ้าวันตรงกัน ให้เช็คเวลาทับซ้อน
+					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
+						return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว")
+					}
+				}
+			}
+		}
+	}
+
 	var student models.Student
 	if err := studentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -105,51 +137,49 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 }
 
 // ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
-func GetActivitiesByStudent(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int, studentID primitive.ObjectID) ([]models.Activity, int64, int, error) {
+func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.Activity, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 🔍 หา activityItemId ที่นิสิตเคยลงทะเบียนไว้
-	enrollmentFilter := bson.M{"studentId": studentID}
-	cursor, err := enrollmentCollection.Find(ctx, enrollmentFilter)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	defer cursor.Close(ctx)
+	// ✅ Step 1: ดึง activityItemIds จาก enrollment ที่ student ลงทะเบียน
+	matchStage := bson.D{{Key: "$match", Value: bson.M{"studentId": studentID}}}
+	lookupActivityItem := bson.D{{Key: "$lookup", Value: bson.M{
+		"from":         "activityItems",
+		"localField":   "activityItemId",
+		"foreignField": "_id",
+		"as":           "activityItemDetails",
+	}}}
+	unwindActivityItem := bson.D{{Key: "$unwind", Value: "$activityItemDetails"}}
+	groupActivityIDs := bson.D{{Key: "$group", Value: bson.M{
+		"_id":             nil,
+		"activityItemIds": bson.M{"$addToSet": "$activityItemDetails._id"},
+		"activityIds":     bson.M{"$addToSet": "$activityItemDetails.activityId"},
+	}}}
 
-	activityItemIDs := make([]primitive.ObjectID, 0)
-	for cursor.Next(ctx) {
-		var enrollment models.Enrollment
-		if err := cursor.Decode(&enrollment); err == nil {
-			activityItemIDs = append(activityItemIDs, enrollment.ActivityItemID)
-		}
+	enrollmentStage := mongo.Pipeline{matchStage, lookupActivityItem, unwindActivityItem, groupActivityIDs}
+	cur, err := enrollmentCollection.Aggregate(ctx, enrollmentStage)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("error fetching enrollments: %v", err)
 	}
-	if len(activityItemIDs) == 0 {
+	var enrollmentResult []bson.M
+	if err := cur.All(ctx, &enrollmentResult); err != nil || len(enrollmentResult) == 0 {
 		return []models.Activity{}, 0, 0, nil
 	}
+	activityIDs := enrollmentResult[0]["activityIds"].(primitive.A)
 
-	// สร้าง Filter สำหรับ activity ที่มี itemId เหล่านี้
-	filter := bson.M{"activityItems._id": bson.M{"$in": activityItemIDs}}
+	// ✅ Step 2: Filter + Paginate + Lookup activities เหมือน GetAllActivities
+	skip := int64((params.Page - 1) * params.Limit)
+	sort := bson.D{{Key: params.SortBy, Value: 1}}
+	if strings.ToLower(params.Order) == "desc" {
+		sort[0].Value = -1
+	}
 
-	// Filter เพิ่มเติม
+	filter := bson.M{"_id": bson.M{"$in": activityIDs}}
 	if params.Search != "" {
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
 	}
-	if len(skills) > 0 && skills[0] != "" {
-		filter["skill"] = bson.M{"$in": skills}
-	}
-	if len(states) > 0 && states[0] != "" {
-		filter["activityState"] = bson.M{"$in": states}
-	}
-
-	skip := int64((params.Page - 1) * params.Limit)
-	sortField := params.SortBy
-	if sortField == "" {
-		sortField = "name"
-	}
-	sortOrder := 1
-	if strings.ToLower(params.Order) == "desc" {
-		sortOrder = -1
+	if len(skillFilter) > 0 && skillFilter[0] != "" {
+		filter["skill"] = bson.M{"$in": skillFilter}
 	}
 
 	total, err := activityCollection.CountDocuments(ctx, filter)
@@ -157,21 +187,20 @@ func GetActivitiesByStudent(params models.PaginationParams, skills []string, sta
 		return nil, 0, 0, err
 	}
 
-	pipeline := getActivitiesPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majors, studentYears)
-
-	cursor, err = activityCollection.Aggregate(ctx, pipeline)
+	pipeline := getActivitiesPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
+	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	var results []models.Activity
-	if err = cursor.All(ctx, &results); err != nil {
+	var activities []models.Activity
+	if err := cursor.All(ctx, &activities); err != nil {
 		return nil, 0, 0, err
 	}
-	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 
-	return results, total, totalPages, nil
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+	return activities, total, totalPages, nil
 }
 
 // ✅ 3. ยกเลิกการลงทะเบียน
@@ -437,4 +466,47 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 	}
 
 	return result[0], nil // ✅ ส่ง Object เดียว
+}
+func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1️⃣ ดึง activityItems ทั้งหมดที่อยู่ใน activity นี้
+	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	if err != nil {
+		return false, err
+	}
+	defer cursor.Close(ctx)
+
+	itemIDs := []primitive.ObjectID{}
+	for cursor.Next(ctx) {
+		var item struct {
+			ID primitive.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&item); err == nil {
+			itemIDs = append(itemIDs, item.ID)
+		}
+	}
+
+	if len(itemIDs) == 0 {
+		return false, nil // ไม่มีกิจกรรมย่อยเลย
+	}
+
+	// 2️⃣ ตรวจสอบว่านิสิตลงทะเบียนใน item ใดๆ เหล่านี้หรือไม่
+	filter := bson.M{
+		"studentId":      studentID,
+		"activityItemId": bson.M{"$in": itemIDs},
+	}
+
+	count, err := enrollmentCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+func isTimeOverlap(start1, end1, start2, end2 string) bool {
+	// ตัวอย่าง: 09:00 < 10:00 -> true (มีเวลาทับซ้อน)
+	return !(end1 <= start2 || end2 <= start1)
 }

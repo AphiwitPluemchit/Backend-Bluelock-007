@@ -31,7 +31,7 @@ var path = "./uploads/activity/images/"
 // @Router       /activitys [post]
 // CreateActivity - สร้างกิจกรรมใหม่
 func CreateActivity(c *fiber.Ctx) error {
-	var request models.Activity
+	var request models.ActivityDto
 
 	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
@@ -85,6 +85,13 @@ func UploadActivityImage(c *fiber.Ctx) error {
 
 	fileName = fmt.Sprintf("%d%s", time.Now().UnixNano(), filepath.Ext(file.Filename))
 	filePath := fmt.Sprintf(path+"%s", fileName)
+	// folder not exist, create it
+	// Create directory if it does not exist
+	if err := os.MkdirAll(path, 0755); err != nil {
+		log.Println("Failed to create directory:", err)
+		// You may want to return an error here instead of continuing
+	}
+
 	c.SaveFile(file, filePath)
 
 	//
@@ -371,7 +378,7 @@ func UpdateActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	var request models.Activity
+	var request models.ActivityDto
 	// ✅ แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
