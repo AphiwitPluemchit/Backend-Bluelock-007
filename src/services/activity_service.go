@@ -138,8 +138,9 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 		filter["$or"] = bson.A{
 			bson.M{"name": searchRegex},
 			bson.M{"skill": searchRegex},
-			bson.M{"type": searchRegex},
-			bson.M{"activityState": searchRegex},
+			// bson.M{"type": searchRegex},
+			// bson.M{"activityState": searchRegex},
+			// bson.M{"activityItems.dates.date": searchRegex}, // Nested field
 		}
 	}
 	fmt.Println(filter)
