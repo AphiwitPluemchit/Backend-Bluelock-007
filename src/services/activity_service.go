@@ -4,6 +4,7 @@ import (
 	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -35,7 +36,7 @@ func init() {
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
-func CreateActivity(activity *models.Activity) (*models.Activity, error) {
+func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -61,11 +62,28 @@ func CreateActivity(activity *models.Activity) (*models.Activity, error) {
 
 	// ✅ บันทึก ActivityItems
 	for i := range activity.ActivityItems {
-		fmt.Println("ActivityItem:", activity.ActivityItems[i])
-		activity.ActivityItems[i].ID = primitive.NewObjectID()
-		activity.ActivityItems[i].ActivityID = activity.ID
 
-		_, err := activityItemCollection.InsertOne(ctx, activity.ActivityItems[i])
+		activityItemToInsert := models.ActivityItem{
+			ID:              primitive.NewObjectID(),
+			ActivityID:      activity.ID,
+			Name:            activity.ActivityItems[i].Name,
+			Description:     activity.ActivityItems[i].Description,
+			StudentYears:    activity.ActivityItems[i].StudentYears,
+			MaxParticipants: activity.ActivityItems[i].MaxParticipants,
+			Majors:          activity.ActivityItems[i].Majors,
+			Rooms:           activity.ActivityItems[i].Rooms,
+			Operator:        activity.ActivityItems[i].Operator,
+			Dates:           activity.ActivityItems[i].Dates,
+			Hour:            activity.ActivityItems[i].Hour,
+		}
+		// print by converting to JSON
+		activityItemJSON, errr := json.Marshal(activityItemToInsert)
+		if errr != nil {
+			return nil, errr
+		}
+		fmt.Println(string(activityItemJSON))
+
+		_, err := activityItemCollection.InsertOne(ctx, activityItemToInsert)
 		if err != nil {
 			return nil, err
 		}
@@ -154,7 +172,7 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 	return results, total, totalPages, nil
 }
 
-func GetActivityByID(activityID string) (*models.Activity, error) {
+func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -163,7 +181,7 @@ func GetActivityByID(activityID string) (*models.Activity, error) {
 		return nil, fmt.Errorf("invalid activity ID format")
 	}
 
-	var result models.Activity
+	var result models.ActivityDto
 
 	pipeline := GetOneActivityPipeline(objectID)
 
@@ -272,7 +290,7 @@ func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.Activ
 	return activityItems, nil
 }
 
-func UpdateActivity(id primitive.ObjectID, activity models.Activity) (*models.Activity, error) {
+func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models.ActivityDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

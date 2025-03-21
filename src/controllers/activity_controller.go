@@ -31,7 +31,7 @@ var path = "./uploads/activity/images/"
 // @Router       /activitys [post]
 // CreateActivity - สร้างกิจกรรมใหม่
 func CreateActivity(c *fiber.Ctx) error {
-	var request models.Activity
+	var request models.ActivityDto
 
 	// แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
@@ -378,7 +378,7 @@ func UpdateActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	var request models.Activity
+	var request models.ActivityDto
 	// ✅ แปลง JSON เป็น struct
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
