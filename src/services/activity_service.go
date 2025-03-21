@@ -188,6 +188,7 @@ func GetActivityByID(activityID string) (*models.Activity, error) {
 
 func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, error) {
 
+	fmt.Println("activityID:", activityID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -212,6 +213,35 @@ func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, erro
 			log.Println("Error decoding activity:", err)
 			return result, err
 		}
+		fmt.Println(result)
+
+		// Loop ตรวจสอบ activityItemSums
+		cleanedActivityItems := []models.ActivityItemSum{}
+		adjustedTotalRegistered := result.TotalRegistered
+		for _, item := range result.ActivityItemSums {
+			cleanedMajors := []models.MajorEnrollment{}
+
+			for _, major := range item.RegisteredByMajor {
+				if major.MajorName != "" {
+					cleanedMajors = append(cleanedMajors, major)
+				} else {
+					// ถ้า MajorName ว่าง → ปรับ totalRegistered และ remainingSlots
+					adjustedTotalRegistered -= major.Count
+					result.RemainingSlots += major.Count
+				}
+			}
+
+			// ถ้ามี RegisteredByMajor เหลือ → เก็บไว้
+			if len(cleanedMajors) > 0 {
+				item.RegisteredByMajor = cleanedMajors
+				cleanedActivityItems = append(cleanedActivityItems, item)
+			}
+		}
+
+		// อัปเดต result ใหม่
+		result.ActivityItemSums = cleanedActivityItems
+		result.TotalRegistered = adjustedTotalRegistered
+
 		return result, nil
 	}
 

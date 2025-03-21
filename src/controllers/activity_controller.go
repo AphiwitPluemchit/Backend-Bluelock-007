@@ -85,6 +85,13 @@ func UploadActivityImage(c *fiber.Ctx) error {
 
 	fileName = fmt.Sprintf("%d%s", time.Now().UnixNano(), filepath.Ext(file.Filename))
 	filePath := fmt.Sprintf(path+"%s", fileName)
+	// folder not exist, create it
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		err = os.Mkdir(path, 0755) // 0755 is the permission mode
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to create directory: "+err.Error())
+		}
+	}
 	c.SaveFile(file, filePath)
 
 	//
