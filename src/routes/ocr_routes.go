@@ -51,7 +51,7 @@ func uploadHandler(c *fiber.Ctx) error {
 	log.Printf("🛠 เซฟไฟล์ไปที่: %s\n", filePath)
 
 	// Prepare to send to FastAPI OCR
-	fastApiURL := "http://localhost:8000/ocr"
+	fastApiURL := "http://fastapi-ocr:8000/ocr"
 	responseData, err := sendFileToFastAPI(filePath, fastApiURL)
 	if err != nil {
 		log.Printf("❌ OCR proxy error: %v\n", err)
