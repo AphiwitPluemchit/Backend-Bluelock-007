@@ -9,3 +9,19 @@ services:
       - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
     restart: always
     container_name: golang-backend
+    networks:
+      - bluelock-net
+
+  ocr:
+    build:
+      context: ./ocr
+    ports:
+      - "8000:8000"
+    container_name: fastapi-ocr
+    restart: always
+    networks:
+      - bluelock-net
+
+networks:
+  bluelock-net:
+    driver: bridge
