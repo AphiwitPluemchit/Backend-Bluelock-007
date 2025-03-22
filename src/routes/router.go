@@ -16,6 +16,7 @@ func InitRoutes(app *fiber.App) {
 	formEvaluationRoutes(app)
 	studentRoutes(app)
 	suggestionRoutes(app)
+	ocrRoutes(app)
 
 	// Route เช็คว่า API ทำงานอยู่
 	app.Get("/", func(c *fiber.Ctx) error {
