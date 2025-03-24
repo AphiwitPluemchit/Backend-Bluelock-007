@@ -13,40 +13,33 @@ import (
 // ✅ CreateStudent - เพิ่ม Student
 func CreateStudent(c *fiber.Ctx) error {
 	var req struct {
-		Code      string `json:"code"`
-		Name      string `json:"name"`
-		Email     string `json:"email"`
-		Password  string `json:"password"`
-		Status    int    `json:"status"`
-		SoftSkill int    `json:"softSkill"`
-		HardSkill int    `json:"hardSkill"`
-		Major     string `json:"major"`
+		Name    string `json:"name"`
+		EngName string `json:"engName"`
+		Code    string `json:"code"`
+		Major   string `json:"major"`
 	}
 
-	// 1️⃣ ดึงค่าจาก Body
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
 	}
 
-	// 3️⃣ สร้าง Student ใหม่
 	student := models.Student{
 		Code:      req.Code,
 		Name:      req.Name,
-		Email:     req.Email,
-		Password:  req.Password, // จะถูกเข้ารหัสใน Service
-		Status:    req.Status,
-		SoftSkill: req.SoftSkill,
-		HardSkill: req.HardSkill,
+		EngName:   req.EngName,
+		Email:     req.Code + "@go.buu.ac.th", // auto-generate email
+		Password:  "123456",                   // default password
+		Status:    1,                          // default status
+		SoftSkill: 0,
+		HardSkill: 0,
 		Major:     req.Major,
 	}
 
-	// 4️⃣ เรียกใช้ Service เพื่อบันทึกข้อมูล
 	err := services.CreateStudent(&student)
 	if err != nil {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// 5️⃣ ตอบกลับเมื่อสำเร็จ
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Student created successfully"})
 }
 
