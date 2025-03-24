@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"gopkg.in/gomail.v2"
 )
 
 var ctx = context.Background()
@@ -364,6 +365,71 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			)
 			if err != nil {
 				return nil, err
+			}
+		}
+		// ✅ ถ้า activityState เปลี่ยนเป็น "open" → ส่งอีเมลหานิสิต
+		if activity.ActivityState == "open" {
+			// ดึง users ที่ role == student
+			userCollection := database.GetCollection("BluelockDB", "users")
+			cursor, err := userCollection.Find(ctx, bson.M{"role": "Student"})
+			if err != nil {
+				return nil, err
+			}
+
+			var students []models.User
+			if err := cursor.All(ctx, &students); err != nil {
+				return nil, err
+			}
+
+			// ส่งอีเมลหาแต่ละคน
+			for _, student := range students {
+				fmt.Println("student", student.Email)
+				name := ""
+				if activity.Name != nil {
+					name = *activity.Name
+				}
+				subject := fmt.Sprintf("📢 เปิดลงทะเบียนกิจกรรม: %s", name)
+				body := fmt.Sprintf(`
+						<table style="max-width: 600px; margin: auto; font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden;">
+						  <tr>
+						    <td style="background-color: #2E86C1; color: white; padding: 20px; text-align: center;">
+						      <h2 style="margin: 0;">📢 แจ้งเตือนกิจกรรม</h2>
+						    </td>
+						  </tr>
+						  <tr>
+						    <td style="padding: 24px;">
+						      <h3 style="color: #333;">เรียน นิสิต,</h3>
+						      <p style="font-size: 16px; color: #555;">
+						        กิจกรรม <strong style="color: #2E86C1;">%s</strong> ได้เปิดให้ลงทะเบียนแล้ว 🎉
+						      </p>
+						      <p style="font-size: 16px; color: #555;">
+						        สามารถเข้าสู่ระบบเพื่อลงทะเบียนได้ทันที โดยคลิกที่ปุ่มด้านล่าง
+						      </p>
+						      <div style="text-align: center; margin: 30px 0;">
+						        <a href="http://your-frontend-url.com/"
+						           style="background-color: #2E86C1; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+						           📝 ลงทะเบียนกิจกรรม
+						        </a>
+						      </div>
+						      <p style="font-size: 14px; color: #888;">หากคุณไม่ได้เป็นผู้รับผิดชอบกิจกรรมนี้ กรุณาเมินเฉยอีเมลนี้</p>
+						    </td>
+						  </tr>
+						  <tr>
+						    <td style="background-color: #f4f4f4; text-align: center; padding: 12px; font-size: 12px; color: #999;">
+						      © 2025 Activity Tracking System, Your University
+						    </td>
+						  </tr>
+						</table>
+						`, name)
+
+				fmt.Println("subject", subject)
+				fmt.Println("body", body)
+				// ✅ ส่งอีเมล (อาจใส่ go routine เพื่อไม่ block)
+				// go func(email string) {
+				// 	if err := SendEmail(email, subject, body); err != nil {
+				// 		fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
+				// 	}
+				// }(student.Email)
 			}
 		}
 	}
@@ -822,4 +888,20 @@ func generateStudentCodeFilter(studentYears []int) []string {
 		}
 	}
 	return codes
+}
+func SendEmail(to string, subject string, html string) error {
+	m := gomail.NewMessage()
+	m.SetHeader("From", "65160205@go.buu.ac.th") // ✅ อีเมลที่ใช้สมัคร Brevo
+	m.SetHeader("To", to)
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", html)
+
+	d := gomail.NewDialer(
+		"smtp-relay.brevo.com",
+		587,
+		"88bd8f001@smtp-brevo.com",
+		"EgkJ095wCGS36DfR",
+	)
+
+	return d.DialAndSend(m)
 }
