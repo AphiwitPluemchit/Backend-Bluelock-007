@@ -390,46 +390,46 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 				}
 				subject := fmt.Sprintf("📢 เปิดลงทะเบียนกิจกรรม: %s", name)
 				body := fmt.Sprintf(`
-						<table style="max-width: 600px; margin: auto; font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden;">
-						  <tr>
-						    <td style="background-color: #2E86C1; color: white; padding: 20px; text-align: center;">
-						      <h2 style="margin: 0;">📢 แจ้งเตือนกิจกรรม</h2>
-						    </td>
-						  </tr>
-						  <tr>
-						    <td style="padding: 24px;">
-						      <h3 style="color: #333;">เรียน นิสิต,</h3>
-						      <p style="font-size: 16px; color: #555;">
-						        กิจกรรม <strong style="color: #2E86C1;">%s</strong> ได้เปิดให้ลงทะเบียนแล้ว 🎉
-						      </p>
-						      <p style="font-size: 16px; color: #555;">
-						        สามารถเข้าสู่ระบบเพื่อลงทะเบียนได้ทันที โดยคลิกที่ปุ่มด้านล่าง
-						      </p>
-						      <div style="text-align: center; margin: 30px 0;">
-						        <a href="http://your-frontend-url.com/"
-						           style="background-color: #2E86C1; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
-						           📝 ลงทะเบียนกิจกรรม
-						        </a>
-						      </div>
-						      <p style="font-size: 14px; color: #888;">หากคุณไม่ได้เป็นผู้รับผิดชอบกิจกรรมนี้ กรุณาเมินเฉยอีเมลนี้</p>
-						    </td>
-						  </tr>
-						  <tr>
-						    <td style="background-color: #f4f4f4; text-align: center; padding: 12px; font-size: 12px; color: #999;">
-						      © 2025 Activity Tracking System, Your University
-						    </td>
-						  </tr>
-						</table>
-						`, name)
+				<table style="max-width: 600px; margin: auto; font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden;">
+				  <tr>
+					<td style="background-color: #2E86C1; color: white; padding: 20px; text-align: center;">
+					  <h2 style="margin: 0;">📢 แจ้งเตือนกิจกรรม</h2>
+					</td>
+				  </tr>
+				  <tr>
+					<td style="padding: 24px;">
+					  <h3 style="color: #333;">เรียน นิสิต,</h3>
+					  <p style="font-size: 16px; color: #555;">
+						กิจกรรม <strong style="color: #2E86C1;">%s</strong> ได้เปิดให้ลงทะเบียนแล้ว 🎉
+					  </p>
+					  <p style="font-size: 16px; color: #555;">
+						สามารถเข้าสู่ระบบเพื่อลงทะเบียนได้ทันที โดยคลิกที่ปุ่มด้านล่าง
+					  </p>
+					  <div style="text-align: center; margin: 30px 0;">
+						<a href="%s"
+						   style="background-color: #2E86C1; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+						   📝 ลงทะเบียนกิจกรรม
+						</a>
+					  </div>
+					  <p style="font-size: 14px; color: #888;">หากคุณไม่ได้เป็นผู้รับผิดชอบกิจกรรมนี้ กรุณาเมินเฉยอีเมลนี้</p>
+					</td>
+				  </tr>
+				  <tr>
+					<td style="background-color: #f4f4f4; text-align: center; padding: 12px; font-size: 12px; color: #999;">
+					  © 2025 Activity Tracking System, Your University
+					</td>
+				  </tr>
+				</table>
+			  `, name, fmt.Sprintf("http://localhost:9000/#/Student/Activity/ActivityDetail/%s", id.Hex()))
 
-				fmt.Println("subject", subject)
-				fmt.Println("body", body)
+				// fmt.Println("subject", subject)
+				// fmt.Println("body", body)
 				// ✅ ส่งอีเมล (อาจใส่ go routine เพื่อไม่ block)
-				// go func(email string) {
-				// 	if err := SendEmail(email, subject, body); err != nil {
-				// 		fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
-				// 	}
-				// }(student.Email)
+				go func(email string) {
+					if err := SendEmail(email, subject, body); err != nil {
+						fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
+					}
+				}(student.Email)
 			}
 		}
 	}
