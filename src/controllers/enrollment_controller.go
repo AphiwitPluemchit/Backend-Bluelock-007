@@ -188,12 +188,13 @@ func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid activityId"})
 	}
 
-	isEnrolled, err := services.IsStudentEnrolledInActivity(studentID, activityID)
+	isEnrolled, enrollmentID, err := services.IsStudentEnrolledInActivity(studentID, activityID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
-		"isEnrolled": isEnrolled,
+		"isEnrolled":   isEnrolled,
+		"enrollmentId": enrollmentID.Hex(),
 	})
 }

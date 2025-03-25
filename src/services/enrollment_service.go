@@ -467,14 +467,15 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 
 	return result[0], nil // ✅ ส่ง Object เดียว
 }
-func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool, error) {
+
+func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool, primitive.ObjectID, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// 1️⃣ ดึง activityItems ทั้งหมดที่อยู่ใน activity นี้
 	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": activityID})
 	if err != nil {
-		return false, err
+		return false, primitive.ObjectID{}, err
 	}
 	defer cursor.Close(ctx)
 
@@ -489,7 +490,7 @@ func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool
 	}
 
 	if len(itemIDs) == 0 {
-		return false, nil // ไม่มีกิจกรรมย่อยเลย
+		return false, primitive.ObjectID{}, nil // ไม่มีกิจกรรมย่อยเลย
 	}
 
 	// 2️⃣ ตรวจสอบว่านิสิตลงทะเบียนใน item ใดๆ เหล่านี้หรือไม่
@@ -498,12 +499,15 @@ func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool
 		"activityItemId": bson.M{"$in": itemIDs},
 	}
 
-	count, err := enrollmentCollection.CountDocuments(ctx, filter)
+	var enrollment struct {
+		ID primitive.ObjectID `bson:"_id"`
+	}
+	err = enrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
 	if err != nil {
-		return false, err
+		return false, primitive.ObjectID{}, err
 	}
 
-	return count > 0, nil
+	return true, enrollment.ID, nil
 }
 
 func isTimeOverlap(start1, end1, start2, end2 string) bool {
