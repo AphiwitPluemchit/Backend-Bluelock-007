@@ -137,7 +137,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 }
 
 // ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
-func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.Activity, int64, int, error) {
+func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ActivityDto, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -163,7 +163,7 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	}
 	var enrollmentResult []bson.M
 	if err := cur.All(ctx, &enrollmentResult); err != nil || len(enrollmentResult) == 0 {
-		return []models.Activity{}, 0, 0, nil
+		return []models.ActivityDto{}, 0, 0, nil
 	}
 	activityIDs := enrollmentResult[0]["activityIds"].(primitive.A)
 
@@ -194,7 +194,7 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	}
 	defer cursor.Close(ctx)
 
-	var activities []models.Activity
+	var activities []models.ActivityDto
 	if err := cursor.All(ctx, &activities); err != nil {
 		return nil, 0, 0, err
 	}
@@ -406,7 +406,7 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID, "activityItemId": activityItemID}}},
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activityItems",
+			"from":         "activityIte	ms",
 			"localField":   "activityItemId",
 			"foreignField": "_id",
 			"as":           "activityItemDetails",
