@@ -8,7 +8,7 @@ services:
     environment:
       - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
     restart: always
-    container_name: golang-backend
+    container_name: bluelock-backend
     networks:
       - bluelock-net
 
