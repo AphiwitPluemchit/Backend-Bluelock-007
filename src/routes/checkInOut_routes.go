@@ -14,4 +14,7 @@ func checkInOutRoutes(app *fiber.App) {
 	checkInOutRoutes.Get("/:id", controllers.GetCheckInOutByID)   // ดึงข้อมูลผู้ใช้ตาม ID
 	checkInOutRoutes.Put("/:id", controllers.UpdateCheckInOut)    // อัปเดตข้อมูลผู้ใช้
 	checkInOutRoutes.Delete("/:id", controllers.DeleteCheckInOut) // ลบผู้ใช้
+	checkInOutRoutes.Get("/qrcode/checkin/:activityId", controllers.GenerateCheckInQRCodeHandler)
+	checkInOutRoutes.Get("/qrcode/checkout/:activityId", controllers.GenerateCheckOutQRCodeHandler)
+
 }
