@@ -292,9 +292,9 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 // @Failure      404  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /activitys/{id}/enrollments [get]
-func GetEnrollmentByActivityID(c *fiber.Ctx) error {
-	id := c.Params("id")
-	activityID, err := primitive.ObjectIDFromHex(id)
+func GetEnrollmentByActivityItemID(c *fiber.Ctx) error {
+	activityItemID := c.Params("id")
+	itemID, err := primitive.ObjectIDFromHex(activityItemID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
@@ -305,11 +305,9 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
 	}
 
-	fmt.Println("Pagination:", pagination)
-
-	// รับค่า query param ของ major และ status
-	studentMajors := c.Query("majors") // Expecting comma-separated values
-	studentStatus := c.Query("status") // Expecting int value
+	// รับค่า query param
+	studentMajors := c.Query("majors")
+	studentStatus := c.Query("status")
 	studentYears := c.Query("years")
 
 	var majorFilter []string
@@ -321,8 +319,7 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 	if studentStatus != "" {
 		statusValues := strings.Split(studentStatus, ",")
 		for _, val := range statusValues {
-			num, err := strconv.Atoi(val)
-			if err == nil {
+			if num, err := strconv.Atoi(val); err == nil {
 				statusFilter = append(statusFilter, num)
 			}
 		}
@@ -332,23 +329,22 @@ func GetEnrollmentByActivityID(c *fiber.Ctx) error {
 	if studentYears != "" {
 		studentYearsValues := strings.Split(studentYears, ",")
 		for _, val := range studentYearsValues {
-			num, err := strconv.Atoi(val)
-			if err == nil {
+			if num, err := strconv.Atoi(val); err == nil {
 				studentYearsFilter = append(studentYearsFilter, num)
 			}
 		}
 	}
 
-	enrollments, total, err := services.GetEnrollmentByActivityID(activityID.Hex(), pagination, majorFilter, statusFilter, studentYearsFilter)
+	student, total, err := services.GetEnrollmentByActivityItemID(itemID, pagination, majorFilter, statusFilter, studentYearsFilter)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error":   "Activity not found",
+			"error":   "ActivityItem not found",
 			"message": err.Error(),
 		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": enrollments,
+		"data": student,
 		"meta": fiber.Map{
 			"currentPage": pagination.Page,
 			"perPage":     pagination.Limit,
