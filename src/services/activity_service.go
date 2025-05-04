@@ -112,73 +112,155 @@ func UploadActivityImage(activityID string, fileName string) error {
 
 // GetAllActivities - ดึง Activity พร้อม ActivityItems + Pagination, Search, Sorting
 func GetAllActivities(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int) ([]models.ActivityDto, int64, int, error) {
-	var results []models.ActivityDto
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// คำนวณค่า Skip
+	var results []models.ActivityDto
+
+	// Calculate skip
 	skip := int64((params.Page - 1) * params.Limit)
 
-	// กำหนดค่าเริ่มต้นของการ Sort
+	// Set default sort field
 	sortField := params.SortBy
+	fmt.Println("sortField:", sortField)
 	if sortField == "" {
-		sortField = "name"
+
+		fmt.Println("No sort field provided, defaulting to 'dates'" + sortField)
+		sortField = "dates"
 	}
+
 	sortOrder := 1
 	if strings.ToLower(params.Order) == "desc" {
 		sortOrder = -1
 	}
 
-	// สร้าง Filter
+	// Build filter
 	filter := bson.M{}
 
-	// 🔍 ค้นหาตามชื่อกิจกรรม (case-insensitive)
 	if params.Search != "" {
 		searchRegex := bson.M{"$regex": params.Search, "$options": "i"}
-
 		filter["$or"] = bson.A{
 			bson.M{"name": searchRegex},
 			bson.M{"skill": searchRegex},
-			// bson.M{"type": searchRegex},
-			// bson.M{"activityState": searchRegex},
-			// bson.M{"activityItems.dates.date": searchRegex}, // Nested field
 		}
 	}
-	fmt.Println(filter)
-	// 🔍 ค้นหาตาม Skill (ถ้ามี)
 	if len(skills) > 0 && skills[0] != "" {
 		filter["skill"] = bson.M{"$in": skills}
 	}
-
-	// 🔍 ค้นหาตาม ActivityState (ถ้ามี)
 	if len(states) > 0 && states[0] != "" {
 		filter["activityState"] = bson.M{"$in": states}
 	}
 
-	// นับจำนวนเอกสารทั้งหมด
-	total, err := activityCollection.CountDocuments(ctx, filter)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-
-	pipeline := getActivitiesPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majors, studentYears)
-
+	pipeline := getLightweightActivitiesPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majors, studentYears)
 	cursor, err := activityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
-		log.Println("Error fetching activities:", err)
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	if err = cursor.All(ctx, &results); err != nil {
-		log.Println("Error decoding activities:", err)
+	if err := cursor.All(ctx, &results); err != nil {
 		return nil, 0, 0, err
 	}
 
-	// คำนวณจำนวนหน้าทั้งหมด
-	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+	// 👇 ใช้ pipeline ใหม่สำหรับ count โดยไม่ใส่ skip/limit
+	countPipeline := getLightweightActivitiesPipeline(filter, "", 0, 0, 0, majors, studentYears)
+	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
 
+	cursor, err = activityCollection.Aggregate(ctx, countPipeline)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	var countResult []bson.M
+	if err = cursor.All(ctx, &countResult); err != nil {
+		return nil, 0, 0, err
+	}
+
+	var total int64 = 0
+	if len(countResult) > 0 {
+		switch v := countResult[0]["total"].(type) {
+		case int32:
+			total = int64(v)
+		case int64:
+			total = v
+		default:
+			log.Printf("unexpected type for count: %T", v)
+		}
+	}
+	// Populate enrollment count in Go
+	for i, activity := range results {
+		for j, item := range activity.ActivityItems {
+			count, err := enrollmentCollection.CountDocuments(ctx, bson.M{"activityItemId": item.ID})
+			if err == nil {
+				results[i].ActivityItems[j].EnrollmentCount = int(count)
+			}
+		}
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 	return results, total, totalPages, nil
+}
+
+func getLightweightActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majors []string, studentYears []int) mongo.Pipeline {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: filter}},
+
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
+	}
+
+	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า major**
+	if len(majors) > 0 && majors[0] != "" {
+		fmt.Println("Filtering by major:", majors) // Debugging log
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{
+				{Key: "activityItems.majors", Value: bson.D{{Key: "$in", Value: majors}}},
+			}},
+		})
+	} else {
+		fmt.Println("Skipping majorName filtering")
+	}
+
+	// ✅ กรองเฉพาะ StudentYears ที่ต้องการ **ถ้ามีค่า studentYears**
+	if len(studentYears) > 0 && studentYears[0] != 0 {
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{
+				{Key: "activityItems.studentYears", Value: bson.D{{Key: "$in", Value: studentYears}}},
+			}},
+		})
+	}
+
+	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
+		if sortField == "dates" {
+			pipeline = append(pipeline, bson.D{
+				{Key: "$addFields", Value: bson.D{
+					{Key: "activityItems.firstDate", Value: bson.D{
+						{Key: "$arrayElemAt", Value: bson.A{"$activityItems.dates.date", 0}},
+					}},
+				}},
+			})
+
+			pipeline = append(pipeline, bson.D{
+				{Key: "$sort", Value: bson.D{{Key: "activityItems.firstDate", Value: sortOrder}}},
+			})
+
+		} else {
+			pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
+		}
+	}
+
+	if skip > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}})
+	}
+	if limit > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$limit", Value: limit}})
+	}
+
+	return pipeline
 }
 
 func GetActivityByID(activityID string) (*models.ActivityDto, error) {
