@@ -3,6 +3,7 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -82,10 +83,13 @@ func GetStudents(c *fiber.Ctx) error {
 	params.SortBy = c.Query("sortBy", params.SortBy)
 	params.Order = c.Query("order", params.Order)
 
+	studentStatus := cleanList(strings.Split(c.Query("status"), ","))
 	majors := cleanList(strings.Split(c.Query("major"), ","))
-	years := cleanList(strings.Split(c.Query("studentYear"), ","))
-
-	students, total, totalPages, err := services.GetStudentsWithFilter(params, majors, years)
+	studentYears := cleanList(strings.Split(c.Query("studentYear"), ","))
+	log.Println(studentStatus)
+	log.Println(majors)
+	log.Println(studentYears)
+	students, total, totalPages, err := services.GetStudentsWithFilter(params, majors, studentYears, studentStatus)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching students"})
 	}
