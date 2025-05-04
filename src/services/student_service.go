@@ -215,3 +215,27 @@ func DeleteStudent(id string) error {
 	_, err = studentCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
 	return err
 }
+
+// ✅ UpdateStatusToZero - เปลี่ยนสถานะนิสิตเป็น 0
+func UpdateStatusToZero(studentID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// แปลง studentID จาก string เป็น ObjectID
+	objectID, err := primitive.ObjectIDFromHex(studentID)
+	if err != nil {
+		return err
+	}
+
+	// ค้นหานิสิตตาม ID และอัพเดตสถานะเป็น 0
+	filter := bson.M{"_id": objectID}
+	update := bson.M{"$set": bson.M{"status": 0}}
+
+	// Update นิสิทธ์ใน MongoDB
+	_, err = studentCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
