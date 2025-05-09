@@ -76,6 +76,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 			Operator:        activity.ActivityItems[i].Operator,
 			Dates:           activity.ActivityItems[i].Dates,
 			Hour:            activity.ActivityItems[i].Hour,
+			EndDateEnroll:   activity.ActivityItems[i].EndDateEnroll,
 		}
 		// print by converting to JSON
 		activityItemJSON, errr := json.Marshal(activityItemToInsert)
@@ -443,6 +444,9 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 					"operator":        newItem.Operator,
 					"studentYears":    newItem.StudentYears,
 					"majors":          newItem.Majors,
+					"endDateEnroll":   newItem.EndDateEnroll,
+
+					
 				}},
 			)
 			if err != nil {
