@@ -24,7 +24,7 @@ var path = "./uploads/activity/images/"
 // @Tags         activitys
 // @Accept       json
 // @Produce      json
-// @Param        body body models.Activity true "Activity and ActivityItems"
+// @Param        body body models.ActivityDto true "Activity and ActivityItems"
 // @Success      201  {object}  models.Activity
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse

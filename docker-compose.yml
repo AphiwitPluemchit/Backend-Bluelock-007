@@ -1,27 +1,62 @@
-version: "3.1"
-
 services:
+  redis:
+    image: redis:7
+    container_name: bluelock-redis
+    # ports:
+    #   - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+    networks:
+      - bluelock-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    environment:
+      - TZ=Asia/Bangkok
+
+  asynqmon:
+    image: hibiken/asynqmon
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+    networks:
+      - bluelock-net
+
   backend:
     build: .
     ports:
       - "8888:8888"
     environment:
       - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
+      - TZ=Asia/Bangkok
     restart: always
     container_name: bluelock-backend
     networks:
       - bluelock-net
+    depends_on:
+      redis:
+        condition: service_healthy
 
-  ocr:
-    build:
-      context: ./ocr
-    # ports:
-    #   - "8000:8000"
-    container_name: fastapi-ocr
-    restart: always
-    networks:
-      - bluelock-net
+  # ocr:
+  #   build:
+  #     context: ./ocr
+  #   # ports:
+  #   #   - "8000:8000"
+  #   container_name: fastapi-ocr
+  #   restart: always
+  #   networks:
+  #     - bluelock-net
 
 networks:
   bluelock-net:
     driver: bridge
+
+# ✅ ต้องมีส่วนนี้อยู่ด้านล่าง!
+volumes:
+  redis-data:

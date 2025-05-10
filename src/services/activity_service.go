@@ -2,9 +2,9 @@ package services
 
 import (
 	"Backend-Bluelock-007/src/database"
+	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/models"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -22,6 +23,12 @@ var ctx = context.Background()
 
 var activityCollection *mongo.Collection
 var activityItemCollection *mongo.Collection
+
+var AsynqClient *asynq.Client
+
+func InitAsynq() {
+	AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: "localhost:6379"})
+}
 
 func init() {
 	if err := database.ConnectMongoDB(); err != nil {
@@ -34,6 +41,7 @@ func init() {
 	if activityCollection == nil || activityItemCollection == nil {
 		log.Fatal("Failed to get the required collections")
 	}
+
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
@@ -63,31 +71,60 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	}
 
 	// ✅ บันทึก ActivityItems
-	for i := range activity.ActivityItems {
+	var itemsToInsert []any
 
-		activityItemToInsert := models.ActivityItem{
+	for _, item := range activity.ActivityItems {
+		itemToInsert := models.ActivityItem{
 			ID:              primitive.NewObjectID(),
 			ActivityID:      activity.ID,
-			Name:            activity.ActivityItems[i].Name,
-			Description:     activity.ActivityItems[i].Description,
-			StudentYears:    activity.ActivityItems[i].StudentYears,
-			MaxParticipants: activity.ActivityItems[i].MaxParticipants,
-			Majors:          activity.ActivityItems[i].Majors,
-			Rooms:           activity.ActivityItems[i].Rooms,
-			Operator:        activity.ActivityItems[i].Operator,
-			Dates:           activity.ActivityItems[i].Dates,
-			Hour:            activity.ActivityItems[i].Hour,
+			Name:            item.Name,
+			Description:     item.Description,
+			StudentYears:    item.StudentYears,
+			MaxParticipants: item.MaxParticipants,
+			Majors:          item.Majors,
+			Rooms:           item.Rooms,
+			Operator:        item.Operator,
+			Dates:           item.Dates,
+			Hour:            item.Hour,
 		}
-		// print by converting to JSON
-		activityItemJSON, errr := json.Marshal(activityItemToInsert)
-		if errr != nil {
-			return nil, errr
-		}
-		fmt.Println(string(activityItemJSON))
+		itemsToInsert = append(itemsToInsert, itemToInsert)
+	}
 
-		_, err := activityItemCollection.InsertOne(ctx, activityItemToInsert)
-		if err != nil {
-			return nil, err
+	// ✅ Insert ทั้งหมดในครั้งเดียว เร็วขึ้นมากในการ insert หลายรายการ ลดจำนวนการ round-trip ไปยัง MongoDB
+	_, err = activityItemCollection.InsertMany(ctx, itemsToInsert)
+	if err != nil {
+		return nil, err
+	}
+
+	// ✅ วนหาเวลาสิ้นสุดที่มากที่สุด
+	var latestTime time.Time
+	for _, item := range activity.ActivityItems {
+		for _, d := range item.Dates {
+			loc, _ := time.LoadLocation("Asia/Bangkok")
+			t, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Etime, loc)
+
+			if err != nil {
+				continue
+			}
+			if t.After(latestTime) {
+				latestTime = t // เก็บเวลาที่มากที่สุดไว้
+			}
+		}
+	}
+
+	fmt.Println("latestTime:", latestTime)
+	fmt.Println("time.Now():", time.Now())
+
+	// ✅ Enqueue task ด้วยเวลาใหม่สุด
+	if !latestTime.IsZero() && latestTime.After(time.Now()) { //  ถ้า latestTime ยังอยู่ในอนาคต → สร้าง task และ enqueue
+		task, err := jobs.NewCloseActivityTask(activity.ID.Hex())
+		if err == nil {
+			_, err := AsynqClient.Enqueue(task, asynq.ProcessAt(latestTime))
+			if err != nil {
+				log.Println("❌ Failed to enqueue close task:", err)
+			} else {
+				log.Println("🕒 Scheduled close task at", latestTime)
+			}
 		}
 	}
 
