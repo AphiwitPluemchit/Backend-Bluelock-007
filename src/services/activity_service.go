@@ -53,6 +53,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		Skill:         activity.Skill,
 		File:          activity.File,
 		FoodVotes:     activity.FoodVotes,
+		EndDateEnroll: activity.EndDateEnroll,
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
@@ -76,7 +77,6 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 			Operator:        activity.ActivityItems[i].Operator,
 			Dates:           activity.ActivityItems[i].Dates,
 			Hour:            activity.ActivityItems[i].Hour,
-			EndDateEnroll:   activity.ActivityItems[i].EndDateEnroll,
 		}
 		// print by converting to JSON
 		activityItemJSON, errr := json.Marshal(activityItemToInsert)
@@ -393,6 +393,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			"skill":         activity.Skill,
 			"file":          activity.File,
 			"foodVotes":     activity.FoodVotes,
+			"endDateEnroll": activity.EndDateEnroll,
 		},
 	}
 
@@ -444,9 +445,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 					"operator":        newItem.Operator,
 					"studentYears":    newItem.StudentYears,
 					"majors":          newItem.Majors,
-					"endDateEnroll":   newItem.EndDateEnroll,
-
-					
 				}},
 			)
 			if err != nil {

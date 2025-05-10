@@ -11,6 +11,7 @@ type Activity struct {
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
+	EndDateEnroll string             `json:"endDateEnroll" bson:"endDateEnroll"`
 }
 
 type ActivityDto struct {
@@ -22,6 +23,7 @@ type ActivityDto struct {
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
 	ActivityItems []ActivityItemDto  `json:"activityItems" `
+	EndDateEnroll string             `json:"endDateEnroll" `
 }
 
 // ActivityItem รายละเอียดกิจกรรมย่อย
@@ -37,7 +39,6 @@ type ActivityItem struct {
 	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
 	Dates           []Dates            `json:"dates" bson:"dates" `
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
-	EndDateEnroll   string             `json:"endDateEnroll" bson:"endDateEnroll"`
 }
 
 type ActivityItemDto struct {
@@ -53,7 +54,6 @@ type ActivityItemDto struct {
 	Dates           []Dates            `json:"dates" bson:"dates" `
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
 	EnrollmentCount int                `json:"enrollmentCount"  `
-	EndDateEnroll   string             `json:"endDateEnroll"`
 }
 
 type Dates struct {
