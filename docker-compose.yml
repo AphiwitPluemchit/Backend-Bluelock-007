@@ -2,8 +2,8 @@ services:
   redis:
     image: redis:7
     container_name: bluelock-redis
-    # ports:
-    #   - "6379:6379"
+    ports:
+      - "6379:6379"
     volumes:
       - redis-data:/data
     restart: always
