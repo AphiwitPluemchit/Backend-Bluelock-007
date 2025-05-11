@@ -39,7 +39,7 @@ func HandleCloseActivityTask(ctx context.Context, t *asynq.Task) error {
 	// ✅ ดำเนินการเปลี่ยนสถานะ
 	_, err = collection.UpdateOne(ctx,
 		bson.M{"_id": id},
-		bson.M{"$set": bson.M{"activityState": "close"}},
+		bson.M{"$set": bson.M{"activityState": "completed"}},
 	)
 
 	if err != nil {
