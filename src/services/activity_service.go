@@ -537,14 +537,14 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 				</table>
 			  `, name, fmt.Sprintf("http://localhost:9000/#/Student/Activity/ActivityDetail/%s", id.Hex()))
 
-				// fmt.Println("subject", subject)
-				// fmt.Println("body", body)
+				fmt.Println("subject", subject)
+				fmt.Println("body", body)
 				// ✅ ส่งอีเมล (อาจใส่ go routine เพื่อไม่ block)
-				go func(email string) {
-					if err := SendEmail(email, subject, body); err != nil {
-						fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
-					}
-				}(student.Email)
+				// go func(email string) {
+				// 	if err := SendEmail(email, subject, body); err != nil {
+				// 		fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
+				// 	}
+				// }(student.Email)
 			}
 		}
 	}
