@@ -2,16 +2,18 @@ package services
 
 import (
 	"Backend-Bluelock-007/src/database"
+	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/models"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -22,6 +24,17 @@ var ctx = context.Background()
 
 var activityCollection *mongo.Collection
 var activityItemCollection *mongo.Collection
+var AsynqClient *asynq.Client
+var redisURI string
+
+func InitAsynq() {
+	redisURI = os.Getenv("REDIS_URI")
+	if redisURI == "" {
+		redisURI = "localhost:6379"
+	}
+
+	AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
+}
 
 func init() {
 	if err := database.ConnectMongoDB(); err != nil {
@@ -34,6 +47,7 @@ func init() {
 	if activityCollection == nil || activityItemCollection == nil {
 		log.Fatal("Failed to get the required collections")
 	}
+
 }
 
 // CreateActivity - สร้าง Activity และ ActivityItems
@@ -53,6 +67,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		Skill:         activity.Skill,
 		File:          activity.File,
 		FoodVotes:     activity.FoodVotes,
+		EndDateEnroll: activity.EndDateEnroll,
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
@@ -62,32 +77,41 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	}
 
 	// ✅ บันทึก ActivityItems
-	for i := range activity.ActivityItems {
+	var itemsToInsert []any
 
-		activityItemToInsert := models.ActivityItem{
+	// ✅ วนหาเวลาสิ้นสุดที่มากที่สุด
+	var latestTime time.Time
+
+	for _, item := range activity.ActivityItems {
+		itemToInsert := models.ActivityItem{
 			ID:              primitive.NewObjectID(),
 			ActivityID:      activity.ID,
-			Name:            activity.ActivityItems[i].Name,
-			Description:     activity.ActivityItems[i].Description,
-			StudentYears:    activity.ActivityItems[i].StudentYears,
-			MaxParticipants: activity.ActivityItems[i].MaxParticipants,
-			Majors:          activity.ActivityItems[i].Majors,
-			Rooms:           activity.ActivityItems[i].Rooms,
-			Operator:        activity.ActivityItems[i].Operator,
-			Dates:           activity.ActivityItems[i].Dates,
-			Hour:            activity.ActivityItems[i].Hour,
+			Name:            item.Name,
+			Description:     item.Description,
+			StudentYears:    item.StudentYears,
+			MaxParticipants: item.MaxParticipants,
+			Majors:          item.Majors,
+			Rooms:           item.Rooms,
+			Operator:        item.Operator,
+			Dates:           item.Dates,
+			Hour:            item.Hour,
 		}
-		// print by converting to JSON
-		activityItemJSON, errr := json.Marshal(activityItemToInsert)
-		if errr != nil {
-			return nil, errr
-		}
-		fmt.Println(string(activityItemJSON))
+		itemsToInsert = append(itemsToInsert, itemToInsert)
 
-		_, err := activityItemCollection.InsertOne(ctx, activityItemToInsert)
-		if err != nil {
-			return nil, err
-		}
+		// ✅ คำนวณ latestTime
+		latestTime = MaxEndTimeFromItem(item, latestTime)
+
+	}
+
+	// ✅ Insert ทั้งหมดในครั้งเดียว เร็วขึ้นมากในการ insert หลายรายการ ลดจำนวนการ round-trip ไปยัง MongoDB
+	_, err = activityItemCollection.InsertMany(ctx, itemsToInsert)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ScheduleChangeActivityStateJob(latestTime, activity.ID.Hex())
+	if err != nil {
+		return nil, err
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
@@ -392,6 +416,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			"skill":         activity.Skill,
 			"file":          activity.File,
 			"foodVotes":     activity.FoodVotes,
+			"endDateEnroll": activity.EndDateEnroll,
 		},
 	}
 
@@ -418,6 +443,10 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 
 	// ✅ สร้าง `Set` สำหรับเก็บ `ID` ของรายการใหม่
 	newItemIDs := make(map[string]bool)
+
+	// ✅ วนหาเวลาสิ้นสุดที่มากที่สุด
+	var latestTime time.Time
+
 	for _, newItem := range activity.ActivityItems {
 		if newItem.ID.IsZero() {
 			// ✅ ถ้าไม่มี `_id` ให้สร้างใหม่
@@ -427,6 +456,9 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			if err != nil {
 				return nil, err
 			}
+
+			// ✅ คำนวณ latestTime
+			latestTime = MaxEndTimeFromItem(newItem, latestTime)
 		} else {
 			// ✅ ถ้ามี `_id` → อัปเดต
 			newItemIDs[newItem.ID.Hex()] = true
@@ -448,6 +480,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			if err != nil {
 				return nil, err
 			}
+			latestTime = MaxEndTimeFromItem(newItem, latestTime)
 		}
 		// ✅ ถ้า activityState เปลี่ยนเป็น "open" → ส่งอีเมลหานิสิต
 		if activity.ActivityState == "open" {
@@ -516,6 +549,11 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 		}
 	}
 
+	err = ScheduleChangeActivityStateJob(latestTime, id.Hex())
+	if err != nil {
+		return nil, err
+	}
+
 	// ✅ ลบ `ActivityItems` ที่ไม่มีในรายการใหม่
 	for existingID := range existingItemMap {
 		if !newItemIDs[existingID] {
@@ -544,6 +582,12 @@ func DeleteActivity(id primitive.ObjectID) error {
 
 	// ลบ Activity
 	_, err = activityCollection.DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		return err
+	}
+
+	DeleteTask(id.Hex()) // ลบ task ที่เกี่ยวข้อง
+
 	return err
 }
 
@@ -1095,4 +1139,66 @@ func SendEmail(to string, subject string, html string) error {
 	)
 
 	return d.DialAndSend(m)
+}
+
+func ScheduleChangeActivityStateJob(latestTime time.Time, activityID string) error {
+	// ✅ Enqueue task ด้วยเวลาใหม่สุด
+	if latestTime.IsZero() || !latestTime.After(time.Now()) {
+		log.Println("⏩ Skip scheduling task: time is invalid or in the past")
+		return nil
+	}
+
+	task, err := jobs.NewCloseActivityTask(activityID)
+	if err != nil {
+		log.Println("❌ Failed to create task payload:", err)
+		return err
+	}
+
+	taskID := "close-activity-" + activityID // ✅ ทำให้ task สามารถอ้างอิงได้ โดยใช้ ID Activity
+
+	DeleteTask(activityID)
+
+	_, err = AsynqClient.Enqueue(task, asynq.ProcessAt(latestTime), asynq.TaskID(taskID)) // ป้องกัน duplicate task ภายในช่วงเวลา
+	if err != nil {
+		log.Println("❌ Failed to enqueue task with taskID: "+taskID, err)
+		return err
+	}
+
+	log.Printf("✅ Task scheduled: ID=%s | RunAt=%s\n", taskID, latestTime.Format(time.RFC3339))
+
+	return nil
+}
+
+func MaxEndTimeFromItem(item models.ActivityItemDto, latestTime time.Time) time.Time {
+
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		log.Println("❌ Failed to load location:", err)
+		return latestTime
+	}
+
+	for _, d := range item.Dates {
+		t, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Etime, loc)
+		if err != nil {
+			continue // ข้ามกรณีที่เวลา format ผิด
+		}
+		if t.After(latestTime) {
+			latestTime = t
+		}
+	}
+
+	return latestTime
+}
+
+func DeleteTask(activityID string) {
+	// ✅ ลบ task เดิมก่อน (ถ้ามี)
+	taskID := "close-activity-" + activityID
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: redisURI})
+	err := inspector.DeleteTask("default", taskID)
+	if err != nil && err != asynq.ErrTaskNotFound {
+		log.Println("⚠️ Failed to delete old task "+taskID+", then skipping:", err)
+		// ไม่ return error → ให้ไปต่อแม้ลบไม่ได้
+	} else if err == nil {
+		log.Println("🗑️ Deleted previous task:", taskID)
+	}
 }

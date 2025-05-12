@@ -24,7 +24,7 @@ var path = "./uploads/activity/images/"
 // @Tags         activitys
 // @Accept       json
 // @Produce      json
-// @Param        body body models.Activity true "Activity and ActivityItems"
+// @Param        body body models.ActivityDto true "Activity and ActivityItems"
 // @Success      201  {object}  models.Activity
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
@@ -379,7 +379,7 @@ func UpdateActivity(c *fiber.Ctx) error {
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
 	}
-	fmt.Println(request)
+
 	// ✅ อัปเดต Activity และ ActivityItems
 	updatedActivity, err := services.UpdateActivity(activityID, request)
 	if err != nil {
@@ -415,5 +415,5 @@ func DeleteActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Activity and related ActivityItems deleted successfully"})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Activity and related ActivityItems were deleted "})
 }
