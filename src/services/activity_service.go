@@ -30,10 +30,12 @@ var redisURI string
 func InitAsynq() {
 	redisURI = os.Getenv("REDIS_URI")
 	if redisURI == "" {
-		redisURI = "localhost:6379"
+		// redisURI = "localhost:6379"
+	} else {
+		AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
 	}
 
-	AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
+	// AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
 }
 
 func init() {
@@ -549,9 +551,11 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 		}
 	}
 
-	err = ScheduleChangeActivityStateJob(latestTime, id.Hex())
-	if err != nil {
-		return nil, err
+	if redisURI != "" {
+		err = ScheduleChangeActivityStateJob(latestTime, id.Hex())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// ✅ ลบ `ActivityItems` ที่ไม่มีในรายการใหม่
