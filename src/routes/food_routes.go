@@ -10,7 +10,7 @@ import (
 func foodRoutes(app *fiber.App) {
 	foodRoutes := app.Group("/foods")
 	foodRoutes.Get("/", controllers.GetFoods)
-	foodRoutes.Post("/", controllers.CreateFoods)
+	foodRoutes.Post("/", controllers.CreateFood)
 	foodRoutes.Get("/:id", controllers.GetFoodByID)
 	foodRoutes.Put("/:id", controllers.UpdateFood)
 	foodRoutes.Delete("/:id", controllers.DeleteFood)
