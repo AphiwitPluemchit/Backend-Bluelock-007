@@ -27,26 +27,12 @@ func init() {
 	}
 }
 
-// CreateFoods - ลบข้อมูลเก่าทั้งหมด และเพิ่มข้อมูลใหม่
-func CreateFoods(foods []models.Food) error {
+// CreateFoods - เพิ่มข้อมูลอาหารทีละตัว
+func CreateFood(food *models.Food) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 🔥 ลบข้อมูลเก่าทั้งหมด
-	_, err := foodCollection.DeleteMany(ctx, bson.M{})
-	if err != nil {
-		return err
-	}
-
-	// เตรียมข้อมูลใหม่
-	var foodDocs []interface{}
-	for i := range foods {
-		foods[i].ID = primitive.NewObjectID() // สร้าง ObjectID ใหม่
-		foodDocs = append(foodDocs, foods[i])
-	}
-
-	// ✅ เพิ่มข้อมูลใหม่ทั้งหมด
-	_, err = foodCollection.InsertMany(ctx, foodDocs)
+	_, err := foodCollection.InsertOne(ctx, food)
 	return err
 }
 

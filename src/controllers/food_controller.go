@@ -5,35 +5,42 @@ import (
 	"Backend-Bluelock-007/src/services"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// CreateFoods godoc
-// @Summary      เพิ่มข้อมูลอาหารหลายรายการ
-// @Description  สร้างข้อมูลอาหารเป็น array
+// CreateFood godoc
+// @Summary      เพิ่มข้อมูลอาหาร
+// @Description  สร้างข้อมูลอาหาร 1 รายการ
 // @Tags         foods
 // @Accept       json
 // @Produce      json
-// @Param        body body []models.Food true "รายการอาหาร"
-// @Success      201  {array}  models.Food
+// @Param        body body models.Food true "ข้อมูลอาหาร"
+// @Success      201  {object}  models.Food
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /foods [post]
-func CreateFoods(c *fiber.Ctx) error {
-	var foods []models.Food
-	if err := c.BodyParser(&foods); err != nil {
+func CreateFood(c *fiber.Ctx) error {
+	var food models.Food
+
+	// ดึงข้อมูลจาก body
+	if err := c.BodyParser(&food); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid input",
 		})
 	}
 
-	err := services.CreateFoods(foods)
+	// สร้าง ObjectID ใหม่
+	food.ID = primitive.NewObjectID()
+
+	// เรียก service เพื่อเพิ่มอาหาร
+	err := services.CreateFood(&food)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error creating food",
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(foods)
+	return c.Status(fiber.StatusCreated).JSON(food)
 }
 
 // GetFoods godoc
