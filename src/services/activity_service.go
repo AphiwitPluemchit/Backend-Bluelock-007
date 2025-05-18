@@ -6,6 +6,7 @@ import (
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -34,6 +35,7 @@ func InitAsynq() {
 		// redisURI = "localhost:6379"
 	} else {
 		AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
+		fmt.Println("Redis URI:", redisURI)
 	}
 
 	// AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
@@ -50,6 +52,8 @@ func init() {
 	if activityCollection == nil || activityItemCollection == nil {
 		log.Fatal("Failed to get the required collections")
 	}
+
+	InitAsynq()
 
 }
 
@@ -512,6 +516,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			_, err := activityItemCollection.UpdateOne(ctx,
 				bson.M{"_id": newItem.ID},
 				bson.M{"$set": bson.M{
+					"activityId":      newItem.ActivityID,
 					"name":            newItem.Name,
 					"description":     newItem.Description,
 					"maxParticipants": newItem.MaxParticipants,
@@ -599,7 +604,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 		// 	}
 		// }
 	}
-
 	if redisURI != "" {
 		err = ScheduleChangeActivityStateJob(latestTime, activity.EndDateEnroll, id.Hex())
 		if err != nil {
@@ -1197,62 +1201,42 @@ func SendEmail(to string, subject string, html string) error {
 
 func ScheduleChangeActivityStateJob(latestTime time.Time, endDateEnroll string, activityID string) error {
 
-	// Activity Complete
-	// ✅ Enqueue task ด้วยเวลาใหม่สุด
-	if latestTime.IsZero() || !latestTime.After(time.Now().Add(time.Hour)) {
-		log.Println("⏩ Skip scheduling task: time is invalid or in the past")
-		return nil
+	if AsynqClient == nil {
+		return errors.New("asynq client is not initialized")
 	}
 
-	task, err := jobs.NewcompleteActivityTask(activityID)
+	deadline, err := time.ParseInLocation("2006-01-02", endDateEnroll, time.Local)
 	if err != nil {
-		log.Println("❌ Failed to create task payload:", err)
 		return err
 	}
 
-	taskID := "complete-activity-" + activityID // ✅ ทำให้ task สามารถอ้างอิงได้ โดยใช้ ID Activity
-
-	DeleteTask("complete", activityID)
-
-	// latestTime + 1 hour
-	_, err = AsynqClient.Enqueue(task, asynq.ProcessAt(latestTime.Add(time.Hour)), asynq.TaskID(taskID))
-	if err != nil {
-		log.Println("❌ Failed to enqueue task with taskID: "+taskID, err)
-		return err
+	// ===== ✅ Schedule complete-activity (latestTime) =====
+	if !latestTime.IsZero() && latestTime.After(time.Now()) {
+		if err := enqueueTask(
+			"complete-activity-"+activityID,
+			jobs.NewcompleteActivityTask,
+			latestTime,
+			activityID,
+		); err != nil {
+			return err
+		}
+	} else {
+		log.Println("⏩ Skipped complete-activity task (invalid or past time)")
 	}
 
-	log.Printf("✅ Task scheduled: ID=%s | RunAt=%s\n", taskID, latestTime.Format(time.RFC3339))
-
-	// Close Enroll
-	deadline, err := time.Parse(time.RFC3339, endDateEnroll)
-	if err != nil {
-		log.Println("❌ Failed to parse date:", err)
-		return err
+	// ===== ✅ Schedule close-enroll (deadline) =====
+	if !deadline.IsZero() && deadline.After(time.Now()) {
+		if err := enqueueTask(
+			"close-enroll-"+activityID,
+			jobs.NewCloseEnrollTask,
+			deadline,
+			activityID,
+		); err != nil {
+			return err
+		}
+	} else {
+		log.Println("⏩ Skipped close-enroll task (invalid or past time)")
 	}
-
-	// Close Activity Enroll
-	if deadline.IsZero() || !deadline.After(time.Now()) {
-		log.Println("⏩ Skip schedule: enroll deadline is invalid or in past")
-		return nil
-	}
-
-	task, err = jobs.NewCloseEnrollTask(activityID)
-	if err != nil {
-		log.Println("❌ Failed to create task payload:", err)
-		return err
-	}
-
-	taskID = "close-enroll-" + activityID // ✅ ทำให้ task สามารถอ้างอิงได้ โดยใช้ ID Activity
-
-	DeleteTask("close", activityID)
-
-	_, err = AsynqClient.Enqueue(task, asynq.ProcessAt(deadline), asynq.TaskID(taskID)) // ป้องกัน duplicate task ภายในช่วงเวลา
-	if err != nil {
-		log.Println("❌ Failed to enqueue CloseEnroll task with taskID: "+taskID, err)
-		return err
-	}
-
-	log.Printf("✅ Task scheduled: ID=%s | RunAt=%s\n", taskID, deadline.Format(time.RFC3339))
 
 	return nil
 }
@@ -1278,9 +1262,9 @@ func MaxEndTimeFromItem(item models.ActivityItemDto, latestTime time.Time) time.
 	return latestTime
 }
 
-func DeleteTask(taskType string, activityID string) {
+func DeleteTask(taskID string, activityID string) {
 	// ✅ ลบ task เดิมก่อน (ถ้ามี)
-	taskID := taskType + "-activity-" + activityID
+	fmt.Println("🗑️ Deleting old task:", taskID)
 	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: redisURI})
 	err := inspector.DeleteTask("default", taskID)
 	if err != nil && err != asynq.ErrTaskNotFound {
@@ -1289,4 +1273,28 @@ func DeleteTask(taskType string, activityID string) {
 	} else if err == nil {
 		log.Println("🗑️ Deleted previous task:", taskID)
 	}
+}
+
+func enqueueTask(
+	taskID string,
+	createFunc func(string) (*asynq.Task, error),
+	runAt time.Time,
+	activityID string,
+) error {
+	task, err := createFunc(activityID)
+	if err != nil {
+		log.Printf("❌ Failed to create task %s: %v", taskID, err)
+		return err
+	}
+
+	DeleteTask(taskID, activityID)
+
+	_, err = AsynqClient.Enqueue(task, asynq.ProcessAt(runAt), asynq.TaskID(taskID))
+	if err != nil {
+		log.Printf("❌ Failed to enqueue task %s: %v", taskID, err)
+		return err
+	}
+
+	log.Printf("✅ Task scheduled: %s | RunAt=%s", taskID, runAt.Format(time.RFC3339))
+	return nil
 }
