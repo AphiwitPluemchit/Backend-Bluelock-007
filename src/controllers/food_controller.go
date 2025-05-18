@@ -20,27 +20,35 @@ import (
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /foods [post]
 func CreateFood(c *fiber.Ctx) error {
-	var food models.Food
+	var input models.CreateFoodInput
+if err := c.BodyParser(&input); err != nil {
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"error": "Invalid input",
+	})
+}
 
-	// ดึงข้อมูลจาก body
-	if err := c.BodyParser(&food); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
-	}
+// ตรวจสอบว่า name ถูกส่งมาหรือไม่
+if input.Name == "" {
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"error": "Food name is required",
+	})
+}
 
-	// สร้าง ObjectID ใหม่
-	food.ID = primitive.NewObjectID()
+// สร้าง food ใหม่โดย generate ID เอง
+food := models.Food{
+	ID:   primitive.NewObjectID(),
+	Name: input.Name,
+}
 
-	// เรียก service เพื่อเพิ่มอาหาร
-	err := services.CreateFood(&food)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error creating food",
-		})
-	}
+err := services.CreateFood(&food)
+if err != nil {
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		"error": "Error creating food",
+	})
+}
 
-	return c.Status(fiber.StatusCreated).JSON(food)
+return c.Status(fiber.StatusCreated).JSON(food)
+
 }
 
 // GetFoods godoc
