@@ -12,10 +12,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func HandleCloseActivityTask(ctx context.Context, t *asynq.Task) error {
+func HandlecompleteActivityTask(ctx context.Context, t *asynq.Task) error {
 	log.Println("🎯 Start task handler")
 
-	var payload CloseActivityPayload
+	var payload ActivityPayload
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		log.Println("❌ Payload decode error:", err)
 		return err
@@ -39,7 +39,7 @@ func HandleCloseActivityTask(ctx context.Context, t *asynq.Task) error {
 	// ✅ ดำเนินการเปลี่ยนสถานะ
 	_, err = collection.UpdateOne(ctx,
 		bson.M{"_id": id},
-		bson.M{"$set": bson.M{"activityState": "completed"}},
+		bson.M{"$set": bson.M{"activityState": "complete"}},
 	)
 
 	if err != nil {
@@ -49,4 +49,27 @@ func HandleCloseActivityTask(ctx context.Context, t *asynq.Task) error {
 
 	log.Println("✅ Activity closed:", id.Hex())
 	return nil
+}
+
+func HandleCloseEnrollTask(ctx context.Context, t *asynq.Task) error {
+	var payload ActivityPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return err
+	}
+
+	objectID, err := primitive.ObjectIDFromHex(payload.ActivityID)
+	if err != nil {
+		return err
+	}
+
+	// เปลี่ยน state → "close"
+	filter := bson.M{"_id": objectID}
+	update := bson.M{"$set": bson.M{"activityState": "close"}}
+	_, err = database.GetCollection("BluelockDB", "activitys").UpdateOne(context.TODO(), filter, update)
+
+	if err == nil {
+		log.Println("✅ Activity auto-closed after enroll deadline:", payload.ActivityID)
+	}
+
+	return err
 }
