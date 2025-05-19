@@ -53,7 +53,9 @@ func init() {
 		log.Fatal("Failed to get the required collections")
 	}
 
-	InitAsynq()
+	if redisURI != "" {
+		InitAsynq()
+	}
 
 }
 
@@ -105,8 +107,11 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		}
 		itemsToInsert = append(itemsToInsert, itemToInsert)
 
-		// ✅ คำนวณ latestTime
-		latestTime = MaxEndTimeFromItem(item, latestTime)
+		if redisURI != "" {
+
+			// ✅ คำนวณ latestTime
+			latestTime = MaxEndTimeFromItem(item, latestTime)
+		}
 
 	}
 
@@ -116,9 +121,11 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		return nil, err
 	}
 
-	err = ScheduleChangeActivityStateJob(latestTime, activity.EndDateEnroll, activity.ID.Hex())
-	if err != nil {
-		return nil, err
+	if redisURI != "" {
+		err = ScheduleChangeActivityStateJob(latestTime, activity.EndDateEnroll, activity.ID.Hex())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
