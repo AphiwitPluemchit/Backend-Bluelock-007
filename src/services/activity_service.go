@@ -650,8 +650,11 @@ func DeleteActivity(id primitive.ObjectID) error {
 		return err
 	}
 
-	DeleteTask("complete", id.Hex()) // ลบ task ที่เกี่ยวข้อง
-	DeleteTask("close", id.Hex())    // ลบ task ที่เกี่ยวข้อง
+	if redisURI != "" {
+		DeleteTask("complete", id.Hex()) // ลบ task ที่เกี่ยวข้อง
+		DeleteTask("close", id.Hex())    // ลบ task ที่เกี่ยวข้อง
+
+	}
 
 	return err
 }
