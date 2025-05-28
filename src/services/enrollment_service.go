@@ -116,6 +116,12 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		"activityItemId": activityItemID,
 		"studentId":      studentID,
 	})
+
+	// ✅ ตรวจสอบว่าลงทะเบียนไปแล้วหรือยัง
+	if activityItem.EnrollmentCount >= *activityItem.MaxParticipants {
+		return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากจำนวนผู้เข้าร่วมเต็มแล้ว")
+	}
+
 	if err != nil {
 		return err
 	}

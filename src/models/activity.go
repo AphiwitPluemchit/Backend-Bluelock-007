@@ -39,6 +39,7 @@ type ActivityItem struct {
 	Operator        *string            `json:"operator" bson:"operator" example:"Operator 1"`
 	Dates           []Dates            `json:"dates" bson:"dates" `
 	Hour            *int               `json:"hour" bson:"hour"  example:"4"`
+	EnrollmentCount int                `json:"enrollmentCount"  `
 }
 
 type ActivityItemDto struct {
