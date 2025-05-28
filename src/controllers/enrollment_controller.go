@@ -74,19 +74,14 @@ func GetEnrollmentsByStudent(c *fiber.Ctx) error {
 	params.SortBy = c.Query("sortBy", "name")
 	params.Order = c.Query("order", "asc")
 
-	// ✅ แปลง Query Parameters เป็น slice (string array)
-	skillFilter := strings.Split(c.Query("skills", ""), ",")
+	// ✅ 2. แปลง Query skill เป็น array
+	skillFilter := strings.Split(c.Query("skills"), ",")
 	if len(skillFilter) == 1 && skillFilter[0] == "" {
 		skillFilter = []string{}
 	}
 
-	activityStateFilter := strings.Split(c.Query("activityStates", ""), ",")
-	if len(activityStateFilter) == 1 && activityStateFilter[0] == "" {
-		activityStateFilter = []string{}
-	}
-
 	// ✅ 3. เรียก service
-	activities, total, totalPages, err := services.GetEnrollmentsByStudent(studentID, params, skillFilter, activityStateFilter)
+	activities, total, totalPages, err := services.GetEnrollmentsByStudent(studentID, params, skillFilter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

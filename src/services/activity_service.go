@@ -5,6 +5,8 @@ import (
 	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/models"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -33,6 +35,7 @@ func InitAsynq() {
 		// redisURI = "localhost:6379"
 	} else {
 		AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
+		fmt.Println("Redis URI:", redisURI)
 	}
 
 	// AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
@@ -48,6 +51,10 @@ func init() {
 
 	if activityCollection == nil || activityItemCollection == nil {
 		log.Fatal("Failed to get the required collections")
+	}
+
+	if redisURI != "" {
+		InitAsynq()
 	}
 
 }
@@ -100,8 +107,11 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		}
 		itemsToInsert = append(itemsToInsert, itemToInsert)
 
-		// ✅ คำนวณ latestTime
-		latestTime = MaxEndTimeFromItem(item, latestTime)
+		if redisURI != "" {
+
+			// ✅ คำนวณ latestTime
+			latestTime = MaxEndTimeFromItem(item, latestTime)
+		}
 
 	}
 
@@ -111,9 +121,11 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		return nil, err
 	}
 
-	err = ScheduleChangeActivityStateJob(latestTime, activity.ID.Hex())
-	if err != nil {
-		return nil, err
+	if redisURI != "" {
+		err = ScheduleChangeActivityStateJob(latestTime, activity.EndDateEnroll, activity.ID.Hex())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	log.Println("Activity and ActivityItems created successfully")
@@ -140,6 +152,28 @@ func UploadActivityImage(activityID string, fileName string) error {
 func GetAllActivities(params models.PaginationParams, skills []string, states []string, majors []string, studentYears []int) ([]models.ActivityDto, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// 🔑 สร้าง Redis Key จาก params
+	key := fmt.Sprintf(
+		"activities:page=%d&limit=%d&search=%s&sortBy=%s&order=%s&skills=%v&states=%v&majors=%v&years=%v",
+		params.Page, params.Limit, params.Search, params.SortBy, params.Order,
+		skills, states, majors, studentYears,
+	)
+
+	if redisURI != "" { // ถ้ามีการเชื่อมต่อกับ Redis ให้ใช้ Redis ในการดึงข้อมูล
+		// ✅ ลองอ่านจาก Redis ก่อน
+		cached, err := database.RedisClient.Get(database.RedisCtx, key).Result()
+		if err == nil {
+			var cachedResult struct {
+				Data       []models.ActivityDto `json:"data"`
+				Total      int64                `json:"total"`
+				TotalPages int                  `json:"totalPages"`
+			}
+			if json.Unmarshal([]byte(cached), &cachedResult) == nil {
+				return cachedResult.Data, cachedResult.Total, cachedResult.TotalPages, nil
+			}
+		}
+	}
 
 	var results []models.ActivityDto
 
@@ -224,6 +258,25 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+
+	if redisURI != "" {
+
+		// 🔚 เก็บผลลัพธ์ใน Redis
+		cacheValue, _ := json.Marshal(struct {
+			Data       []models.ActivityDto `json:"data"`
+			Total      int64                `json:"total"`
+			TotalPages int                  `json:"totalPages"`
+		}{
+			Data:       results,
+			Total:      total,
+			TotalPages: totalPages,
+		})
+
+		log.Println("🗃️ Cache miss: querying MongoDB and storing to Redis:", key)
+
+		_ = database.RedisClient.Set(database.RedisCtx, key, cacheValue, 2*time.Minute).Err()
+	}
+
 	return results, total, totalPages, nil
 }
 
@@ -449,6 +502,8 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 	// ✅ วนหาเวลาสิ้นสุดที่มากที่สุด
 	var latestTime time.Time
 
+	// isOpen := 0
+
 	for _, newItem := range activity.ActivityItems {
 		if newItem.ID.IsZero() {
 			// ✅ ถ้าไม่มี `_id` ให้สร้างใหม่
@@ -468,6 +523,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			_, err := activityItemCollection.UpdateOne(ctx,
 				bson.M{"_id": newItem.ID},
 				bson.M{"$set": bson.M{
+					"activityId":      newItem.ActivityID,
 					"name":            newItem.Name,
 					"description":     newItem.Description,
 					"maxParticipants": newItem.MaxParticipants,
@@ -484,75 +540,79 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			}
 			latestTime = MaxEndTimeFromItem(newItem, latestTime)
 		}
-		// ✅ ถ้า activityState เปลี่ยนเป็น "open" → ส่งอีเมลหานิสิต
-		if activity.ActivityState == "open" {
-			// ดึง users ที่ role == student
-			userCollection := database.GetCollection("BluelockDB", "users")
-			cursor, err := userCollection.Find(ctx, bson.M{"role": "Student"})
-			if err != nil {
-				return nil, err
-			}
 
-			var students []models.User
-			if err := cursor.All(ctx, &students); err != nil {
-				return nil, err
-			}
+		// if activity.ActivityState == "open" {
+		// 	isOpen += 1
+		// }
 
-			// ส่งอีเมลหาแต่ละคน
-			for _, student := range students {
-				fmt.Println("student", student.Email)
-				name := ""
-				if activity.Name != nil {
-					name = *activity.Name
-				}
-				subject := fmt.Sprintf("📢 เปิดลงทะเบียนกิจกรรม: %s", name)
-				body := fmt.Sprintf(`
-				<table style="max-width: 600px; margin: auto; font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden;">
-				  <tr>
-					<td style="background-color: #2E86C1; color: white; padding: 20px; text-align: center;">
-					  <h2 style="margin: 0;">📢 แจ้งเตือนกิจกรรม</h2>
-					</td>
-				  </tr>
-				  <tr>
-					<td style="padding: 24px;">
-					  <h3 style="color: #333;">เรียน นิสิต,</h3>
-					  <p style="font-size: 16px; color: #555;">
-						กิจกรรม <strong style="color: #2E86C1;">%s</strong> ได้เปิดให้ลงทะเบียนแล้ว 🎉
-					  </p>
-					  <p style="font-size: 16px; color: #555;">
-						สามารถเข้าสู่ระบบเพื่อลงทะเบียนได้ทันที โดยคลิกที่ปุ่มด้านล่าง
-					  </p>
-					  <div style="text-align: center; margin: 30px 0;">
-						<a href="%s"
-						   style="background-color: #2E86C1; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
-						   📝 ลงทะเบียนกิจกรรม
-						</a>
-					  </div>
-					  <p style="font-size: 14px; color: #888;">หากคุณไม่ได้เป็นผู้รับผิดชอบกิจกรรมนี้ กรุณาเมินเฉยอีเมลนี้</p>
-					</td>
-				  </tr>
-				  <tr>
-					<td style="background-color: #f4f4f4; text-align: center; padding: 12px; font-size: 12px; color: #999;">
-					  © 2025 Activity Tracking System, Your University
-					</td>
-				  </tr>
-				</table>
-			  `, name, fmt.Sprintf("http://localhost:9000/#/Student/Activity/ActivityDetail/%s", id.Hex()))
+		// // ✅ ถ้า activityState เปลี่ยนเป็น "open" เพียงแค่ 1 ตัว → ส่งอีเมลหานิสิต
+		// if isOpen == 1 {
+		// 	// ดึง users ที่ role == student
+		// 	userCollection := database.GetCollection("BluelockDB", "users")
+		// 	cursor, err := userCollection.Find(ctx, bson.M{"role": "Student"})
+		// 	if err != nil {
+		// 		return nil, err
+		// 	}
 
-				fmt.Println("subject", subject)
-				fmt.Println("body", body)
-				// ✅ ส่งอีเมล (อาจใส่ go routine เพื่อไม่ block)
-				// go func(email string) {
-				// 	if err := SendEmail(email, subject, body); err != nil {
-				// 		fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
-				// 	}
-				// }(student.Email)
-			}
-		}
+		// 	var students []models.User
+		// 	if err := cursor.All(ctx, &students); err != nil {
+		// 		return nil, err
+		// 	}
+
+		// 	// ส่งอีเมลหาแต่ละคน
+		// 	for _, student := range students {
+		// 		fmt.Println("student", student.Email)
+		// 		name := ""
+		// 		if activity.Name != nil {
+		// 			name = *activity.Name
+		// 		}
+		// 		subject := fmt.Sprintf("📢 เปิดลงทะเบียนกิจกรรม: %s", name)
+		// 		body := fmt.Sprintf(`
+		// 		<table style="max-width: 600px; margin: auto; font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden;">
+		// 		  <tr>
+		// 			<td style="background-color: #2E86C1; color: white; padding: 20px; text-align: center;">
+		// 			  <h2 style="margin: 0;">📢 แจ้งเตือนกิจกรรม</h2>
+		// 			</td>
+		// 		  </tr>
+		// 		  <tr>
+		// 			<td style="padding: 24px;">
+		// 			  <h3 style="color: #333;">เรียน นิสิต,</h3>
+		// 			  <p style="font-size: 16px; color: #555;">
+		// 				กิจกรรม <strong style="color: #2E86C1;">%s</strong> ได้เปิดให้ลงทะเบียนแล้ว 🎉
+		// 			  </p>
+		// 			  <p style="font-size: 16px; color: #555;">
+		// 				สามารถเข้าสู่ระบบเพื่อลงทะเบียนได้ทันที โดยคลิกที่ปุ่มด้านล่าง
+		// 			  </p>
+		// 			  <div style="text-align: center; margin: 30px 0;">
+		// 				<a href="%s"
+		// 				   style="background-color: #2E86C1; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+		// 				   📝 ลงทะเบียนกิจกรรม
+		// 				</a>
+		// 			  </div>
+		// 			  <p style="font-size: 14px; color: #888;">หากคุณไม่ได้เป็นผู้รับผิดชอบกิจกรรมนี้ กรุณาเมินเฉยอีเมลนี้</p>
+		// 			</td>
+		// 		  </tr>
+		// 		  <tr>
+		// 			<td style="background-color: #f4f4f4; text-align: center; padding: 12px; font-size: 12px; color: #999;">
+		// 			  © 2025 Activity Tracking System, Your University
+		// 			</td>
+		// 		  </tr>
+		// 		</table>
+		// 	  `, name, fmt.Sprintf("http://localhost:9000/#/Student/Activity/ActivityDetail/%s", id.Hex()))
+
+		// 		fmt.Println("subject", subject)
+		// 		fmt.Println("body", body)
+		// 		// ✅ ส่งอีเมล (อาจใส่ go routine เพื่อไม่ block)
+		// 		// go func(email string) {
+		// 		// 	if err := SendEmail(email, subject, body); err != nil {
+		// 		// 		fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
+		// 		// 	}
+		// 		// }(student.Email)
+		// 	}
+		// }
 	}
-
 	if redisURI != "" {
-		err = ScheduleChangeActivityStateJob(latestTime, id.Hex())
+		err = ScheduleChangeActivityStateJob(latestTime, activity.EndDateEnroll, id.Hex())
 		if err != nil {
 			return nil, err
 		}
@@ -590,7 +650,11 @@ func DeleteActivity(id primitive.ObjectID) error {
 		return err
 	}
 
-	DeleteTask(id.Hex()) // ลบ task ที่เกี่ยวข้อง
+	if redisURI != "" {
+		DeleteTask("complete", id.Hex()) // ลบ task ที่เกี่ยวข้อง
+		DeleteTask("close", id.Hex())    // ลบ task ที่เกี่ยวข้อง
+
+	}
 
 	return err
 }
@@ -1145,30 +1209,44 @@ func SendEmail(to string, subject string, html string) error {
 	return d.DialAndSend(m)
 }
 
-func ScheduleChangeActivityStateJob(latestTime time.Time, activityID string) error {
-	// ✅ Enqueue task ด้วยเวลาใหม่สุด
-	if latestTime.IsZero() || !latestTime.After(time.Now()) {
-		log.Println("⏩ Skip scheduling task: time is invalid or in the past")
-		return nil
+func ScheduleChangeActivityStateJob(latestTime time.Time, endDateEnroll string, activityID string) error {
+
+	if AsynqClient == nil {
+		return errors.New("asynq client is not initialized")
 	}
 
-	task, err := jobs.NewCloseActivityTask(activityID)
+	deadline, err := time.ParseInLocation("2006-01-02", endDateEnroll, time.Local)
 	if err != nil {
-		log.Println("❌ Failed to create task payload:", err)
 		return err
 	}
 
-	taskID := "close-activity-" + activityID // ✅ ทำให้ task สามารถอ้างอิงได้ โดยใช้ ID Activity
-
-	DeleteTask(activityID)
-
-	_, err = AsynqClient.Enqueue(task, asynq.ProcessAt(latestTime), asynq.TaskID(taskID)) // ป้องกัน duplicate task ภายในช่วงเวลา
-	if err != nil {
-		log.Println("❌ Failed to enqueue task with taskID: "+taskID, err)
-		return err
+	// ===== ✅ Schedule complete-activity (latestTime) =====
+	if !latestTime.IsZero() && latestTime.After(time.Now()) {
+		if err := enqueueTask(
+			"complete-activity-"+activityID,
+			jobs.NewcompleteActivityTask,
+			latestTime,
+			activityID,
+		); err != nil {
+			return err
+		}
+	} else {
+		log.Println("⏩ Skipped complete-activity task (invalid or past time)")
 	}
 
-	log.Printf("✅ Task scheduled: ID=%s | RunAt=%s\n", taskID, latestTime.Format(time.RFC3339))
+	// ===== ✅ Schedule close-enroll (deadline) =====
+	if !deadline.IsZero() && deadline.After(time.Now()) {
+		if err := enqueueTask(
+			"close-enroll-"+activityID,
+			jobs.NewCloseEnrollTask,
+			deadline,
+			activityID,
+		); err != nil {
+			return err
+		}
+	} else {
+		log.Println("⏩ Skipped close-enroll task (invalid or past time)")
+	}
 
 	return nil
 }
@@ -1194,9 +1272,9 @@ func MaxEndTimeFromItem(item models.ActivityItemDto, latestTime time.Time) time.
 	return latestTime
 }
 
-func DeleteTask(activityID string) {
+func DeleteTask(taskID string, activityID string) {
 	// ✅ ลบ task เดิมก่อน (ถ้ามี)
-	taskID := "close-activity-" + activityID
+	fmt.Println("🗑️ Deleting old task:", taskID)
 	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: redisURI})
 	err := inspector.DeleteTask("default", taskID)
 	if err != nil && err != asynq.ErrTaskNotFound {
@@ -1205,4 +1283,28 @@ func DeleteTask(activityID string) {
 	} else if err == nil {
 		log.Println("🗑️ Deleted previous task:", taskID)
 	}
+}
+
+func enqueueTask(
+	taskID string,
+	createFunc func(string) (*asynq.Task, error),
+	runAt time.Time,
+	activityID string,
+) error {
+	task, err := createFunc(activityID)
+	if err != nil {
+		log.Printf("❌ Failed to create task %s: %v", taskID, err)
+		return err
+	}
+
+	DeleteTask(taskID, activityID)
+
+	_, err = AsynqClient.Enqueue(task, asynq.ProcessAt(runAt), asynq.TaskID(taskID))
+	if err != nil {
+		log.Printf("❌ Failed to enqueue task %s: %v", taskID, err)
+		return err
+	}
+
+	log.Printf("✅ Task scheduled: %s | RunAt=%s", taskID, runAt.Format(time.RFC3339))
+	return nil
 }

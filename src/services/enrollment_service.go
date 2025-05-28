@@ -150,7 +150,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 }
 
 // ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
-func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string, activityStateFilter []string) ([]models.ActivityDto, int64, int, error) {
+func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ActivityDto, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -162,7 +162,6 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 		"foreignField": "_id",
 		"as":           "activityItemDetails",
 	}}}
-
 	unwindActivityItem := bson.D{{Key: "$unwind", Value: "$activityItemDetails"}}
 	groupActivityIDs := bson.D{{Key: "$group", Value: bson.M{
 		"_id":             nil,
@@ -189,15 +188,11 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	}
 
 	filter := bson.M{"_id": bson.M{"$in": activityIDs}}
-
 	if params.Search != "" {
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
 	}
-	if len(skillFilter) > 0 {
+	if len(skillFilter) > 0 && skillFilter[0] != "" {
 		filter["skill"] = bson.M{"$in": skillFilter}
-	}
-	if len(activityStateFilter) > 0 {
-		filter["activityState"] = bson.M{"$in": activityStateFilter}
 	}
 
 	total, err := activityCollection.CountDocuments(ctx, filter)

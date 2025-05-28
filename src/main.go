@@ -61,7 +61,9 @@ func main() {
 				},
 			)
 			mux := asynq.NewServeMux()
-			mux.HandleFunc(jobs.TypeCloseActivity, jobs.HandleCloseActivityTask)
+			mux.HandleFunc(jobs.TypecompleteActivity, jobs.HandleCloseEnrollTask)
+			mux.HandleFunc(jobs.TypeCloseEnroll, jobs.HandleCloseEnrollTask)
+
 
 			if err := srv.Run(mux); err != nil {
 				log.Fatal("❌ Failed to start Asynq worker:", err)
@@ -69,6 +71,9 @@ func main() {
 				log.Println("🚀 Asynq Worker is starting...")
 			}
 		}()
+
+		// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
+		database.InitRedis()
 	}
 
 	// เปิดใช้งาน Swagger ที่ URL /swagger
