@@ -948,11 +948,21 @@ func GetEnrollmentByActivityItemID(
 		}}},
 		{{Key: "$unwind", Value: "$student"}},
 		{{Key: "$lookup", Value: bson.M{
-			"from":         "enrollments",
-			"localField":   "student._id",
-			"foreignField": "studentId",
-			"as":           "enrollment",
+			"from": "enrollments",
+			"let":  bson.M{"studentId": "$student._id"},
+			"pipeline": mongo.Pipeline{
+				{{Key: "$match", Value: bson.M{
+					"$expr": bson.M{
+						"$and": bson.A{
+							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
+							bson.M{"$eq": bson.A{"$activityItemId", activityItemID}},
+						},
+					},
+				}}},
+			},
+			"as": "enrollment",
 		}}},
+
 		{{Key: "$unwind", Value: bson.M{
 			"path":                       "$enrollment",
 			"preserveNullAndEmptyArrays": true,
