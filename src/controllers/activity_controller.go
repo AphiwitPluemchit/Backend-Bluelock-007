@@ -304,11 +304,11 @@ func GetEnrollmentByActivityItemID(c *fiber.Ctx) error {
 	if err := c.QueryParser(&pagination); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
 	}
-
+	log.Println(pagination)
 	// รับค่า query param
 	studentMajors := c.Query("majors")
-	studentStatus := c.Query("status")
-	studentYears := c.Query("years")
+	studentStatus := c.Query("studentStatus")
+	studentYears := c.Query("studentYear")
 
 	var majorFilter []string
 	if studentMajors != "" {
@@ -334,7 +334,9 @@ func GetEnrollmentByActivityItemID(c *fiber.Ctx) error {
 			}
 		}
 	}
-
+	log.Println(majorFilter)
+	log.Println(statusFilter)
+	log.Println(studentYearsFilter)
 	student, total, err := services.GetEnrollmentByActivityItemID(itemID, pagination, majorFilter, statusFilter, studentYearsFilter)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{

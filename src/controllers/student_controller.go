@@ -83,7 +83,7 @@ func GetStudents(c *fiber.Ctx) error {
 	params.SortBy = c.Query("sortBy", params.SortBy)
 	params.Order = c.Query("order", params.Order)
 
-	studentStatus := cleanList(strings.Split(c.Query("status"), ","))
+	studentStatus := cleanList(strings.Split(c.Query("studentStatus"), ","))
 	majors := cleanList(strings.Split(c.Query("major"), ","))
 	studentYears := cleanList(strings.Split(c.Query("studentYear"), ","))
 	log.Println(studentStatus)

@@ -951,7 +951,7 @@ func GetEnrollmentByActivityItemID(
 			"from": "enrollments",
 			"let":  bson.M{"studentId": "$student._id"},
 			"pipeline": mongo.Pipeline{
-				{{Key: "$match", Value: bson.M{
+				{{"$match", bson.M{
 					"$expr": bson.M{
 						"$and": bson.A{
 							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
