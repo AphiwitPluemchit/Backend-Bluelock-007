@@ -19,7 +19,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"gopkg.in/gomail.v2"
 )
 
 var ctx = context.Background()
@@ -1202,22 +1201,23 @@ func generateStudentCodeFilter(studentYears []int) []string {
 	}
 	return codes
 }
-func SendEmail(to string, subject string, html string) error {
-	m := gomail.NewMessage()
-	m.SetHeader("From", "65160205@go.buu.ac.th") // ✅ อีเมลที่ใช้สมัคร Brevo
-	m.SetHeader("To", to)
-	m.SetHeader("Subject", subject)
-	m.SetBody("text/html", html)
 
-	d := gomail.NewDialer(
-		"smtp-relay.brevo.com",
-		587,
-		"88bd8f001@smtp-brevo.com",
-		"EgkJ095wCGS36DfR",
-	)
+// func SendEmail(to string, subject string, html string) error {
+// 	m := gomail.NewMessage()
+// 	m.SetHeader("From", "65160205@go.buu.ac.th") // ✅ อีเมลที่ใช้สมัคร Brevo
+// 	m.SetHeader("To", to)
+// 	m.SetHeader("Subject", subject)
+// 	m.SetBody("text/html", html)
 
-	return d.DialAndSend(m)
-}
+// 	d := gomail.NewDialer(
+// 		"smtp-relay.brevo.com",
+// 		587,
+// 		"88bd8f001@smtp-brevo.com",
+// 		"EgkJ095wCGS36DfR",
+// 	)
+
+// 	return d.DialAndSend(m)
+// }
 
 func ScheduleChangeActivityStateJob(latestTime time.Time, endDateEnroll string, activityID string) error {
 
