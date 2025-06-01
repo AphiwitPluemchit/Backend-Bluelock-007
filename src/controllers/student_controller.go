@@ -14,11 +14,13 @@ import (
 // ✅ CreateStudent - เพิ่ม Student หลายคน
 func CreateStudent(c *fiber.Ctx) error {
 	var req []struct {
-		Name     string `json:"name"`
-		EngName  string `json:"engName"`
-		Code     string `json:"code"`
-		Major    string `json:"major"`
-		Password string `json:"password"`
+		Name      string `json:"name"`
+		EngName   string `json:"engName"`
+		Code      string `json:"code"`
+		Major     string `json:"major"`
+		Password  string `json:"password"`
+		SoftSkill int    `json:"softSkill"`
+		HardSkill int    `json:"hardSkill"`
 	}
 
 	// รับข้อมูลจาก body
@@ -35,11 +37,11 @@ func CreateStudent(c *fiber.Ctx) error {
 			Code:      studentData.Code,
 			Name:      studentData.Name,
 			EngName:   studentData.EngName,
-			Email:     studentData.Code + "@go.buu.ac.th", // auto-generate email
-			Password:  studentData.Password,               // default password
-			Status:    1,                                  // default status
-			SoftSkill: 0,
-			HardSkill: 0,
+			Email:     studentData.Code + "@go.buu.ac.th",                            // auto-generate email
+			Password:  studentData.Password,                                          // default password
+			Status:    calculateStatus(studentData.SoftSkill, studentData.HardSkill), // default status
+			SoftSkill: studentData.SoftSkill,                                         // ← ดึงจาก req
+			HardSkill: studentData.HardSkill,                                         // ← ดึงจาก req
 			Major:     studentData.Major,
 		}
 
@@ -179,4 +181,16 @@ func UpdateStudentStatus(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"message": "Student status updated to 0 successfully",
 	})
+}
+func calculateStatus(softSkill, hardSkill int) int {
+	total := softSkill + hardSkill
+
+	switch {
+	case total >= 20:
+		return 3 // ครบ
+	case total >= 10:
+		return 2 // น้อย
+	default:
+		return 1 // น้อยมาก
+	}
 }
