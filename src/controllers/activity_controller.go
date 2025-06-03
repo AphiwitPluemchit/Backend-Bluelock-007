@@ -278,7 +278,7 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 // @Description  Get enrollments by activity ID
 // @Tags         activitys
 // @Produce      json
-// @Param        id   path  string  true  "Activity ID"
+// @Param        id   path  string  true  "ActivityItem ID"
 // @Param        page   query  int  false  "Page number"
 // @Param        limit   query  int  false  "Items per page"
 // @Param        search   query  string  false  "Search query"
