@@ -279,7 +279,16 @@ func GetAllActivities(params models.PaginationParams, skills []string, states []
 	return results, total, totalPages, nil
 }
 
-func getLightweightActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majors []string, studentYears []int) mongo.Pipeline {
+func getLightweightActivitiesPipeline(
+	filter bson.M,
+	sortField string, sortOrder int,
+	skip int64, limit int64,
+	majors []string, studentYears []int,
+) mongo.Pipeline {
+
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	today := time.Now().In(loc).Format("2006-01-02")
+
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: filter}},
 
@@ -291,46 +300,66 @@ func getLightweightActivitiesPipeline(filter bson.M, sortField string, sortOrder
 		}}},
 	}
 
-	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า major**
+	// ✅ กรอง majors
 	if len(majors) > 0 && majors[0] != "" {
-		fmt.Println("Filtering by major:", majors) // Debugging log
-		pipeline = append(pipeline, bson.D{
-			{Key: "$match", Value: bson.D{
-				{Key: "activityItems.majors", Value: bson.D{{Key: "$in", Value: majors}}},
-			}},
-		})
-	} else {
-		fmt.Println("Skipping majorName filtering")
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+			{Key: "activityItems.majors", Value: bson.D{{Key: "$in", Value: majors}}},
+		}}})
 	}
 
-	// ✅ กรองเฉพาะ StudentYears ที่ต้องการ **ถ้ามีค่า studentYears**
+	// ✅ กรอง studentYears
 	if len(studentYears) > 0 && studentYears[0] != 0 {
-		pipeline = append(pipeline, bson.D{
-			{Key: "$match", Value: bson.D{
-				{Key: "activityItems.studentYears", Value: bson.D{{Key: "$in", Value: studentYears}}},
-			}},
-		})
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+			{Key: "activityItems.studentYears", Value: bson.D{{Key: "$in", Value: studentYears}}},
+		}}})
 	}
 
-	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
-		if sortField == "dates" {
-			pipeline = append(pipeline, bson.D{
-				{Key: "$addFields", Value: bson.D{
-					{Key: "activityItems.firstDate", Value: bson.D{
-						{Key: "$arrayElemAt", Value: bson.A{"$activityItems.dates.date", 0}},
-					}},
-				}},
-			})
+	// ✅ เงื่อนไขถ้าอยากเรียงตามวันจัดที่ใกล้สุด
+	if sortField == "dates" {
 
-			pipeline = append(pipeline, bson.D{
-				{Key: "$sort", Value: bson.D{{Key: "activityItems.firstDate", Value: sortOrder}}},
-			})
-
-		} else {
-			pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
-		}
+		pipeline = append(pipeline,
+			// Unwind activityItems
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$activityItems"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+			// Unwind activityItems.dates
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$activityItems.dates"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+			// Match เฉพาะวันในอนาคต
+			bson.D{{Key: "$match", Value: bson.D{
+				{Key: "activityItems.dates.date", Value: bson.D{{Key: "$gte", Value: today}}},
+			}}},
+			// Group เอาวันที่ใกล้ที่สุดต่อ activity
+			bson.D{{Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$_id"},
+				{Key: "nextDate", Value: bson.D{{Key: "$min", Value: "$activityItems.dates.date"}}},
+				{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
+				{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
+				{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
+				{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
+				{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
+			}}},
+			// Sort nextDate
+			bson.D{{Key: "$sort", Value: bson.D{{Key: "nextDate", Value: 1}}}},
+			// Lookup activityItems กลับมาเต็ม
+			bson.D{{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "activityItems"},
+				{Key: "localField", Value: "_id"},
+				{Key: "foreignField", Value: "activityId"},
+				{Key: "as", Value: "activityItems"},
+			}}},
+		)
+	} else if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
+		// ✅ กรณีใช้ field ปกติ
+		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{
+			{Key: sortField, Value: sortOrder},
+		}}})
 	}
 
+	// ✅ pagination
 	if skip > 0 {
 		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}})
 	}
