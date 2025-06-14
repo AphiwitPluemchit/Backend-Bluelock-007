@@ -49,6 +49,8 @@ func main() {
 		AllowCredentials: false, // ❌ ต้องเป็น false ถ้าใช้ "*"
 	}))
 
+	// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
+	database.InitRedis()
 	// ✅ สร้าง Asynq Client และเริ่มรัน Asynq Worker
 	if redisURI != "" {
 		services.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
@@ -64,7 +66,6 @@ func main() {
 			mux.HandleFunc(jobs.TypecompleteActivity, jobs.HandleCloseEnrollTask)
 			mux.HandleFunc(jobs.TypeCloseEnroll, jobs.HandleCloseEnrollTask)
 
-
 			if err := srv.Run(mux); err != nil {
 				log.Fatal("❌ Failed to start Asynq worker:", err)
 			} else {
@@ -72,8 +73,6 @@ func main() {
 			}
 		}()
 
-		// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
-		database.InitRedis()
 	}
 
 	// เปิดใช้งาน Swagger ที่ URL /swagger

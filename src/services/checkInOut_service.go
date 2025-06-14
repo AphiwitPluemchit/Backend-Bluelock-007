@@ -2,12 +2,13 @@ package services
 
 import (
 	"Backend-Bluelock-007/src/database"
-	"Backend-Bluelock-007/src/models"
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -16,7 +17,6 @@ import (
 var checkInOutCollection *mongo.Collection
 
 func init() {
-	// เชื่อมต่อกับ MongoDB
 	if err := database.ConnectMongoDB(); err != nil {
 		log.Fatal("MongoDB connection error:", err)
 	}
@@ -27,73 +27,78 @@ func init() {
 	}
 }
 
-// CreateCheckInOut - เพิ่มข้อมูลผู้ใช้ใน MongoDB
-func CreateCheckInOut(checkInOut *models.CheckInOut) error {
-	checkInOut.ID = primitive.NewObjectID() // กำหนด ID อัตโนมัติ
-	_, err := checkInOutCollection.InsertOne(context.Background(), checkInOut)
-	return err
+func GenerateCheckinUUID(activityItemId string, checkType string, userId string) (string, error) {
+	id := uuid.NewString()
+	key := fmt.Sprintf("checkin:%s", id)
+
+	data := map[string]string{
+		"activityItemId": activityItemId,
+		"type":           checkType,
+		"lockedUserId":   userId,
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	err = database.RedisClient.Set(database.RedisCtx, key, jsonData, 1000*time.Second).Err()
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }
 
-// GetAllCheckInOuts - ดึงข้อมูลผู้ใช้ทั้งหมด
-func GetAllCheckInOuts() ([]models.CheckInOut, error) {
-	var checkInOuts []models.CheckInOut
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func Checkin(uuid, userId string) (bool, string) {
+	key := fmt.Sprintf("checkin:%s", uuid)
 
-	cursor, err := checkInOutCollection.Find(ctx, bson.M{})
+	val, err := database.RedisClient.Get(database.RedisCtx, key).Result()
 	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	for cursor.Next(ctx) {
-		var checkInOut models.CheckInOut
-		if err := cursor.Decode(&checkInOut); err != nil {
-			return nil, err
-		}
-		checkInOuts = append(checkInOuts, checkInOut)
+		return false, "QR code หมดอายุหรือไม่ถูกต้อง"
 	}
 
-	return checkInOuts, nil
-}
+	var data struct {
+		ActivityItemId string `json:"activityItemId"`
+		Type           string `json:"type"`
+		LockedUserId   string `json:"lockedUserId"`
+	}
+	if err := json.Unmarshal([]byte(val), &data); err != nil {
+		return false, "ข้อมูลใน QR ไม่ถูกต้อง"
+	}
+	println(data.LockedUserId, userId)
+	if data.LockedUserId != userId {
+		return false, "QR นี้ไม่ใช่ของคุณ หรือถูกแชร์ให้ผู้อื่น"
+	}
 
-// GetCheckInOutByID - ดึงข้อมูลผู้ใช้ตาม ID
-func GetCheckInOutByID(id string) (*models.CheckInOut, error) {
-	objID, err := primitive.ObjectIDFromHex(id)
+	// Convert IDs
+	uID, err1 := primitive.ObjectIDFromHex(userId)
+	aID, err2 := primitive.ObjectIDFromHex(data.ActivityItemId)
+	if err1 != nil || err2 != nil {
+		return false, "รหัสไม่ถูกต้อง"
+	}
+
+	// 🔒 ป้องกันเช็คชื่อซ้ำ
+	filter := bson.M{
+		"userId":         uID,
+		"activityItemId": aID,
+		"type":           data.Type,
+	}
+	count, _ := checkInOutCollection.CountDocuments(context.TODO(), filter)
+	if count > 0 {
+		return false, fmt.Sprintf("คุณได้ %s แล้ว", data.Type)
+	}
+
+	// ✅ บันทึกการเช็คชื่อ
+	_, err = checkInOutCollection.InsertOne(context.TODO(), bson.M{
+		"userId":         uID,
+		"activityItemId": aID,
+		"type":           data.Type,
+		"checkedAt":      time.Now(),
+	})
 	if err != nil {
-		return nil, errors.New("invalid checkInOut ID")
+		return false, "ไม่สามารถบันทึกข้อมูลได้"
 	}
 
-	var checkInOut models.CheckInOut
-	err = checkInOutCollection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&checkInOut)
-	if err != nil {
-		return nil, err
-	}
-
-	return &checkInOut, nil
-}
-
-// UpdateCheckInOut - อัปเดตข้อมูลผู้ใช้
-func UpdateCheckInOut(id string, checkInOut *models.CheckInOut) error {
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return errors.New("invalid checkInOut ID")
-	}
-
-	filter := bson.M{"_id": objID}
-	update := bson.M{"$set": checkInOut}
-
-	_, err = checkInOutCollection.UpdateOne(context.Background(), filter, update)
-	return err
-}
-
-// DeleteCheckInOut - ลบข้อมูลผู้ใช้
-func DeleteCheckInOut(id string) error {
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return errors.New("invalid checkInOut ID")
-	}
-
-	_, err = checkInOutCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
-	return err
+	return true, fmt.Sprintf("%s สำเร็จ", data.Type)
 }

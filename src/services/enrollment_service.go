@@ -543,96 +543,19 @@ func isTimeOverlap(start1, end1, start2, end2 string) bool {
 	return !(end1 <= start2 || end2 <= start1)
 }
 
-// func getActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majors []string, studentYears []int) mongo.Pipeline {
-// 	pipeline := mongo.Pipeline{
-// 		// 🔍 Match เฉพาะ Activity ที่ต้องการ
-// 		{{Key: "$match", Value: filter}},
+func IsStudentEnrolled(studentId string, activityItemId string) bool {
+	sID, err1 := primitive.ObjectIDFromHex(studentId)
+	aID, err2 := primitive.ObjectIDFromHex(activityItemId)
 
-// 		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
-// 		{{Key: "$lookup", Value: bson.D{
-// 			{Key: "from", Value: "activityItems"},
-// 			{Key: "localField", Value: "_id"},
-// 			{Key: "foreignField", Value: "activityId"},
-// 			{Key: "as", Value: "activityItems"},
-// 		}}},
+	if err1 != nil || err2 != nil {
+		return false
+	}
 
-// 		// 🔥 Unwind ActivityItems เพื่อให้สามารถกรองได้
-// 		{{Key: "$unwind", Value: bson.D{
-// 			{Key: "path", Value: "$activityItems"},
-// 			{Key: "preserveNullAndEmptyArrays", Value: true},
-// 		}}},
+	filter := bson.M{
+		"studentId":      sID,
+		"activityItemId": aID,
+	}
 
-// 		// 3️⃣ Lookup EnrollmentCount แทนที่จะดึงทั้ง array
-// 		{{Key: "$lookup", Value: bson.D{
-// 			{Key: "from", Value: "enrollments"},
-// 			{Key: "let", Value: bson.D{{Key: "itemId", Value: "$activityItems._id"}}},
-// 			{Key: "pipeline", Value: bson.A{
-// 				bson.D{{Key: "$match", Value: bson.D{
-// 					{Key: "$expr", Value: bson.D{
-// 						{Key: "$eq", Value: bson.A{"$activityItemId", "$$itemId"}},
-// 					}},
-// 				}}},
-// 				bson.D{{Key: "$count", Value: "count"}},
-// 			}},
-// 			{Key: "as", Value: "activityItems.enrollmentCountData"},
-// 		}}},
-
-// 		// 4️⃣ Add enrollmentCount field จาก enrollmentCountData
-// 		{{Key: "$addFields", Value: bson.D{
-// 			{Key: "activityItems.enrollmentCount", Value: bson.D{
-// 				{Key: "$ifNull", Value: bson.A{bson.D{
-// 					{Key: "$arrayElemAt", Value: bson.A{"$activityItems.enrollmentCountData.count", 0}},
-// 				}, 0}},
-// 			}},
-// 		}}},
-// 	}
-
-// 	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า major**
-// 	if len(majors) > 0 && majors[0] != "" {
-// 		fmt.Println("Filtering by major:", majors) // Debugging log
-// 		pipeline = append(pipeline, bson.D{
-// 			{Key: "$match", Value: bson.D{
-// 				{Key: "activityItems.majors", Value: bson.D{{Key: "$in", Value: majors}}},
-// 			}},
-// 		})
-// 	} else {
-// 		fmt.Println("Skipping majorName filtering")
-// 	}
-
-// 	// ✅ กรองเฉพาะ StudentYears ที่ต้องการ **ถ้ามีค่า studentYears**
-// 	if len(studentYears) > 0 {
-// 		pipeline = append(pipeline, bson.D{
-// 			{Key: "$match", Value: bson.D{
-// 				{Key: "activityItems.studentYears", Value: bson.D{{Key: "$in", Value: studentYears}}},
-// 			}},
-// 		})
-// 	}
-
-// 	// ✅ Group ActivityItems กลับเข้าไปใน Activity
-// 	pipeline = append(pipeline, bson.D{
-// 		{Key: "$group", Value: bson.D{
-// 			{Key: "_id", Value: "$_id"},
-// 			{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
-// 			{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
-// 			{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
-// 			{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
-// 			{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
-// 			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}}, // เก็บ ActivityItems เป็น Array
-// 		}},
-// 	})
-
-// 	// ✅ ตรวจสอบและเพิ่ม `$sort` เฉพาะกรณีที่ต้องใช้
-// 	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
-// 		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
-// 	}
-
-// 	// ✅ ตรวจสอบและเพิ่ม `$skip` และ `$limit` เฉพาะกรณีที่ต้องใช้
-// 	if skip > 0 {
-// 		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}})
-// 	}
-// 	if limit > 0 {
-// 		pipeline = append(pipeline, bson.D{{Key: "$limit", Value: limit}})
-// 	}
-
-// 	return pipeline
-// }
+	count, err := enrollmentCollection.CountDocuments(context.TODO(), filter)
+	return err == nil && count > 0
+}

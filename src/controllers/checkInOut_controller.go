@@ -1,92 +1,54 @@
 package controllers
 
 import (
-	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
+	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-func CreateCheckInOut(c *fiber.Ctx) error {
-	var checkInOut models.CheckInOut
-	if err := c.BodyParser(&checkInOut); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+func GenerateLink(c *fiber.Ctx) error {
+	var body struct {
+		ActivityItemId string `json:"activityItemId"`
+		Type           string `json:"type"` // "เข้า" หรือ "ออก"
 	}
 
-	err := services.CreateCheckInOut(&checkInOut)
+	if err := c.BodyParser(&body); err != nil || body.ActivityItemId == "" || body.Type == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityItemId และ type"})
+	}
+
+	// ✅ ดึง userId จาก JWT middleware
+	userIdRaw := c.Locals("userId")
+	userId, ok := userIdRaw.(string)
+	if !ok || userId == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	uuid, err := services.GenerateCheckinUUID(body.ActivityItemId, body.Type, userId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error creating checkInOut",
-		})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message":    "CheckInOut created successfully",
-		"checkInOut": checkInOut,
-	})
-}
-
-// GetCheckInOuts - ดึงข้อมูลผู้ใช้ทั้งหมด
-func GetCheckInOuts(c *fiber.Ctx) error {
-	checkInOuts, err := services.GetAllCheckInOuts()
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error fetching checkInOuts",
-		})
-	}
-
-	return c.JSON(checkInOuts)
-}
-
-// GetCheckInOutByID - ดึงข้อมูลผู้ใช้ตาม ID
-func GetCheckInOutByID(c *fiber.Ctx) error {
-	id := c.Params("id")
-	checkInOut, err := services.GetCheckInOutByID(id)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "CheckInOut not found",
-		})
-	}
-
-	return c.JSON(checkInOut)
-}
-
-// UpdateCheckInOut - อัปเดตข้อมูลผู้ใช้
-func UpdateCheckInOut(c *fiber.Ctx) error {
-	id := c.Params("id")
-	var checkInOut models.CheckInOut
-
-	if err := c.BodyParser(&checkInOut); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
-	}
-
-	err := services.UpdateCheckInOut(id, &checkInOut)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error updating checkInOut",
-		})
+		return c.Status(500).JSON(fiber.Map{"error": "ไม่สามารถสร้าง UUID ได้"})
 	}
 
 	return c.JSON(fiber.Map{
-		"message": "CheckInOut updated successfully",
+		"uuid": uuid,
+		"url":  fmt.Sprintf("/%s/%s", body.Type, uuid),
+		"type": body.Type,
 	})
 }
 
-// DeleteCheckInOut - ลบผู้ใช้
-func DeleteCheckInOut(c *fiber.Ctx) error {
-	id := c.Params("id")
-	err := services.DeleteCheckInOut(id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error deleting checkInOut",
-		})
+func Checkin(c *fiber.Ctx) error {
+	uuid := c.Params("uuid")
+
+	var body struct {
+		UserId string `json:"userId"` // จาก client ที่สแกน
+	}
+	if err := c.BodyParser(&body); err != nil || body.UserId == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ userId"})
 	}
 
-	return c.JSON(fiber.Map{
-		"message": "CheckInOut deleted successfully",
-	})
+	success, msg := services.Checkin(uuid, body.UserId)
+	if success {
+		return c.JSON(fiber.Map{"message": msg, "uuid": uuid})
+	}
+	return c.Status(401).JSON(fiber.Map{"error": msg})
 }

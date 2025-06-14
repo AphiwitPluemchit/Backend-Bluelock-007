@@ -2,6 +2,7 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
+	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -9,12 +10,8 @@ import (
 // CheckInOutRoutes กำหนดเส้นทางสำหรับ CheckInOut API
 func checkInOutRoutes(app *fiber.App) {
 	checkInOutRoutes := app.Group("/checkInOuts")
-	// checkInOutRoutes.Get("/", controllers.GetCheckInOuts)         // ดึงผู้ใช้ทั้งหมด
-	checkInOutRoutes.Post("/", controllers.CreateCheckInOut)      // สร้างผู้ใช้ใหม่
-	checkInOutRoutes.Get("/:id", controllers.GetCheckInOutByID)   // ดึงข้อมูลผู้ใช้ตาม ID
-	checkInOutRoutes.Put("/:id", controllers.UpdateCheckInOut)    // อัปเดตข้อมูลผู้ใช้
-	checkInOutRoutes.Delete("/:id", controllers.DeleteCheckInOut) // ลบผู้ใช้
-	checkInOutRoutes.Get("/qrcode/checkin/:activityId", controllers.GenerateCheckInQRCodeHandler)
-	checkInOutRoutes.Get("/qrcode/checkout/:activityId", controllers.GenerateCheckOutQRCodeHandler)
+	checkInOutRoutes.Use(middleware.AuthJWT)
+	checkInOutRoutes.Post("/generate-link", controllers.GenerateLink)
+	checkInOutRoutes.Post("/checkin/:uuid", controllers.Checkin) // ดึงผู้ใช้ทั้งหมด
 
 }
