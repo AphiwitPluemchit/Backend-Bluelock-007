@@ -3,6 +3,7 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services"
+	"Backend-Bluelock-007/src/services/activities"
 	"Backend-Bluelock-007/src/utils"
 	"fmt"
 	"log"
@@ -192,7 +193,7 @@ func GetAllActivities(c *fiber.Ctx) error {
 	}
 
 	// ดึงข้อมูลจาก Service
-	activities, total, totalPages, err := services.GetAllActivities(params, skillFilter, stateFilter, majorFilter, yearFilter)
+	activities, total, totalPages, err := activities.GetAllActivities(params, skillFilter, stateFilter, majorFilter, yearFilter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch activities",
