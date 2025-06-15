@@ -120,7 +120,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.Activity"
+                            "$ref": "#/definitions/models.ActivityDto"
                         }
                     }
                 ],
@@ -135,6 +135,51 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/activitys/calendar/{month}/{year}": {
+            "get": {
+                "description": "Get all activity calendar",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activitys"
+                ],
+                "summary": "Get all activity calendar",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Month",
+                        "name": "month",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "year",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ActivityDto"
+                            }
                         }
                     },
                     "500": {
@@ -325,7 +370,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Activity ID",
+                        "description": "ActivityItem ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -764,7 +809,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "สร้างข้อมูลอาหารเป็น array",
+                "description": "สร้างข้อมูลอาหาร 1 รายการ",
                 "consumes": [
                     "application/json"
                 ],
@@ -774,18 +819,15 @@ const docTemplate = `{
                 "tags": [
                     "foods"
                 ],
-                "summary": "เพิ่มข้อมูลอาหารหลายรายการ",
+                "summary": "เพิ่มข้อมูลอาหาร",
                 "parameters": [
                     {
-                        "description": "รายการอาหาร",
+                        "description": "ข้อมูลอาหาร",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Food"
-                            }
+                            "$ref": "#/definitions/models.Food"
                         }
                     }
                 ],
@@ -793,10 +835,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Food"
-                            }
+                            "$ref": "#/definitions/models.Food"
                         }
                     },
                     "400": {
@@ -941,15 +980,12 @@ const docTemplate = `{
         "models.Activity": {
             "type": "object",
             "properties": {
-                "activityItems": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.ActivityItem"
-                    }
-                },
                 "activityState": {
                     "type": "string",
                     "example": "planning"
+                },
+                "endDateEnroll": {
+                    "type": "string"
                 },
                 "file": {
                     "type": "string",
@@ -978,7 +1014,50 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ActivityItem": {
+        "models.ActivityDto": {
+            "type": "object",
+            "properties": {
+                "activityItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ActivityItemDto"
+                    }
+                },
+                "activityState": {
+                    "type": "string",
+                    "example": "planning"
+                },
+                "endDateEnroll": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
+                },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Football Tournament"
+                },
+                "skill": {
+                    "type": "string",
+                    "example": "hard"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "one"
+                }
+            }
+        },
+        "models.ActivityItemDto": {
             "type": "object",
             "properties": {
                 "activityId": {
@@ -994,11 +1073,8 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Quarter Final"
                 },
-                "enrollments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Enrollment"
-                    }
+                "enrollmentCount": {
+                    "type": "integer"
                 },
                 "hour": {
                     "type": "integer",
@@ -1103,34 +1179,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Enrollment": {
-            "type": "object",
-            "properties": {
-                "activityItemId": {
-                    "type": "string"
-                },
-                "food": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "registrationDate": {
-                    "type": "string"
-                },
-                "student": {
-                    "description": "เพิ่ม ` + "`" + `Student` + "`" + ` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.Student"
-                        }
-                    ]
-                },
-                "studentId": {
-                    "type": "string"
-                }
-            }
-        },
         "models.EnrollmentSummary": {
             "type": "object",
             "properties": {
@@ -1195,36 +1243,6 @@ const docTemplate = `{
                 },
                 "majorName": {
                     "type": "string"
-                }
-            }
-        },
-        "models.Student": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "hardSkill": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "major": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "softSkill": {
-                    "type": "integer"
-                },
-                "status": {
-                    "description": "0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว",
-                    "type": "integer"
                 }
             }
         },

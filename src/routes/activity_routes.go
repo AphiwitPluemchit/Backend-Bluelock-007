@@ -18,4 +18,5 @@ func activityRoutes(app *fiber.App) {
 	activityRoutes.Delete("/:id", controllers.DeleteActivity) // ลบผู้ใช้
 	activityRoutes.Get("/:id/enrollment-summary", controllers.GetEnrollmentSummaryByActivityID)
 	activityRoutes.Get("/:id/enrollments", controllers.GetEnrollmentByActivityItemID)
+	activityRoutes.Get("/calendar/:month/:year", controllers.GetAllActivityCalendar)
 }

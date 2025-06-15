@@ -9,9 +9,9 @@ type Activity struct {
 	Type          string             `json:"type" bson:"type" example:"one"`
 	ActivityState string             `json:"activityState" bson:"activityState" example:"planning"`
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
+	EndDateEnroll string             `json:"endDateEnroll" bson:"endDateEnroll"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
-	EndDateEnroll string             `json:"endDateEnroll" bson:"endDateEnroll"`
 }
 
 type ActivityDto struct {
@@ -20,10 +20,10 @@ type ActivityDto struct {
 	Type          string             `json:"type" bson:"type" example:"one"`
 	ActivityState string             `json:"activityState" bson:"activityState" example:"planning"`
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
+	EndDateEnroll string             `json:"endDateEnroll" bson:"endDateEnroll"`
 	File          string             `json:"file" bson:"file"  example:"image.jpg"`
 	FoodVotes     []FoodVote         `json:"foodVotes" bson:"foodVotes"`
 	ActivityItems []ActivityItemDto  `json:"activityItems" `
-	EndDateEnroll string             `json:"endDateEnroll" `
 }
 
 // ActivityItem รายละเอียดกิจกรรมย่อย

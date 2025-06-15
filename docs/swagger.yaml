@@ -1,12 +1,10 @@
 definitions:
   models.Activity:
     properties:
-      activityItems:
-        items:
-          $ref: '#/definitions/models.ActivityItem'
-        type: array
       activityState:
         example: planning
+        type: string
+      endDateEnroll:
         type: string
       file:
         example: image.jpg
@@ -27,7 +25,37 @@ definitions:
         example: one
         type: string
     type: object
-  models.ActivityItem:
+  models.ActivityDto:
+    properties:
+      activityItems:
+        items:
+          $ref: '#/definitions/models.ActivityItemDto'
+        type: array
+      activityState:
+        example: planning
+        type: string
+      endDateEnroll:
+        type: string
+      file:
+        example: image.jpg
+        type: string
+      foodVotes:
+        items:
+          $ref: '#/definitions/models.FoodVote'
+        type: array
+      id:
+        type: string
+      name:
+        example: Football Tournament
+        type: string
+      skill:
+        example: hard
+        type: string
+      type:
+        example: one
+        type: string
+    type: object
+  models.ActivityItemDto:
     properties:
       activityId:
         type: string
@@ -38,10 +66,8 @@ definitions:
       description:
         example: Quarter Final
         type: string
-      enrollments:
-        items:
-          $ref: '#/definitions/models.Enrollment'
-        type: array
+      enrollmentCount:
+        type: integer
       hour:
         example: 4
         type: integer
@@ -114,23 +140,6 @@ definitions:
         example: "10:00"
         type: string
     type: object
-  models.Enrollment:
-    properties:
-      activityItemId:
-        type: string
-      food:
-        type: string
-      id:
-        type: string
-      registrationDate:
-        type: string
-      student:
-        allOf:
-        - $ref: '#/definitions/models.Student'
-        description: เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
-      studentId:
-        type: string
-    type: object
   models.EnrollmentSummary:
     properties:
       activityItemSums:
@@ -174,26 +183,6 @@ definitions:
         type: integer
       majorName:
         type: string
-    type: object
-  models.Student:
-    properties:
-      code:
-        type: string
-      email:
-        type: string
-      hardSkill:
-        type: integer
-      id:
-        type: string
-      major:
-        type: string
-      name:
-        type: string
-      softSkill:
-        type: integer
-      status:
-        description: 0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว
-        type: integer
     type: object
   models.SuccessResponse:
     properties:
@@ -273,7 +262,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/models.Activity'
+          $ref: '#/definitions/models.ActivityDto'
       produces:
       - application/json
       responses:
@@ -406,7 +395,7 @@ paths:
     get:
       description: Get enrollments by activity ID
       parameters:
-      - description: Activity ID
+      - description: ActivityItem ID
         in: path
         name: id
         required: true
@@ -528,6 +517,36 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Upload an image for an activity
+      tags:
+      - activitys
+  /activitys/calendar/{month}/{year}:
+    get:
+      description: Get all activity calendar
+      parameters:
+      - description: Month
+        in: path
+        name: month
+        required: true
+        type: integer
+      - description: Year
+        in: path
+        name: year
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ActivityDto'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all activity calendar
       tags:
       - activitys
   /admins:
@@ -706,25 +725,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: สร้างข้อมูลอาหารเป็น array
+      description: สร้างข้อมูลอาหาร 1 รายการ
       parameters:
-      - description: รายการอาหาร
+      - description: ข้อมูลอาหาร
         in: body
         name: body
         required: true
         schema:
-          items:
-            $ref: '#/definitions/models.Food'
-          type: array
+          $ref: '#/definitions/models.Food'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            items:
-              $ref: '#/definitions/models.Food'
-            type: array
+            $ref: '#/definitions/models.Food'
         "400":
           description: Bad Request
           schema:
@@ -733,7 +748,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: เพิ่มข้อมูลอาหารหลายรายการ
+      summary: เพิ่มข้อมูลอาหาร
       tags:
       - foods
   /foods/{id}:

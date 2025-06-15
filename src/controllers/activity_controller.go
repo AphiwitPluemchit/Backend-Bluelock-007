@@ -420,3 +420,26 @@ func DeleteActivity(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Activity and related ActivityItems were deleted "})
 }
+
+// GetAllActivityCalendar - ดึง Activity และ ActivityItems ตามเดือนและปีที่ระบุ
+// GetAllActivityCalendar - godoc
+// @Summary      Get all activity calendar
+// @Description  Get all activity calendar
+// @Tags         activitys
+// @Produce      json
+// @Param        month   path  int  true  "Month"
+// @Param        year   path  int  true  "Year"
+// @Success      200  {object}  []models.ActivityDto
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /activitys/calendar/{month}/{year} [get]
+func GetAllActivityCalendar(c *fiber.Ctx) error {
+	month, _ := strconv.Atoi(c.Params("month"))
+	year, _ := strconv.Atoi(c.Params("year"))
+
+	calendar, err := activities.GetAllActivityCalendar(month, year)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(calendar)
+}
