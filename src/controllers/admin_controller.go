@@ -5,6 +5,7 @@ import (
 	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/utils"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -21,22 +22,39 @@ import (
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /admins [post]
 func CreateAdmin(c *fiber.Ctx) error {
-	var admin models.Admin
-	if err := c.BodyParser(&admin); err != nil {
+	var req struct {
+		Name     string `json:"name"`     // โปรไฟล์
+		Email    string `json:"email"`    // auth
+		Password string `json:"password"` // auth
+	}
+
+	// ✅ ดึงข้อมูลจาก Body
+	if err := c.BodyParser(&req); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error())
 	}
 
-	err := services.CreateAdmin(&admin)
+	// ✅ เตรียม Admin (Profile)
+	admin := models.Admin{
+		Name: req.Name,
+	}
+
+	// ✅ เตรียม User (Auth)
+	user := models.User{
+		Email:    strings.ToLower(req.Email),
+		Password: req.Password,
+	}
+
+	// ✅ เรียกใช้ service
+	err := services.CreateAdmin(&user, &admin)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Error creating admin: "+err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "Admin created successfully 12345",
+		"message": "Admin created successfully",
 		"admin":   admin,
 	})
 }
-
 
 // GetAdmins godoc
 // @Summary      Get admins with pagination, search, and sorting
@@ -70,14 +88,14 @@ func GetAdmins(c *fiber.Ctx) error {
 
 	// ส่ง Response กลับไป
 	return c.JSON(fiber.Map{
-		"page":        params.Page,
-		"limit":       params.Limit,
-		"search":      params.Search,
-		"sortBy":      params.SortBy,
-		"order":       params.Order,
-		"totalItems":  total,
-		"totalPages":  totalPages,
-		"data":        admins,
+		"page":       params.Page,
+		"limit":      params.Limit,
+		"search":     params.Search,
+		"sortBy":     params.SortBy,
+		"order":      params.Order,
+		"totalItems": total,
+		"totalPages": totalPages,
+		"data":       admins,
 	})
 }
 
@@ -100,7 +118,6 @@ func GetAdminByID(c *fiber.Ctx) error {
 
 	return c.JSON(admin)
 }
-
 
 // UpdateAdmin godoc
 // @Summary      Update an admin

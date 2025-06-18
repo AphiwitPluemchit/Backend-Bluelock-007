@@ -182,11 +182,12 @@ func isStudentExists(code, email string) (bool, error) {
 }
 
 // ✅ สร้าง Student พร้อมเพิ่ม User (ใช้ ID เดียวกัน)
-func CreateStudent(student *models.Student) error {
+func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	exists, err := isStudentExists(student.Code, student.Email)
+	// 🔍 ตรวจว่าซ้ำหรือไม่
+	exists, err := isStudentExists(studentInput.Code, userInput.Email)
 	if err != nil {
 		return err
 	}
@@ -194,30 +195,31 @@ func CreateStudent(student *models.Student) error {
 		return errors.New("student already exists")
 	}
 
-	hashedPassword, err := hashPassword(student.Password)
+	// ✅ เข้ารหัสรหัสผ่าน
+	hashedPassword, err := hashPassword(userInput.Password)
 	if err != nil {
 		return errors.New("failed to hash password")
 	}
-	student.Password = hashedPassword
-	student.ID = primitive.NewObjectID() // ใช้ ID เดียวกันกับ User
+	userInput.Password = hashedPassword
 
-	_, err = studentCollection.InsertOne(ctx, student)
+	// ✅ สร้าง student ก่อน
+	studentInput.ID = primitive.NewObjectID()
+	_, err = studentCollection.InsertOne(ctx, studentInput)
 	if err != nil {
 		return err
 	}
 
-	user := models.User{
-		ID:        student.ID, // ใช้ ID เดียวกัน
-		Email:     student.Email,
-		Password:  student.Password,
-		Role:      "Student",
-		StudentID: &student.ID,
-		AdminID:   nil,
-	}
+	// ✅ สร้าง user โดยใช้ refId ไปยัง student
+	userInput.ID = primitive.NewObjectID()
+	userInput.Role = "Student"
+	userInput.RefID = studentInput.ID // 👈 จุดสำคัญ
+	userInput.Email = strings.ToLower(strings.TrimSpace(userInput.Email))
+
 	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.InsertOne(ctx, user)
+	_, err = userCollection.InsertOne(ctx, userInput)
 	if err != nil {
-		studentCollection.DeleteOne(ctx, bson.M{"_id": student.ID})
+		// rollback
+		studentCollection.DeleteOne(ctx, bson.M{"_id": studentInput.ID})
 		return err
 	}
 
