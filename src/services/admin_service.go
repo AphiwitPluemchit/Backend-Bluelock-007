@@ -97,37 +97,37 @@ func GetAdminByID(id string) (*models.Admin, error) {
 	return &admin, nil
 }
 
-func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
+func CreateAdmin(admin *models.Admin) error {
+	admin.ID = primitive.NewObjectID()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// ✅ เข้ารหัสรหัสผ่าน
-	hashedPassword, err := hashPassword(userInput.Password)
+	hashedPassword, err := hashPassword(admin.Password)
 	if err != nil {
 		return errors.New("failed to hash password")
 	}
-	userInput.Password = hashedPassword
+	admin.Password = hashedPassword
 
-	// ✅ สร้าง admin profile
-	adminInput.ID = primitive.NewObjectID()
-	_, err = adminCollection.InsertOne(ctx, adminInput)
+	_, err = adminCollection.InsertOne(ctx, admin)
 	if err != nil {
 		log.Println("❌ Error inserting admin:", err)
-		return errors.New("failed to insert admin profile")
+		return errors.New("failed to insert admin")
 	}
-
-	// ✅ สร้าง user โดยใช้ refId อ้างถึง admin
-	userInput.ID = primitive.NewObjectID()
-	userInput.Role = "Admin"
-	userInput.RefID = adminInput.ID
 
 	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.InsertOne(ctx, userInput)
+	user := models.User{
+		ID:        admin.ID, // ใช้ ID เดียวกับ admin
+		Email:     admin.Email,
+		Password:  admin.Password,
+		Role:      "Admin",
+		AdminID:   &admin.ID,
+		StudentID: nil,
+	}
+	_, err = userCollection.InsertOne(ctx, user)
 	if err != nil {
-		adminCollection.DeleteOne(ctx, bson.M{"_id": adminInput.ID}) // rollback
+		adminCollection.DeleteOne(ctx, bson.M{"_id": admin.ID})
 		return errors.New("failed to create user for admin")
 	}
-
 	return nil
 }
 

@@ -2,8 +2,8 @@ services:
   redis:
     image: redis:7
     container_name: bluelock-redis
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis-data:/data
     restart: always
@@ -17,16 +17,17 @@ services:
     environment:
       - TZ=Asia/Bangkok
 
-  asynqmon:
-    image: hibiken/asynqmon
-    ports:
-      - "8080:8080"
-    environment:
-      - REDIS_ADDR=redis:6379
-    depends_on:
-      - redis
-    networks:
-      - bluelock-net
+  # ยังไม่มี port ให้ใช้ ว่าจะทำเป็น reverse proxy ผ่าน nginx
+  # asynqmon:
+  #   image: hibiken/asynqmon
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - REDIS_ADDR=redis:6379
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - bluelock-net
 
   backend:
     build: .
@@ -43,15 +44,15 @@ services:
       redis:
         condition: service_healthy
 
-  # ocr:
-  #   build:
-  #     context: ./ocr
-  #   # ports:
-  #   #   - "8000:8000"
-  #   container_name: fastapi-ocr
-  #   restart: always
-  #   networks:
-  #     - bluelock-net
+  ocr:
+    build:
+      context: ./ocr
+    # ports:
+    #   - "8000:8000"
+    container_name: fastapi-ocr
+    restart: always
+    networks:
+      - bluelock-net
 
 networks:
   bluelock-net:

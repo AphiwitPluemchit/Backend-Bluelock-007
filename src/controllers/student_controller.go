@@ -23,38 +23,36 @@ func CreateStudent(c *fiber.Ctx) error {
 		HardSkill int    `json:"hardSkill"`
 	}
 
+	// รับข้อมูลจาก body
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
 	}
 
+	// สำหรับเก็บ error ที่อาจเกิดขึ้น
 	var failed []string
 
+	// Loop เพื่อสร้าง Student ทีละคน
 	for _, studentData := range req {
-		// 👉 1. เตรียม Student profile
 		student := models.Student{
 			Code:      studentData.Code,
 			Name:      studentData.Name,
 			EngName:   studentData.EngName,
-			Status:    calculateStatus(studentData.SoftSkill, studentData.HardSkill),
-			SoftSkill: studentData.SoftSkill,
-			HardSkill: studentData.HardSkill,
+			Email:     studentData.Code + "@go.buu.ac.th",                            // auto-generate email
+			Password:  studentData.Password,                                          // default password
+			Status:    calculateStatus(studentData.SoftSkill, studentData.HardSkill), // default status
+			SoftSkill: studentData.SoftSkill,                                         // ← ดึงจาก req
+			HardSkill: studentData.HardSkill,                                         // ← ดึงจาก req
 			Major:     studentData.Major,
 		}
 
-		// 👉 2. เตรียม User auth
-		user := models.User{
-			Email:    strings.ToLower(studentData.Code + "@go.buu.ac.th"),
-			Password: studentData.Password,
-		}
-
-		// 👉 3. สร้างผ่าน service (จะเชื่อม refId ให้ภายใน)
-		err := services.CreateStudent(&user, &student)
+		// เรียกใช้ service เพื่อสร้าง student
+		err := services.CreateStudent(&student)
 		if err != nil {
-			log.Println("❌ Failed to create student:", student.Code, err)
-			failed = append(failed, student.Code)
+			failed = append(failed, student.Code) // เก็บรหัสนิสิตที่สร้างไม่สำเร็จ
 		}
 	}
 
+	// ถ้าล้มเหลวในการสร้างบางคน
 	if len(failed) > 0 {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{
 			"error":  "Failed to create some students",

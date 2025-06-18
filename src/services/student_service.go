@@ -182,12 +182,11 @@ func isStudentExists(code, email string) (bool, error) {
 }
 
 // ✅ สร้าง Student พร้อมเพิ่ม User (ใช้ ID เดียวกัน)
-func CreateStudent(userInput *models.User, studentInput *models.Student) error {
+func CreateStudent(student *models.Student) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 🔍 ตรวจว่าซ้ำหรือไม่
-	exists, err := isStudentExists(studentInput.Code, userInput.Email)
+	exists, err := isStudentExists(student.Code, student.Email)
 	if err != nil {
 		return err
 	}
@@ -195,31 +194,30 @@ func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 		return errors.New("student already exists")
 	}
 
-	// ✅ เข้ารหัสรหัสผ่าน
-	hashedPassword, err := hashPassword(userInput.Password)
+	hashedPassword, err := hashPassword(student.Password)
 	if err != nil {
 		return errors.New("failed to hash password")
 	}
-	userInput.Password = hashedPassword
+	student.Password = hashedPassword
+	student.ID = primitive.NewObjectID() // ใช้ ID เดียวกันกับ User
 
-	// ✅ สร้าง student ก่อน
-	studentInput.ID = primitive.NewObjectID()
-	_, err = studentCollection.InsertOne(ctx, studentInput)
+	_, err = studentCollection.InsertOne(ctx, student)
 	if err != nil {
 		return err
 	}
 
-	// ✅ สร้าง user โดยใช้ refId ไปยัง student
-	userInput.ID = primitive.NewObjectID()
-	userInput.Role = "Student"
-	userInput.RefID = studentInput.ID // 👈 จุดสำคัญ
-	userInput.Email = strings.ToLower(strings.TrimSpace(userInput.Email))
-
+	user := models.User{
+		ID:        student.ID, // ใช้ ID เดียวกัน
+		Email:     student.Email,
+		Password:  student.Password,
+		Role:      "Student",
+		StudentID: &student.ID,
+		AdminID:   nil,
+	}
 	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.InsertOne(ctx, userInput)
+	_, err = userCollection.InsertOne(ctx, user)
 	if err != nil {
-		// rollback
-		studentCollection.DeleteOne(ctx, bson.M{"_id": studentInput.ID})
+		studentCollection.DeleteOne(ctx, bson.M{"_id": student.ID})
 		return err
 	}
 
