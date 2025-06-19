@@ -158,17 +158,17 @@ func GetAllActivities(params models.PaginationParams, skills, states, majors []s
 		}
 	}
 
-	filter := buildActivitiesFilter(params, skills, states)
+	filter, isSortNearest := buildActivitiesFilter(params, skills, states)
 	skip := int64((params.Page - 1) * params.Limit)
 	sortField, sortOrder := getSortFieldAndOrder(params.SortBy, params.Order)
 
-	pipeline := getLightweightActivitiesPipeline(filter, sortField, sortOrder, skip, int64(params.Limit), majors, studentYears)
+	pipeline := getLightweightActivitiesPipeline(filter, sortField, sortOrder, isSortNearest, skip, int64(params.Limit), majors, studentYears)
 	results, err := aggregateActivities(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	total, err := countActivities(ctx, filter, majors, studentYears, params.Limit)
+	total, err := countActivities(ctx, filter, majors, studentYears, isSortNearest)
 	if err != nil {
 		return nil, 0, 0, err
 	}

@@ -190,8 +190,9 @@ func getActivitiesFromCache(key string) (*activitiesCache, error) {
 	return &cachedResult, nil
 }
 
-func buildActivitiesFilter(params models.PaginationParams, skills, states []string) bson.M {
+func buildActivitiesFilter(params models.PaginationParams, skills, states []string) (bson.M, bool) {
 	filter := bson.M{}
+	isSortNearest := false
 	if params.Search != "" {
 		searchRegex := bson.M{"$regex": params.Search, "$options": "i"}
 		filter["$or"] = bson.A{
@@ -204,8 +205,12 @@ func buildActivitiesFilter(params models.PaginationParams, skills, states []stri
 	}
 	if len(states) > 0 && states[0] != "" {
 		filter["activityState"] = bson.M{"$in": states}
+		// if state only contains "open" and "close", we want to sort by nearest date
+		if len(states) == 2 && containsString(states, "open") && containsString(states, "close") {
+			isSortNearest = true
+		}
 	}
-	return filter
+	return filter, isSortNearest
 }
 
 func getSortFieldAndOrder(sortBy, order string) (string, int) {
@@ -233,8 +238,8 @@ func aggregateActivities(ctx context.Context, pipeline mongo.Pipeline) ([]models
 	return results, nil
 }
 
-func countActivities(ctx context.Context, filter bson.M, majors []string, studentYears []int, limit int) (int64, error) {
-	countPipeline := getLightweightActivitiesPipeline(filter, "", 0, 0, 0, majors, studentYears)
+func countActivities(ctx context.Context, filter bson.M, majors []string, studentYears []int, isSortNearest bool) (int64, error) {
+	countPipeline := getLightweightActivitiesPipeline(filter, "", 0, isSortNearest, 0, 0, majors, studentYears)
 	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
 	cursor, err := activityCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
@@ -274,4 +279,14 @@ func cacheActivitiesResult(key string, results []models.ActivityDto, total int64
 		TotalPages: totalPages,
 	})
 	_ = database.RedisClient.Set(database.RedisCtx, key, cacheValue, 2*time.Minute).Err()
+}
+
+// containsString checks if a slice contains a specific string.
+func containsString(slice []string, val string) bool {
+	for _, item := range slice {
+		if item == val {
+			return true
+		}
+	}
+	return false
 }
