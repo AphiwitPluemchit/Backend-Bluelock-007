@@ -11,7 +11,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var ctx = context.Background()
@@ -165,61 +164,7 @@ func GetAllActivityCalendar(month int, year int) ([]models.ActivityDto, error) {
 	endDateStr := endDate.Format("2006-01-02")
 
 	// Define the aggregation pipeline
-	pipeline := mongo.Pipeline{
-		// Stage A: Filter the 'dates' array within each ActivityItem to include only dates within the specified month and year.
-		{{Key: "$addFields", Value: bson.M{
-			"dates": bson.M{
-				"$filter": bson.M{
-					"input": "$dates",
-					"as":    "dateObj",
-					"cond": bson.M{
-						"$and": []bson.M{
-							{"$gte": []string{"$$dateObj.date", startDateStr}},
-							{"$lte": []string{"$$dateObj.date", endDateStr}},
-						},
-					},
-				},
-			},
-		}}},
-		// Stage B: Match ActivityItems that have dates remaining after filtering (dates array is not empty).
-		{{Key: "$match", Value: bson.M{
-			"dates": bson.M{"$ne": bson.A{}}, // Ensures dates array is not empty
-		}}},
-		// lookup enrollment
-		{{Key: "$lookup", Value: bson.M{
-			"from":         "enrollments",
-			"localField":   "_id",
-			"foreignField": "activityItemId",
-			"as":           "enrollments",
-		}}},
-		// count enrollment
-		{{Key: "$addFields", Value: bson.M{
-			"enrollmentCount": bson.M{
-				"$size": "$enrollments",
-			},
-		}}},
-
-		// Stage C: Group filtered ActivityItems by ActivityID.
-		{{Key: "$group", Value: bson.M{
-			"_id":           "$activityId",
-			"activityItems": bson.M{"$push": "$$ROOT"}, // $$ROOT now has 'dates' as a correctly filtered array.
-		}}},
-		// Stage D: Lookup Activity details from 'activitys' collection.
-		{{Key: "$lookup", Value: bson.M{
-			"from":         "activitys",
-			"localField":   "_id",
-			"foreignField": "_id",
-			"as":           "activityInfo",
-		}}},
-		// Stage E: Unwind the Activity details.
-		{{Key: "$unwind", Value: "$activityInfo"}}, // Use {Key: "$unwind", Value: bson.M{"path": "$activityInfo", "preserveNullAndEmptyArrays": true}} if you want to keep activities that might not have items after filtering, or items whose activityId doesn't match an activity.
-		// Stage F: Replace root to merge Activity info with its items.
-		{{Key: "$replaceRoot", Value: bson.M{
-			"newRoot": bson.M{
-				"$mergeObjects": bson.A{"$activityInfo", bson.M{"activityItems": "$activityItems"}},
-			},
-		}}},
-	}
+	pipeline := GetAllActivityCalendarPipeline(startDateStr, endDateStr)
 
 	// Execute the pipeline on the 'activityItems' collection
 	cursor, err := DB.ActivityItemCollection.Aggregate(ctx, pipeline)
