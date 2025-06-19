@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services"
+	"Backend-Bluelock-007/src/services/admins"
 	"Backend-Bluelock-007/src/utils"
 	"strconv"
 
@@ -26,7 +26,7 @@ func CreateAdmin(c *fiber.Ctx) error {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error())
 	}
 
-	err := services.CreateAdmin(&admin)
+	err := admins.CreateAdmin(&admin)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Error creating admin: "+err.Error())
 	}
@@ -36,7 +36,6 @@ func CreateAdmin(c *fiber.Ctx) error {
 		"admin":   admin,
 	})
 }
-
 
 // GetAdmins godoc
 // @Summary      Get admins with pagination, search, and sorting
@@ -63,21 +62,21 @@ func GetAdmins(c *fiber.Ctx) error {
 	params.Order = c.Query("order", params.Order)
 
 	// ดึงข้อมูลจาก Service
-	admins, total, totalPages, err := services.GetAllAdmins(params)
+	admins, total, totalPages, err := admins.GetAllAdmins(params)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Error getting admins: "+err.Error())
 	}
 
 	// ส่ง Response กลับไป
 	return c.JSON(fiber.Map{
-		"page":        params.Page,
-		"limit":       params.Limit,
-		"search":      params.Search,
-		"sortBy":      params.SortBy,
-		"order":       params.Order,
-		"totalItems":  total,
-		"totalPages":  totalPages,
-		"data":        admins,
+		"page":       params.Page,
+		"limit":      params.Limit,
+		"search":     params.Search,
+		"sortBy":     params.SortBy,
+		"order":      params.Order,
+		"totalItems": total,
+		"totalPages": totalPages,
+		"data":       admins,
 	})
 }
 
@@ -93,14 +92,13 @@ func GetAdmins(c *fiber.Ctx) error {
 // @Router       /admins/{id} [get]
 func GetAdminByID(c *fiber.Ctx) error {
 	id := c.Params("id")
-	admin, err := services.GetAdminByID(id)
+	admin, err := admins.GetAdminByID(id)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusNotFound, "Admin not found")
 	}
 
 	return c.JSON(admin)
 }
-
 
 // UpdateAdmin godoc
 // @Summary      Update an admin
@@ -124,7 +122,7 @@ func UpdateAdmin(c *fiber.Ctx) error {
 		})
 	}
 
-	err := services.UpdateAdmin(id, &admin)
+	err := admins.UpdateAdmin(id, &admin)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error updating admin",
@@ -148,7 +146,7 @@ func UpdateAdmin(c *fiber.Ctx) error {
 // DeleteAdmin - ลบผู้ใช้
 func DeleteAdmin(c *fiber.Ctx) error {
 	id := c.Params("id")
-	err := services.DeleteAdmin(id)
+	err := admins.DeleteAdmin(id)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Error deleting admin: "+err.Error())
 	}

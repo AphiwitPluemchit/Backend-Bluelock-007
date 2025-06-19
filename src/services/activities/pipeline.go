@@ -1,8 +1,10 @@
 package activities
 
 import (
+	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -231,7 +233,7 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.ObjectID) ([]primitive.ObjectID, error) {
 	var activityItems []models.ActivityItem
 	filter := bson.M{"activityId": activityID}
-	cursor, err := activityItemCollection.Find(ctx, filter)
+	cursor, err := database.ActivityItemCollection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +302,7 @@ func GetEnrollmentByActivityItemID(
 	}
 	if len(studentYears) > 0 {
 		var regexFilters []bson.M
-		for _, year := range generateStudentCodeFilter(studentYears) {
+		for _, year := range GenerateStudentCodeFilter(studentYears) {
 			regexFilters = append(regexFilters, bson.M{"student.code": bson.M{"$regex": "^" + year, "$options": "i"}})
 		}
 		filter = append(filter, bson.E{Key: "$or", Value: regexFilters})
@@ -333,7 +335,7 @@ func GetEnrollmentByActivityItemID(
 
 	// Count total before skip/limit
 	countPipeline := append(pipeline, bson.D{{Key: "$count", Value: "total"}})
-	countCursor, err := enrollmentCollection.Aggregate(ctx, countPipeline)
+	countCursor, err := database.EnrollmentCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -355,7 +357,7 @@ func GetEnrollmentByActivityItemID(
 		bson.D{{Key: "$limit", Value: pagination.Limit}},
 	)
 
-	cursor, err := enrollmentCollection.Aggregate(ctx, pipeline)
+	cursor, err := database.EnrollmentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -367,4 +369,97 @@ func GetEnrollmentByActivityItemID(
 	}
 
 	return results, total, nil
+}
+
+func GetActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majors []string, studentYears []int) mongo.Pipeline {
+	pipeline := mongo.Pipeline{
+		// 🔍 Match เฉพาะ Activity ที่ต้องการ
+		{{Key: "$match", Value: filter}},
+
+		// 🔗 Lookup ActivityItems ที่เกี่ยวข้อง
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "activityItems"},
+			{Key: "localField", Value: "_id"},
+			{Key: "foreignField", Value: "activityId"},
+			{Key: "as", Value: "activityItems"},
+		}}},
+
+		// 🔥 Unwind ActivityItems เพื่อให้สามารถกรองได้
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$activityItems"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+
+		// 3️⃣ Lookup EnrollmentCount แทนที่จะดึงทั้ง array
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "enrollments"},
+			{Key: "let", Value: bson.D{{Key: "itemId", Value: "$activityItems._id"}}}, // let คือ การประกาศตัวแปรใน pipeline
+			{Key: "pipeline", Value: bson.A{
+				bson.D{{Key: "$match", Value: bson.D{
+					{Key: "$expr", Value: bson.D{ // ใช้ $expr เพื่อใช้ตัวแปรที่ประกาศใน let
+						{Key: "$eq", Value: bson.A{"$activityItemId", "$$itemId"}},
+					}},
+				}}},
+				bson.D{{Key: "$count", Value: "count"}},
+			}},
+			{Key: "as", Value: "activityItems.enrollmentCountData"},
+		}}},
+
+		// 4️⃣ Add enrollmentCount field จาก enrollmentCountData
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "activityItems.enrollmentCount", Value: bson.D{
+				{Key: "$ifNull", Value: bson.A{bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$activityItems.enrollmentCountData.count", 0}},
+				}, 0}},
+			}},
+		}}},
+	}
+
+	// ✅ กรองเฉพาะ Major ที่ต้องการ **ถ้ามีค่า major**
+	if len(majors) > 0 && majors[0] != "" {
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{
+				{Key: "activityItems.majors", Value: bson.D{{Key: "$in", Value: majors}}},
+			}},
+		})
+	} else {
+		fmt.Println("Skipping majorName filtering")
+	}
+
+	// ✅ กรองเฉพาะ StudentYears ที่ต้องการ **ถ้ามีค่า studentYears**
+	if len(studentYears) > 0 {
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{
+				{Key: "activityItems.studentYears", Value: bson.D{{Key: "$in", Value: studentYears}}},
+			}},
+		})
+	}
+
+	// ✅ Group ActivityItems กลับเข้าไปใน Activity
+	pipeline = append(pipeline, bson.D{
+		{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id"},
+			{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
+			{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
+			{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
+			{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
+			{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
+			{Key: "activityItems", Value: bson.D{{Key: "$push", Value: "$activityItems"}}}, // เก็บ ActivityItems เป็น Array
+		}},
+	})
+
+	// ✅ ตรวจสอบและเพิ่ม `$sort` เฉพาะกรณีที่ต้องใช้
+	if sortField != "" && (sortOrder == 1 || sortOrder == -1) {
+		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}})
+	}
+
+	// ✅ ตรวจสอบและเพิ่ม `$skip` และ `$limit` เฉพาะกรณีที่ต้องใช้
+	if skip > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}})
+	}
+	if limit > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$limit", Value: limit}})
+	}
+
+	return pipeline
 }

@@ -22,6 +22,32 @@ import (
 
 // ===== Pipeline Helper Functions =====
 
+// 🔢 คำนวณปีการศึกษาปัจจุบัน (พ.ศ.)
+func GetCurrentAcademicYear() int {
+	now := time.Now()        // เวลาปัจจุบัน
+	year := now.Year() + 543 // แปลง ค.ศ. เป็น พ.ศ.
+
+	// ถ้ายังไม่ถึงเดือนกรกฎาคม ถือว่ายังเป็นปีการศึกษาที่แล้ว
+	if now.Month() < 7 {
+		year -= 1
+	}
+	return year % 100 // ✅ เอาเฉพาะ 2 หลักท้าย (2568 → 68)
+}
+
+// 🎯 ฟังก์ชันสำหรับสร้างเงื่อนไขการคัดกรองรหัสนิสิต
+func GenerateStudentCodeFilter(studentYears []int) []string {
+	currentYear := GetCurrentAcademicYear()
+	var codes []string
+
+	for _, year := range studentYears {
+		if year >= 1 && year <= 4 {
+			studentYearPrefix := strconv.Itoa(currentYear - (year - 1))
+			codes = append(codes, studentYearPrefix) // เพิ่ม Prefix 67, 66, 65, 64 ตามปี
+		}
+	}
+	return codes
+}
+
 // MaxEndTimeFromItem คำนวณเวลาสิ้นสุดที่มากที่สุดจาก ActivityItemDto
 func MaxEndTimeFromItem(item models.ActivityItemDto, latestTime time.Time) time.Time {
 	loc, err := time.LoadLocation("Asia/Bangkok")
@@ -119,32 +145,6 @@ func ScheduleChangeActivityStateJob(AsynqClient *asynq.Client, redisURI string, 
 	return nil
 }
 
-// 🔢 คำนวณปีการศึกษาปัจจุบัน (พ.ศ.)
-func getCurrentAcademicYear() int {
-	now := time.Now()        // เวลาปัจจุบัน
-	year := now.Year() + 543 // แปลง ค.ศ. เป็น พ.ศ.
-
-	// ถ้ายังไม่ถึงเดือนกรกฎาคม ถือว่ายังเป็นปีการศึกษาที่แล้ว
-	if now.Month() < 7 {
-		year -= 1
-	}
-	return year % 100 // ✅ เอาเฉพาะ 2 หลักท้าย (2568 → 68)
-}
-
-// 🎯 ฟังก์ชันสำหรับสร้างเงื่อนไขการคัดกรองรหัสนิสิต
-func generateStudentCodeFilter(studentYears []int) []string {
-	currentYear := getCurrentAcademicYear()
-	var codes []string
-
-	for _, year := range studentYears {
-		if year >= 1 && year <= 4 {
-			studentYearPrefix := strconv.Itoa(currentYear - (year - 1))
-			codes = append(codes, studentYearPrefix) // เพิ่ม Prefix 67, 66, 65, 64 ตามปี
-		}
-	}
-	return codes
-}
-
 // func SendEmail(to string, subject string, html string) error {
 // 	m := gomail.NewMessage()
 // 	m.SetHeader("From", "65160205@go.buu.ac.th") // ✅ อีเมลที่ใช้สมัคร Brevo
@@ -227,7 +227,7 @@ func getSortFieldAndOrder(sortBy, order string) (string, int) {
 
 func aggregateActivities(ctx context.Context, pipeline mongo.Pipeline) ([]models.ActivityDto, error) {
 	var results []models.ActivityDto
-	cursor, err := activityCollection.Aggregate(ctx, pipeline)
+	cursor, err := database.ActivityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func aggregateActivities(ctx context.Context, pipeline mongo.Pipeline) ([]models
 func countActivities(ctx context.Context, filter bson.M, majors []string, studentYears []int, isSortNearest bool) (int64, error) {
 	countPipeline := getLightweightActivitiesPipeline(filter, "", 0, isSortNearest, 0, 0, majors, studentYears)
 	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
-	cursor, err := activityCollection.Aggregate(ctx, countPipeline)
+	cursor, err := database.ActivityCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return 0, err
 	}
@@ -264,7 +264,7 @@ func countActivities(ctx context.Context, filter bson.M, majors []string, studen
 func populateEnrollmentCounts(ctx context.Context, activities []models.ActivityDto) {
 	for i, activity := range activities {
 		for j, item := range activity.ActivityItems {
-			count, err := enrollmentCollection.CountDocuments(ctx, bson.M{"activityItemId": item.ID})
+			count, err := database.ActivityCollection.CountDocuments(ctx, bson.M{"activityItemId": item.ID})
 			if err == nil {
 				activities[i].ActivityItems[j].EnrollmentCount = int(count)
 			}

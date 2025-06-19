@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/services/activities"
 	"Backend-Bluelock-007/src/utils"
 	"fmt"
@@ -40,7 +39,7 @@ func CreateActivity(c *fiber.Ctx) error {
 	}
 
 	// บันทึก Activity + Items
-	activity, err := services.CreateActivity(&request)
+	activity, err := activities.CreateActivity(&request)
 	if err != nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"error": err.Error(),
@@ -99,7 +98,7 @@ func UploadActivityImage(c *fiber.Ctx) error {
 
 	// ✅ อัปเดต MongoDB ให้เก็บ Path ไฟล์ที่อัปโหลด
 
-	err = services.UploadActivityImage(id, fileName)
+	err = activities.UploadActivityImage(id, fileName)
 	if err != nil {
 
 		// 🔥 ลบไฟล์ที่อัปโหลดหากเกิดข้อผิดพลาด
@@ -137,7 +136,7 @@ func DeleteActivityImage(c *fiber.Ctx) error {
 	}
 
 	// Update activity file name to empty string
-	err := services.UploadActivityImage(id, "")
+	err := activities.UploadActivityImage(id, "")
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update MongoDB: "+err.Error())
 	}
@@ -231,7 +230,7 @@ func GetActivityByID(c *fiber.Ctx) error {
 	}
 
 	// ดึงข้อมูล Activity พร้อม ActivityItems
-	activity, err := services.GetActivityByID(activityID.Hex())
+	activity, err := activities.GetActivityByID(activityID.Hex())
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Activity not found"})
 	}
@@ -261,7 +260,7 @@ func GetEnrollmentSummaryByActivityID(c *fiber.Ctx) error {
 	}
 
 	// ดึงข้อมูลสรุปการลงทะเบียน
-	enrollmentSummary, err := services.GetActivityEnrollSummary(activityID.Hex())
+	enrollmentSummary, err := activities.GetActivityEnrollSummary(activityID.Hex())
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error":   "Activity not found",
@@ -338,7 +337,7 @@ func GetEnrollmentByActivityItemID(c *fiber.Ctx) error {
 	log.Println(majorFilter)
 	log.Println(statusFilter)
 	log.Println(studentYearsFilter)
-	student, total, err := services.GetEnrollmentByActivityItemID(itemID, pagination, majorFilter, statusFilter, studentYearsFilter)
+	student, total, err := activities.GetEnrollmentByActivityItemID(itemID, pagination, majorFilter, statusFilter, studentYearsFilter)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error":   "ActivityItem not found",
@@ -384,7 +383,7 @@ func UpdateActivity(c *fiber.Ctx) error {
 	}
 
 	// ✅ อัปเดต Activity และ ActivityItems
-	updatedActivity, err := services.UpdateActivity(activityID, request)
+	updatedActivity, err := activities.UpdateActivity(activityID, request)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -413,7 +412,7 @@ func DeleteActivity(c *fiber.Ctx) error {
 	}
 
 	// ลบ Activity พร้อม ActivityItems ที่เกี่ยวข้อง
-	err = services.DeleteActivity(activityID)
+	err = activities.DeleteActivity(activityID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

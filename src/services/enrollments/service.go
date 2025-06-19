@@ -1,8 +1,9 @@
-package services
+package enrollments
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database" // dot import
 	"Backend-Bluelock-007/src/models"
+	"Backend-Bluelock-007/src/services/activities"
 	"context"
 	"errors"
 	"fmt"
@@ -17,23 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var enrollmentCollection *mongo.Collection
-
-func init() {
-	// เชื่อมต่อกับ MongoDB
-	if err := database.ConnectMongoDB(); err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-
-	enrollmentCollection = database.GetCollection("BluelockDB", "enrollments")
-	activityItemCollection = database.GetCollection("BluelockDB", "activityItems")
-	studentCollection = database.GetCollection("BluelockDB", "students")
-
-	if enrollmentCollection == nil || activityItemCollection == nil || studentCollection == nil {
-		log.Fatal("Failed to get necessary collections")
-	}
-}
-
 // ✅ 1. Student ลงทะเบียนกิจกรรม (ลงซ้ำไม่ได้)
 func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -41,7 +25,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 
 	// ✅ ตรวจสอบว่า ActivityItem และ Student มีอยู่จริงไหม
 	var activityItem models.ActivityItem
-	if err := activityItemCollection.FindOne(ctx, bson.M{"_id": activityItemID}).Decode(&activityItem); err != nil {
+	if err := DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": activityItemID}).Decode(&activityItem); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return errors.New("activity item not found")
 		}
@@ -63,7 +47,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		})
 
 		// ✅ Run update
-		_, err := activityCollection.UpdateOne(ctx, filter, update, arrayFilter)
+		_, err := DB.ActivityCollection.UpdateOne(ctx, filter, update, arrayFilter)
 		if err != nil {
 			return err
 		}
@@ -72,7 +56,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 	}
 
 	// ✅ ตรวจสอบเวลาทับซ้อนก่อนลงทะเบียน
-	existingEnrollmentsCursor, err := enrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
+	existingEnrollmentsCursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
 	if err != nil {
 		return err
 	}
@@ -86,7 +70,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 
 		// ดึง activityItem เดิมที่เคยลง
 		var existingItem models.ActivityItem
-		if err := activityItemCollection.FindOne(ctx, bson.M{"_id": existing.ActivityItemID}).Decode(&existingItem); err != nil {
+		if err := DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": existing.ActivityItemID}).Decode(&existingItem); err != nil {
 			continue
 		}
 
@@ -104,7 +88,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 	}
 
 	var student models.Student
-	if err := studentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
+	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return errors.New("student not found")
 		}
@@ -112,7 +96,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 	}
 
 	// ✅ ตรวจสอบว่าลงทะเบียนไปแล้วหรือยัง
-	count, err := enrollmentCollection.CountDocuments(ctx, bson.M{
+	count, err := DB.EnrollmentCollection.CountDocuments(ctx, bson.M{
 		"activityItemId": activityItemID,
 		"studentId":      studentID,
 	})
@@ -138,13 +122,13 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		Food:             food,
 	}
 
-	_, err = enrollmentCollection.InsertOne(ctx, newEnrollment)
+	_, err = DB.EnrollmentCollection.InsertOne(ctx, newEnrollment)
 	if err != nil {
 		return err
 	}
 
 	// ✅ เพิ่ม enrollmentcount +1 ใน activityItems
-	_, err = activityItemCollection.UpdateOne(ctx,
+	_, err = DB.ActivityItemCollection.UpdateOne(ctx,
 		bson.M{"_id": activityItemID},
 		bson.M{"$inc": bson.M{"enrollmentcount": 1}},
 	)
@@ -176,7 +160,7 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	}}}
 
 	enrollmentStage := mongo.Pipeline{matchStage, lookupActivityItem, unwindActivityItem, groupActivityIDs}
-	cur, err := enrollmentCollection.Aggregate(ctx, enrollmentStage)
+	cur, err := DB.EnrollmentCollection.Aggregate(ctx, enrollmentStage)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("error fetching enrollments: %v", err)
 	}
@@ -201,13 +185,13 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 		filter["skill"] = bson.M{"$in": skillFilter}
 	}
 
-	total, err := activityCollection.CountDocuments(ctx, filter)
+	total, err := DB.ActivityCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	pipeline := getActivitiesPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
-	cursor, err := activityCollection.Aggregate(ctx, pipeline)
+	pipeline := activities.GetActivitiesPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
+	cursor, err := DB.ActivityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -231,13 +215,13 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 
 	// get enrollment
 	var enrollment models.Enrollment
-	err := enrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
+	err := DB.EnrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
 	if err != nil {
 		return err
 	}
 
 	var activityItem models.ActivityItem
-	if err := activityItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ActivityItemID}).Decode(&activityItem); err != nil {
+	if err := DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ActivityItemID}).Decode(&activityItem); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return errors.New("activity item not found")
 		}
@@ -259,7 +243,7 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 		})
 
 		// ✅ Run update
-		_, err := activityCollection.UpdateOne(ctx, filter, update, arrayFilter)
+		_, err := DB.ActivityCollection.UpdateOne(ctx, filter, update, arrayFilter)
 		if err != nil {
 			return err
 		}
@@ -267,7 +251,7 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 		fmt.Println("Updated food vote for:", *enrollment.Food)
 	}
 
-	res, err := enrollmentCollection.DeleteOne(ctx, filter)
+	res, err := DB.EnrollmentCollection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -277,7 +261,7 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 	}
 
 	// ✅ ลบ enrollmentcount -1 จาก activityItem
-	_, err = activityItemCollection.UpdateOne(ctx,
+	_, err = DB.ActivityItemCollection.UpdateOne(ctx,
 		bson.M{"_id": enrollment.ActivityItemID},
 		bson.M{"$inc": bson.M{"enrollmentcount": -1}},
 	)
@@ -295,7 +279,7 @@ func GetStudentsByActivity(activityID primitive.ObjectID) ([]bson.M, error) {
 
 	// 🔍 ดึง `activityItemId` ทั้งหมดที่อยู่ภายใต้ `activityId`
 	activityItemIDs := []primitive.ObjectID{}
-	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
 	if err != nil {
 		return nil, fmt.Errorf("error fetching activity items: %v", err)
 	}
@@ -395,7 +379,7 @@ func GetStudentsByActivity(activityID primitive.ObjectID) ([]bson.M, error) {
 		bson.D{{Key: "$unset", Value: "_id"}},
 	}
 
-	cursor, err = enrollmentCollection.Aggregate(ctx, pipeline)
+	cursor, err = DB.EnrollmentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("aggregation error: %v", err)
 	}
@@ -419,7 +403,7 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 	defer cancel()
 
 	// 🔍 ตรวจสอบว่ามี Enrollment หรือไม่
-	count, err := enrollmentCollection.CountDocuments(ctx, bson.M{
+	count, err := DB.EnrollmentCollection.CountDocuments(ctx, bson.M{
 		"studentId":      studentID,
 		"activityItemId": activityItemID,
 	})
@@ -477,7 +461,7 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 		}}},
 	}
 
-	cursor, err := enrollmentCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.EnrollmentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("aggregation error: %v", err)
 	}
@@ -501,7 +485,7 @@ func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool
 	defer cancel()
 
 	// 1️⃣ ดึง activityItems ทั้งหมดที่อยู่ใน activity นี้
-	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
 	if err != nil {
 		return false, primitive.ObjectID{}, err
 	}
@@ -530,7 +514,7 @@ func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool
 	var enrollment struct {
 		ID primitive.ObjectID `bson:"_id"`
 	}
-	err = enrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
+	err = DB.EnrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
 	if err != nil {
 		return false, primitive.ObjectID{}, err
 	}
@@ -556,6 +540,6 @@ func IsStudentEnrolled(studentId string, activityItemId string) bool {
 		"activityItemId": aID,
 	}
 
-	count, err := enrollmentCollection.CountDocuments(context.TODO(), filter)
+	count, err := DB.EnrollmentCollection.CountDocuments(context.TODO(), filter)
 	return err == nil && count > 0
 }

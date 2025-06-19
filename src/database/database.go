@@ -18,6 +18,11 @@ var (
 	client     *mongo.Client
 	once       sync.Once // ✅ ป้องกันการรัน ConnectMongoDB() ซ้ำ
 	connectErr error
+
+	ActivityCollection     *mongo.Collection // Renamed: exported
+	ActivityItemCollection *mongo.Collection // Renamed: exported
+	EnrollmentCollection   *mongo.Collection
+	StudentCollection      *mongo.Collection // Renamed: exported
 )
 
 // ConnectMongoDB เชื่อมต่อกับ MongoDB แค่ครั้งเดียว

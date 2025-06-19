@@ -1,59 +1,20 @@
 package activities
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"fmt"
 	"log"
 	"math"
-	"os"
 	"time"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var ctx = context.Background()
-
-var activityCollection *mongo.Collection
-var activityItemCollection *mongo.Collection
-var enrollmentCollection *mongo.Collection
-var AsynqClient *asynq.Client
-var redisURI string
-
-func InitAsynq() {
-	redisURI = os.Getenv("REDIS_URI")
-	if redisURI == "" {
-		// redisURI = "localhost:6379"
-	} else {
-		AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
-		fmt.Println("Redis URI:", redisURI)
-	}
-
-	// AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
-}
-
-func init() {
-	if err := database.ConnectMongoDB(); err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-
-	activityCollection = database.GetCollection("BluelockDB", "activitys")
-	activityItemCollection = database.GetCollection("BluelockDB", "activityItems")
-	enrollmentCollection = database.GetCollection("BluelockDB", "enrollments")
-
-	if activityCollection == nil || activityItemCollection == nil {
-		log.Fatal("Failed to get the required collections")
-	}
-
-	if redisURI != "" {
-		InitAsynq()
-	}
-
-}
 
 // CreateActivity - สร้าง Activity และ ActivityItems
 func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
@@ -76,7 +37,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	}
 
 	// ✅ บันทึก Activity และรับค่า InsertedID กลับมา
-	_, err := activityCollection.InsertOne(ctx, activityToInsert)
+	_, err := DB.ActivityCollection.InsertOne(ctx, activityToInsert)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +64,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		}
 		itemsToInsert = append(itemsToInsert, itemToInsert)
 
-		if redisURI != "" {
+		if DB.RedisURI != "" {
 
 			// ✅ คำนวณ latestTime
 			latestTime = MaxEndTimeFromItem(item, latestTime)
@@ -112,14 +73,14 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	}
 
 	// ✅ Insert ทั้งหมดในครั้งเดียว เร็วขึ้นมากในการ insert หลายรายการ ลดจำนวนการ round-trip ไปยัง MongoDB
-	_, err = activityItemCollection.InsertMany(ctx, itemsToInsert)
+	_, err = DB.ActivityItemCollection.InsertMany(ctx, itemsToInsert)
 	if err != nil {
 		return nil, err
 	}
 
-	if redisURI != "" {
+	if DB.RedisURI != "" {
 		// Schedule job (helper.go)
-		err = ScheduleChangeActivityStateJob(AsynqClient, redisURI, latestTime, activity.EndDateEnroll, activity.ID.Hex())
+		err = ScheduleChangeActivityStateJob(DB.AsynqClient, DB.RedisURI, latestTime, activity.EndDateEnroll, activity.ID.Hex())
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +102,7 @@ func UploadActivityImage(activityID string, fileName string) error {
 	// update image
 	filter := bson.M{"_id": objectID}
 	update := bson.M{"$set": bson.M{"file": fileName}}
-	_, err = activityCollection.UpdateOne(context.Background(), filter, update)
+	_, err = DB.ActivityCollection.UpdateOne(context.Background(), filter, update)
 	return err
 }
 
@@ -152,7 +113,7 @@ func GetAllActivities(params models.PaginationParams, skills, states, majors []s
 
 	key := buildActivitiesCacheKey(params, skills, states, majors, studentYears)
 
-	if redisURI != "" {
+	if DB.RedisURI != "" {
 		if cached, err := getActivitiesFromCache(key); err == nil && cached != nil {
 			return cached.Data, cached.Total, cached.TotalPages, nil
 		}
@@ -176,7 +137,7 @@ func GetAllActivities(params models.PaginationParams, skills, states, majors []s
 	populateEnrollmentCounts(ctx, results)
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 
-	if redisURI != "" {
+	if DB.RedisURI != "" {
 		cacheActivitiesResult(key, results, total, totalPages)
 	}
 
@@ -261,7 +222,7 @@ func GetAllActivityCalendar(month int, year int) ([]models.ActivityDto, error) {
 	}
 
 	// Execute the pipeline on the 'activityItems' collection
-	cursor, err := activityItemCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.ActivityItemCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute aggregation pipeline: %w", err)
 	}
@@ -289,7 +250,7 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 
 	pipeline := GetOneActivityPipeline(objectID)
 
-	cursor, err := activityCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.ActivityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.Println("Error fetching activity by ID:", err)
 		return nil, err
@@ -323,7 +284,7 @@ func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, erro
 
 	pipeline := GetActivityStatisticsPipeline(objectID)
 
-	cursor, err := activityItemCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.ActivityItemCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.Println("Error fetching activity by ID:", err)
 		return result, err
@@ -371,7 +332,7 @@ func GetActivityEnrollSummary(activityID string) (models.EnrollmentSummary, erro
 // GetActivityItemsByActivityID - ดึง ActivityItems ตาม ActivityID
 func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.ActivityItem, error) {
 	var activityItems []models.ActivityItem
-	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
 	if err != nil {
 		return nil, err
 	}
@@ -409,14 +370,14 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 		},
 	}
 
-	_, err := activityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
+	_, err := DB.ActivityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
 	if err != nil {
 		return nil, err
 	}
 
 	// ✅ ดึงรายการ `ActivityItems` ที่มีอยู่
 	var existingItems []models.ActivityItem
-	cursor, err := activityItemCollection.Find(ctx, bson.M{"activityId": id})
+	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": id})
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +404,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			// ✅ ถ้าไม่มี `_id` ให้สร้างใหม่
 			newItem.ID = primitive.NewObjectID()
 			newItem.ActivityID = id
-			_, err := activityItemCollection.InsertOne(ctx, newItem)
+			_, err := DB.ActivityItemCollection.InsertOne(ctx, newItem)
 			if err != nil {
 				return nil, err
 			}
@@ -454,7 +415,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			// ✅ ถ้ามี `_id` → อัปเดต
 			newItemIDs[newItem.ID.Hex()] = true
 
-			_, err := activityItemCollection.UpdateOne(ctx,
+			_, err := DB.ActivityItemCollection.UpdateOne(ctx,
 				bson.M{"_id": newItem.ID},
 				bson.M{"$set": bson.M{
 					"activityId":      newItem.ActivityID,
@@ -482,7 +443,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 		// // ✅ ถ้า activityState เปลี่ยนเป็น "open" เพียงแค่ 1 ตัว → ส่งอีเมลหานิสิต
 		// if isOpen == 1 {
 		// 	// ดึง users ที่ role == student
-		// 	userCollection := database.GetCollection("BluelockDB", "users")
+		// 	userCollection := GetCollection("BluelockDB", "users")
 		// 	cursor, err := userCollection.Find(ctx, bson.M{"role": "Student"})
 		// 	if err != nil {
 		// 		return nil, err
@@ -545,9 +506,9 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 		// 	}
 		// }
 	}
-	if redisURI != "" {
+	if DB.RedisURI != "" {
 		// Schedule job (helper.go)
-		err = ScheduleChangeActivityStateJob(AsynqClient, redisURI, latestTime, activity.EndDateEnroll, id.Hex())
+		err = ScheduleChangeActivityStateJob(DB.AsynqClient, DB.RedisURI, latestTime, activity.EndDateEnroll, id.Hex())
 		if err != nil {
 			return nil, err
 		}
@@ -560,7 +521,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			if err != nil {
 				continue
 			}
-			_, err = activityItemCollection.DeleteOne(ctx, bson.M{"_id": objID})
+			_, err = DB.ActivityItemCollection.DeleteOne(ctx, bson.M{"_id": objID})
 			if err != nil {
 				return nil, err
 			}
@@ -574,20 +535,20 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 // DeleteActivity - ลบกิจกรรมและ ActivityItems ที่เกี่ยวข้อง
 func DeleteActivity(id primitive.ObjectID) error {
 	// ลบ ActivityItems ที่เชื่อมโยงกับ Activity
-	_, err := activityItemCollection.DeleteMany(ctx, bson.M{"activityId": id})
+	_, err := DB.ActivityItemCollection.DeleteMany(ctx, bson.M{"activityId": id})
 	if err != nil {
 		return err
 	}
 
 	// ลบ Activity
-	_, err = activityCollection.DeleteOne(ctx, bson.M{"_id": id})
+	_, err = DB.ActivityCollection.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
 		return err
 	}
 
-	if redisURI != "" {
-		DeleteTask("complete", id.Hex(), redisURI) // ลบ task ที่เกี่ยวข้อง
-		DeleteTask("close", id.Hex(), redisURI)    // ลบ task ที่เกี่ยวข้อง
+	if DB.RedisURI != "" {
+		DeleteTask("complete", id.Hex(), DB.RedisURI) // ลบ task ที่เกี่ยวข้อง
+		DeleteTask("close", id.Hex(), DB.RedisURI)    // ลบ task ที่เกี่ยวข้อง
 
 	}
 

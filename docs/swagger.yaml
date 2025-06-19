@@ -140,6 +140,23 @@ definitions:
         example: "10:00"
         type: string
     type: object
+  models.Enrollment:
+    properties:
+      activityItemId:
+        type: string
+      food:
+        type: string
+      id:
+        type: string
+      registrationDate:
+        type: string
+      student:
+        allOf:
+        - $ref: '#/definitions/models.Student'
+        description: เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
+      studentId:
+        type: string
+    type: object
   models.EnrollmentSummary:
     properties:
       activityItemSums:
@@ -183,6 +200,28 @@ definitions:
         type: integer
       majorName:
         type: string
+    type: object
+  models.Student:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+      engName:
+        type: string
+      hardSkill:
+        type: integer
+      id:
+        type: string
+      major:
+        type: string
+      name:
+        type: string
+      softSkill:
+        type: integer
+      status:
+        description: 0 = พ้นสภาพ, 1 = ชั่วโมงน้อยมาก, 2 = ชั่วโมงน้อย, 3 = ชั่วโมงครบแล้ว
+        type: integer
     type: object
   models.SuccessResponse:
     properties:
@@ -703,6 +742,179 @@ paths:
       summary: Update an admin
       tags:
       - admins
+  /enrollments:
+    post:
+      consumes:
+      - application/json
+      description: นักศึกษาสามารถลงทะเบียนกิจกรรมได้
+      parameters:
+      - description: Enrollment data
+        in: body
+        name: enrollment
+        required: true
+        schema:
+          $ref: '#/definitions/models.Enrollment'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ลงทะเบียนกิจกรรม
+      tags:
+      - enrollments
+  /enrollments/{enrollmentId}:
+    delete:
+      description: นักศึกษาสามารถยกเลิกการลงทะเบียนกิจกรรมได้
+      parameters:
+      - description: Enrollment ID
+        in: path
+        name: enrollmentId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ยกเลิกการลงทะเบียนกิจกรรม
+      tags:
+      - enrollments
+  /enrollments/activity/{activityItemId}:
+    get:
+      description: แอดมินสามารถดูรายชื่อนักศึกษาที่ลงทะเบียนในกิจกรรมได้
+      parameters:
+      - description: Activity Item ID
+        in: path
+        name: activityItemId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Enrollment'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ดูนักศึกษาที่ลงทะเบียนในกิจกรรม
+      tags:
+      - enrollments
+  /enrollments/student/{studentId}:
+    get:
+      description: ให้นักศึกษาดูรายการกิจกรรมที่ลงทะเบียนไว้ทั้งหมด
+      parameters:
+      - description: Student ID
+        in: path
+        name: studentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Enrollment'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ดึงรายการกิจกรรมที่นักศึกษาลงทะเบียนไว้
+      tags:
+      - enrollments
+  /enrollments/student/{studentId}/activity/{activityId}:
+    get:
+      description: ตรวจสอบว่านิสิตได้ลงทะเบียนกิจกรรมนี้หรือไม่
+      parameters:
+      - description: Student ID
+        in: path
+        name: studentId
+        required: true
+        type: string
+      - description: Activity ID
+        in: path
+        name: activityId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ตรวจสอบว่านิสิตลงทะเบียนกิจกรรมหรือไม่
+      tags:
+      - enrollments
+  /enrollments/student/{studentId}/activityItem/{activityItemId}:
+    get:
+      description: นักศึกษาสามารถดูรายละเอียดของกิจกรรมที่ลงทะเบียนไว้
+      parameters:
+      - description: Student ID
+        in: path
+        name: studentId
+        required: true
+        type: string
+      - description: Activity Item ID
+        in: path
+        name: activityItemId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.EnrollmentSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ดูรายละเอียดของกิจกรรมที่นักศึกษาลงทะเบียนไว้ (เฉพาะ 1 รายการ)
+      tags:
+      - enrollments
   /foods:
     get:
       description: ดึงข้อมูลอาหารที่มีอยู่ทั้งหมด
@@ -832,4 +1044,219 @@ paths:
       summary: อัปเดตข้อมูลอาหาร
       tags:
       - foods
+  /students:
+    get:
+      consumes:
+      - application/json
+      description: Get all students with optional filters
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - description: Sort by field
+        in: query
+        name: sortBy
+        type: string
+      - description: Order (asc/desc)
+        in: query
+        name: order
+        type: string
+      - description: Student status (comma separated)
+        in: query
+        name: studentStatus
+        type: string
+      - description: Major (comma separated)
+        in: query
+        name: major
+        type: string
+      - description: Student year (comma separated)
+        in: query
+        name: studentYear
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get students
+      tags:
+      - students
+    post:
+      consumes:
+      - application/json
+      description: Create one or more students
+      parameters:
+      - description: List of students to create
+        in: body
+        name: students
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.Student'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create students
+      tags:
+      - students
+  /students/{code}:
+    get:
+      consumes:
+      - application/json
+      description: Get a student by their code
+      parameters:
+      - description: Student code
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Student'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get student by code
+      tags:
+      - students
+  /students/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a student by ID
+      parameters:
+      - description: Student ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete student
+      tags:
+      - students
+    put:
+      consumes:
+      - application/json
+      description: Update a student's information
+      parameters:
+      - description: Student ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Student data
+        in: body
+        name: student
+        required: true
+        schema:
+          $ref: '#/definitions/models.Student'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update student
+      tags:
+      - students
+  /students/status:
+    patch:
+      consumes:
+      - application/json
+      description: Set status of students to 0 by IDs
+      parameters:
+      - description: List of student IDs
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            additionalProperties:
+              type: string
+            type: object
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update student status to 0
+      tags:
+      - students
 swagger: "2.0"

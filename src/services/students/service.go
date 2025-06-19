@@ -1,8 +1,9 @@
-package services
+package students
 
 import (
 	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
+	"Backend-Bluelock-007/src/services/activities"
 	"context"
 	"errors"
 	"log"
@@ -80,7 +81,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 			}
 		}
 		if len(intYears) > 0 {
-			yearPrefixes := generateStudentCodeFilter(intYears)
+			yearPrefixes := activities.GenerateStudentCodeFilter(intYears)
 			var regexFilters []bson.M
 			for _, prefix := range yearPrefixes {
 				regexFilters = append(regexFilters, bson.M{"code": bson.M{"$regex": "^" + prefix}})
@@ -157,7 +158,7 @@ func GetStudentByCode(code string) (*models.Student, error) {
 }
 
 // ✅ ฟังก์ชันเข้ารหัส Password
-func hashPassword(password string) (string, error) {
+func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
@@ -194,7 +195,7 @@ func CreateStudent(student *models.Student) error {
 		return errors.New("student already exists")
 	}
 
-	hashedPassword, err := hashPassword(student.Password)
+	hashedPassword, err := HashPassword(student.Password)
 	if err != nil {
 		return errors.New("failed to hash password")
 	}

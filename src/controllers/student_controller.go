@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services"
+	"Backend-Bluelock-007/src/services/students"
 	"log"
 	"net/http"
 	"strconv"
@@ -11,7 +11,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// ✅ CreateStudent - เพิ่ม Student หลายคน
+// CreateStudent godoc
+// @Summary Create students
+// @Description Create one or more students
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param students body []models.Student true "List of students to create"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 409 {object} map[string]interface{}
+// @Router /students [post]
 func CreateStudent(c *fiber.Ctx) error {
 	var req []struct {
 		Name      string `json:"name"`
@@ -46,7 +56,7 @@ func CreateStudent(c *fiber.Ctx) error {
 		}
 
 		// เรียกใช้ service เพื่อสร้าง student
-		err := services.CreateStudent(&student)
+		err := students.CreateStudent(&student)
 		if err != nil {
 			failed = append(failed, student.Code) // เก็บรหัสนิสิตที่สร้างไม่สำเร็จ
 		}
@@ -76,7 +86,23 @@ func cleanList(arr []string) []string {
 	return result
 }
 
-// GetStudents - ดึงข้อมูลผู้ใช้ทั้งหมด
+// GetStudents godoc
+// @Summary Get students
+// @Description Get all students with optional filters
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number"
+// @Param limit query int false "Page size"
+// @Param search query string false "Search keyword"
+// @Param sortBy query string false "Sort by field"
+// @Param order query string false "Order (asc/desc)"
+// @Param studentStatus query string false "Student status (comma separated)"
+// @Param major query string false "Major (comma separated)"
+// @Param studentYear query string false "Student year (comma separated)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /students [get]
 func GetStudents(c *fiber.Ctx) error {
 	params := models.DefaultPagination()
 	params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
@@ -91,7 +117,7 @@ func GetStudents(c *fiber.Ctx) error {
 	log.Println(studentStatus)
 	log.Println(majors)
 	log.Println(studentYears)
-	students, total, totalPages, err := services.GetStudentsWithFilter(params, majors, studentYears, studentStatus)
+	students, total, totalPages, err := students.GetStudentsWithFilter(params, majors, studentYears, studentStatus)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching students"})
 	}
@@ -107,10 +133,19 @@ func GetStudents(c *fiber.Ctx) error {
 	})
 }
 
-// GetStudentByCode - ดึงข้อมูลผู้ใช้ตาม Code
+// GetStudentByCode godoc
+// @Summary Get student by code
+// @Description Get a student by their code
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param code path string true "Student code"
+// @Success 200 {object} models.Student
+// @Failure 404 {object} map[string]interface{}
+// @Router /students/{code} [get]
 func GetStudentByCode(c *fiber.Ctx) error {
 	code := c.Params("code")
-	student, err := services.GetStudentByCode(code)
+	student, err := students.GetStudentByCode(code)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Student not found",
@@ -120,7 +155,18 @@ func GetStudentByCode(c *fiber.Ctx) error {
 	return c.JSON(student)
 }
 
-// UpdateStudent - อัปเดตข้อมูลผู้ใช้
+// UpdateStudent godoc
+// @Summary Update student
+// @Description Update a student's information
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param id path string true "Student ID"
+// @Param student body models.Student true "Student data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /students/{id} [put]
 func UpdateStudent(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var student models.Student
@@ -131,7 +177,7 @@ func UpdateStudent(c *fiber.Ctx) error {
 		})
 	}
 
-	err := services.UpdateStudent(id, &student)
+	err := students.UpdateStudent(id, &student)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error updating student",
@@ -143,10 +189,19 @@ func UpdateStudent(c *fiber.Ctx) error {
 	})
 }
 
-// DeleteStudent - ลบผู้ใช้
+// DeleteStudent godoc
+// @Summary Delete student
+// @Description Delete a student by ID
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param id path string true "Student ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /students/{id} [delete]
 func DeleteStudent(c *fiber.Ctx) error {
 	id := c.Params("id")
-	err := services.DeleteStudent(id)
+	err := students.DeleteStudent(id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error deleting student",
@@ -158,7 +213,17 @@ func DeleteStudent(c *fiber.Ctx) error {
 	})
 }
 
-// ✅ UpdateStudentStatus - เปลี่ยนสถานะของนิสิตให้เป็น 0
+// UpdateStudentStatus godoc
+// @Summary Update student status to 0
+// @Description Set status of students to 0 by IDs
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param ids body []map[string]string true "List of student IDs"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /students/status [patch]
 func UpdateStudentStatus(c *fiber.Ctx) error {
 	var req []struct {
 		ID string `json:"id"`
@@ -172,7 +237,7 @@ func UpdateStudentStatus(c *fiber.Ctx) error {
 	// วนลูปอัพเดตสถานะของนิสิต
 	for _, studentData := range req {
 		// เรียกใช้ Service เพื่อเปลี่ยนสถานะของนิสิต
-		err := services.UpdateStatusToZero(studentData.ID)
+		err := students.UpdateStatusToZero(studentData.ID)
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}

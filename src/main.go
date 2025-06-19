@@ -2,10 +2,9 @@ package main
 
 import (
 	_ "Backend-Bluelock-007/docs"
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/routes"
-	"Backend-Bluelock-007/src/services"
 	"fmt"
 	"log"
 	"net/url"
@@ -24,17 +23,14 @@ func main() {
 	if appURI == "" {
 		appURI = "8888" // ใช้ 8888 เป็นค่าเริ่มต้น
 	}
-	redisURI := os.Getenv("REDIS_URI")
-	// if redisURI == "" {
-	// 	redisURI = "localhost:6379" // ใช้ localhost:6379 เป็นค่าเริ่มต้น
-	// }
+
 	origins := os.Getenv("ALLOWED_ORIGINS") // ✅ เปิดใช้งาน CORS Middleware
 	if origins == "" {
 		origins = "*"
 	}
 
 	// เชื่อมต่อกับ MongoDB
-	err := database.ConnectMongoDB()
+	err := DB.ConnectMongoDB()
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %v", err)
 	}
@@ -50,14 +46,14 @@ func main() {
 	}))
 
 	// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
-	database.InitRedis()
+	DB.InitRedis()
 	// ✅ สร้าง Asynq Client และเริ่มรัน Asynq Worker
-	if redisURI != "" {
-		services.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisURI})
+	if DB.RedisURI != "" {
+		DB.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: DB.RedisURI})
 
 		go func() {
 			srv := asynq.NewServer(
-				asynq.RedisClientOpt{Addr: redisURI},
+				asynq.RedisClientOpt{Addr: DB.RedisURI},
 				asynq.Config{
 					Concurrency: 10, // รันพร้อมกันได้ 10 task
 				},
