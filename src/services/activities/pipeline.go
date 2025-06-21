@@ -128,8 +128,8 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 	return mongo.Pipeline{
 		// 1️⃣ Match เฉพาะ ActivityItems ที่ต้องการ
 		{{
-			Key: "$match", Value: bson.D{
-				{Key: "activityId", Value: activityID},
+			Key: "$match", Value: bson.M{
+				"activityId": activityID,
 			},
 		}},
 
@@ -466,38 +466,44 @@ func GetActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip 
 
 func GetAllActivityCalendarPipeline(startDateStr string, endDateStr string) mongo.Pipeline {
 	return mongo.Pipeline{
-		// Stage A: Filter the 'dates' array within each ActivityItem to include only dates within the specified month and year.
-		{{Key: "$addFields", Value: bson.M{
+		{{Key: "$match", Value: bson.M{
 			"dates": bson.M{
-				"$filter": bson.M{
-					"input": "$dates",
-					"as":    "dateObj",
-					"cond": bson.M{
-						"$and": []bson.M{
-							{"$gte": []string{"$$dateObj.date", startDateStr}},
-							{"$lte": []string{"$$dateObj.date", endDateStr}},
-						},
+				"$elemMatch": bson.M{
+					"date": bson.M{
+						"$gte": startDateStr,
+						"$lte": endDateStr,
 					},
 				},
 			},
 		}}},
-		// Stage B: Match ActivityItems that have dates remaining after filtering (dates array is not empty).
-		{{Key: "$match", Value: bson.M{
-			"dates": bson.M{"$ne": bson.A{}}, // Ensures dates array is not empty
-		}}},
+
 		// lookup enrollment
 		{{Key: "$lookup", Value: bson.M{
-			"from":         "enrollments",
-			"localField":   "_id",
-			"foreignField": "activityItemId",
-			"as":           "enrollments",
+			"from": "enrollments",
+			"let":  bson.M{"activityItemId": "$_id"},
+			"pipeline": mongo.Pipeline{
+				{{Key: "$match", Value: bson.M{
+					"$expr": bson.M{
+						"$eq": bson.A{"$activityItemId", "$$activityItemId"},
+					},
+				}}},
+				{{Key: "$count", Value: "count"}},
+			},
+			"as": "enrollments",
 		}}},
-		// count enrollment
+
+		// unwind enrollment
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$enrollments",
+			"preserveNullAndEmptyArrays": true, // เพื่อให้กิจกรรมที่ไม่มีการลงทะเบียนยังคงแสดง
+		}}},
+
 		{{Key: "$addFields", Value: bson.M{
 			"enrollmentCount": bson.M{
-				"$size": "$enrollments",
+				"$ifNull": bson.A{"$enrollments.count", 0}, // ถ้าไม่มี enrollments ให้ใช้ 0
 			},
-		}}},
+		}},
+		},
 
 		// Stage C: Group filtered ActivityItems by ActivityID.
 		{{Key: "$group", Value: bson.M{
@@ -513,11 +519,26 @@ func GetAllActivityCalendarPipeline(startDateStr string, endDateStr string) mong
 		}}},
 		// Stage E: Unwind the Activity details.
 		{{Key: "$unwind", Value: "$activityInfo"}}, // Use {Key: "$unwind", Value: bson.M{"path": "$activityInfo", "preserveNullAndEmptyArrays": true}} if you want to keep activities that might not have items after filtering, or items whose activityId doesn't match an activity.
-		// Stage F: Replace root to merge Activity info with its items.
-		{{Key: "$replaceRoot", Value: bson.M{
-			"newRoot": bson.M{
-				"$mergeObjects": bson.A{"$activityInfo", bson.M{"activityItems": "$activityItems"}},
-			},
+
+		// ท่านี้สั้น แต่อาจจะเข้าใจยากหน่อย performance น้อยกว่า เลยใช้ $project แทน
+		// {{Key: "$replaceRoot", Value: bson.M{
+		// 	"newRoot": bson.M{
+		// 		"$mergeObjects": bson.A{"$activityInfo", bson.M{"activityItems": "$activityItems"}},
+		// 	},
+		// }}},
+
+		{{Key: "$project", Value: bson.M{
+			"id":              "$_id", // Exclude the default _id field
+			"name":            "$activityInfo.name",
+			"type":            "$activityInfo.type",
+			"activityState":   "$activityInfo.activityState",
+			"skill":           "$activityInfo.skill",
+			"foodVotes":       "$activityInfo.foodVotes",
+			"file":            "$activityInfo.file",
+			"endDateEnroll":   "$activityInfo.endDateEnroll",
+			"activityItems":   "$activityItems",
+			"enrollmentCount": "$enrollmentCount",
 		}}},
 	}
+
 }
