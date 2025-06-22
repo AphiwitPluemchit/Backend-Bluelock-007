@@ -14,13 +14,11 @@ func AuthJWT(c *fiber.Ctx) error {
 	}
 
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-
 	claims, err := utils.ParseJWT(tokenStr)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid or expired token"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid or expired token", "detail": err.Error()})
 	}
 
-	// ✅ ส่งค่า userId, email, role ลง context
 	c.Locals("userId", claims.UserID)
 	c.Locals("email", claims.Email)
 	c.Locals("role", claims.Role)

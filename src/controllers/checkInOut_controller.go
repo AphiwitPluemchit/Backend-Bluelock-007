@@ -8,16 +8,18 @@ import (
 )
 
 func GenerateLink(c *fiber.Ctx) error {
+	// เปลี่ยนจาก ActivityItemId → ActivityId
 	var body struct {
-		ActivityItemId string `json:"activityItemId"`
-		Type           string `json:"type"`
+		ActivityId string `json:"activityId"`
+		Type       string `json:"type"`
 	}
 
-	if err := c.BodyParser(&body); err != nil || body.ActivityItemId == "" || body.Type == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityItemId และ type"})
+	if err := c.BodyParser(&body); err != nil || body.ActivityId == "" || body.Type == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityId และ type"})
 	}
 
-	uuid, err := services.GenerateCheckinUUID(body.ActivityItemId, body.Type)
+	uuid, err := services.GenerateCheckinUUID(body.ActivityId, body.Type)
+
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ไม่สามารถสร้าง UUID ได้"})
 	}

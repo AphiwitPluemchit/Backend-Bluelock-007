@@ -112,7 +112,8 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 	if count > 0 {
 		return errors.New("already enrolled in this activity")
 	}
-
+	fmt.Println("studentID:", studentID)
+	fmt.Println("activityItemID:", activityItemID)
 	// ✅ สร้าง Enrollment ใหม่ พร้อม food ถ้ามี
 	newEnrollment := models.Enrollment{
 		ID:               primitive.NewObjectID(),
@@ -548,4 +549,37 @@ func IsStudentEnrolled(studentId string, activityItemId string) bool {
 	}
 
 	return count > 0
+}
+
+// FindEnrolledItem คืน activityItemId ที่นิสิตลงทะเบียนไว้ใน activityId นี้
+func FindEnrolledItem(userId string, activityId string) (string, bool) {
+	uID, _ := primitive.ObjectIDFromHex(userId)
+	aID, _ := primitive.ObjectIDFromHex(activityId)
+
+	// 1. ดึง enrollments ทั้งหมดของ userId
+	cursor, err := DB.EnrollmentCollection.Find(context.TODO(), bson.M{
+		"studentId": uID, // หรือ "userId" ถ้าคุณใช้ชื่อนี้
+	})
+	if err != nil {
+		return "", false
+	}
+	defer cursor.Close(context.TODO())
+
+	// 2. เช็กแต่ละรายการว่า activityItemId → activityId ตรงหรือไม่
+	for cursor.Next(context.TODO()) {
+		var enrollment models.Enrollment
+		if err := cursor.Decode(&enrollment); err != nil {
+			continue
+		}
+
+		var item models.ActivityItem
+		err := DB.ActivityItemCollection.FindOne(context.TODO(), bson.M{
+			"_id": enrollment.ActivityItemID,
+		}).Decode(&item)
+		if err == nil && item.ActivityID == aID {
+			return enrollment.ActivityItemID.Hex(), true
+		}
+	}
+
+	return "", false
 }

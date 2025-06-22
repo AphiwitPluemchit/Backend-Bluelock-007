@@ -43,6 +43,7 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		err := studentCol.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
 		println(student.Name)
 		if err == nil {
+			result.ID = student.ID
 			result.Name = student.Name
 		}
 	case "Admin":
@@ -51,6 +52,7 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		err := adminCol.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
 		println(admin.Name)
 		if err == nil {
+			result.ID = admin.ID
 			result.Name = admin.Name
 		}
 	}

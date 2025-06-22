@@ -2,7 +2,7 @@ package main
 
 import (
 	_ "Backend-Bluelock-007/docs"
-	DB "Backend-Bluelock-007/src/database"
+	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/routes"
 	"fmt"
@@ -28,32 +28,15 @@ func main() {
 	if origins == "" {
 		origins = "*"
 	}
-
-	// เชื่อมต่อกับ MongoDB
-	err := DB.ConnectMongoDB()
-	if err != nil {
-		log.Fatalf("Error connecting to the database: %v", err)
-	}
-
-	// สร้าง app instance
-	app := fiber.New()
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     origins,
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		AllowCredentials: false, // ❌ ต้องเป็น false ถ้าใช้ "*"
-	}))
-
 	// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
-	DB.InitRedis()
+	database.InitRedis()
 	// ✅ สร้าง Asynq Client และเริ่มรัน Asynq Worker
-	if DB.RedisURI != "" {
-		DB.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: DB.RedisURI})
+	if database.RedisURI != "" {
+		database.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: database.RedisURI})
 
 		go func() {
 			srv := asynq.NewServer(
-				asynq.RedisClientOpt{Addr: DB.RedisURI},
+				asynq.RedisClientOpt{Addr: database.RedisURI},
 				asynq.Config{
 					Concurrency: 10, // รันพร้อมกันได้ 10 task
 				},
@@ -70,6 +53,22 @@ func main() {
 		}()
 
 	}
+
+	// เชื่อมต่อกับ MongoDB
+	err := database.ConnectMongoDB()
+	if err != nil {
+		log.Fatalf("Error connecting to the database: %v", err)
+	}
+
+	// สร้าง app instance
+	app := fiber.New()
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     origins,
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowCredentials: false, // ❌ ต้องเป็น false ถ้าใช้ "*"
+	}))
 
 	// เปิดใช้งาน Swagger ที่ URL /swagger
 	app.Get("/swagger/*", swagger.HandlerDefault)
