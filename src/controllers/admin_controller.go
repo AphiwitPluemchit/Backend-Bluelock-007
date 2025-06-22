@@ -5,6 +5,7 @@ import (
 	"Backend-Bluelock-007/src/services/admins"
 	"Backend-Bluelock-007/src/utils"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -21,18 +22,36 @@ import (
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /admins [post]
 func CreateAdmin(c *fiber.Ctx) error {
-	var admin models.Admin
-	if err := c.BodyParser(&admin); err != nil {
+	var req struct {
+		Name     string `json:"name"`     // โปรไฟล์
+		Email    string `json:"email"`    // auth
+		Password string `json:"password"` // auth
+	}
+
+	// ✅ ดึงข้อมูลจาก Body
+	if err := c.BodyParser(&req); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid input: "+err.Error())
 	}
 
-	err := admins.CreateAdmin(&admin)
+	// ✅ เตรียม Admin (Profile)
+	admin := models.Admin{
+		Name: req.Name,
+	}
+
+	// ✅ เตรียม User (Auth)
+	user := models.User{
+		Email:    strings.ToLower(req.Email),
+		Password: req.Password,
+	}
+
+	// ✅ เรียกใช้ service
+	err := admins.CreateAdmin(&user, &admin)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Error creating admin: "+err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "Admin created successfully 12345",
+		"message": "Admin created successfully",
 		"admin":   admin,
 	})
 }

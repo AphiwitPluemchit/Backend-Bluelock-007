@@ -2,6 +2,7 @@ package services
 
 import (
 	"Backend-Bluelock-007/src/database"
+	"Backend-Bluelock-007/src/services/enrollments"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,14 +28,13 @@ func init() {
 	}
 }
 
-func GenerateCheckinUUID(activityItemId string, checkType string, userId string) (string, error) {
+func GenerateCheckinUUID(activityItemId string, checkType string) (string, error) {
 	id := uuid.NewString()
 	key := fmt.Sprintf("checkin:%s", id)
 
 	data := map[string]string{
 		"activityItemId": activityItemId,
 		"type":           checkType,
-		"lockedUserId":   userId,
 	}
 
 	jsonData, err := json.Marshal(data)
@@ -42,7 +42,7 @@ func GenerateCheckinUUID(activityItemId string, checkType string, userId string)
 		return "", err
 	}
 
-	err = database.RedisClient.Set(database.RedisCtx, key, jsonData, 1000*time.Second).Err()
+	err = database.RedisClient.Set(database.RedisCtx, key, jsonData, 10*time.Second).Err()
 	if err != nil {
 		return "", err
 	}
@@ -61,14 +61,9 @@ func Checkin(uuid, userId string) (bool, string) {
 	var data struct {
 		ActivityItemId string `json:"activityItemId"`
 		Type           string `json:"type"`
-		LockedUserId   string `json:"lockedUserId"`
 	}
 	if err := json.Unmarshal([]byte(val), &data); err != nil {
 		return false, "ข้อมูลใน QR ไม่ถูกต้อง"
-	}
-	println(data.LockedUserId, userId)
-	if data.LockedUserId != userId {
-		return false, "QR นี้ไม่ใช่ของคุณ หรือถูกแชร์ให้ผู้อื่น"
 	}
 
 	// Convert IDs
@@ -78,7 +73,12 @@ func Checkin(uuid, userId string) (bool, string) {
 		return false, "รหัสไม่ถูกต้อง"
 	}
 
-	// 🔒 ป้องกันเช็คชื่อซ้ำ
+	// ตรวจสอบว่านักศึกษาได้ลงทะเบียนกิจกรรมนี้หรือยัง
+	if !enrollments.IsStudentEnrolled(userId, data.ActivityItemId) {
+		return false, "คุณยังไม่ได้ลงทะเบียนกิจกรรมนี้"
+	}
+
+	// ป้องกันเช็คชื่อซ้ำใน type เดิม (เช่น checkin ซ้ำ)
 	filter := bson.M{
 		"userId":         uID,
 		"activityItemId": aID,
@@ -89,7 +89,7 @@ func Checkin(uuid, userId string) (bool, string) {
 		return false, fmt.Sprintf("คุณได้ %s แล้ว", data.Type)
 	}
 
-	// ✅ บันทึกการเช็คชื่อ
+	// บันทึกการเช็คชื่อ
 	_, err = checkInOutCollection.InsertOne(context.TODO(), bson.M{
 		"userId":         uID,
 		"activityItemId": aID,

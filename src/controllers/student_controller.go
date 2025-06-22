@@ -22,6 +22,7 @@ import (
 // @Failure 400 {object} map[string]interface{}
 // @Failure 409 {object} map[string]interface{}
 // @Router /students [post]
+// ✅ CreateStudent - เพิ่ม Student หลายคน
 func CreateStudent(c *fiber.Ctx) error {
 	var req []struct {
 		Name      string `json:"name"`
@@ -33,36 +34,38 @@ func CreateStudent(c *fiber.Ctx) error {
 		HardSkill int    `json:"hardSkill"`
 	}
 
-	// รับข้อมูลจาก body
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
 	}
 
-	// สำหรับเก็บ error ที่อาจเกิดขึ้น
 	var failed []string
 
-	// Loop เพื่อสร้าง Student ทีละคน
 	for _, studentData := range req {
+		// 👉 1. เตรียม Student profile
 		student := models.Student{
 			Code:      studentData.Code,
 			Name:      studentData.Name,
 			EngName:   studentData.EngName,
-			Email:     studentData.Code + "@go.buu.ac.th",                            // auto-generate email
-			Password:  studentData.Password,                                          // default password
-			Status:    calculateStatus(studentData.SoftSkill, studentData.HardSkill), // default status
-			SoftSkill: studentData.SoftSkill,                                         // ← ดึงจาก req
-			HardSkill: studentData.HardSkill,                                         // ← ดึงจาก req
+			Status:    calculateStatus(studentData.SoftSkill, studentData.HardSkill),
+			SoftSkill: studentData.SoftSkill,
+			HardSkill: studentData.HardSkill,
 			Major:     studentData.Major,
 		}
 
-		// เรียกใช้ service เพื่อสร้าง student
-		err := students.CreateStudent(&student)
+		// 👉 2. เตรียม User auth
+		user := models.User{
+			Email:    strings.ToLower(studentData.Code + "@go.buu.ac.th"),
+			Password: studentData.Password,
+		}
+
+		// 👉 3. สร้างผ่าน service (จะเชื่อม refId ให้ภายใน)
+		err := students.CreateStudent(&user, &student)
 		if err != nil {
-			failed = append(failed, student.Code) // เก็บรหัสนิสิตที่สร้างไม่สำเร็จ
+			log.Println("❌ Failed to create student:", student.Code, err)
+			failed = append(failed, student.Code)
 		}
 	}
 
-	// ถ้าล้มเหลวในการสร้างบางคน
 	if len(failed) > 0 {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{
 			"error":  "Failed to create some students",
@@ -169,16 +172,36 @@ func GetStudentByCode(c *fiber.Ctx) error {
 // @Router /students/{id} [put]
 func UpdateStudent(c *fiber.Ctx) error {
 	id := c.Params("id")
-	var student models.Student
 
-	if err := c.BodyParser(&student); err != nil {
+	// ✅ struct แยก สำหรับรับค่าจาก frontend
+	var req struct {
+		Name      string `json:"name"`
+		EngName   string `json:"engName"`
+		Code      string `json:"code"`
+		Major     string `json:"major"`
+		SoftSkill int    `json:"softSkill"`
+		HardSkill int    `json:"hardSkill"`
+		Email     string `json:"email"` // ✅ เพิ่ม email
+	}
+
+	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid input",
 		})
 	}
 
-	err := students.UpdateStudent(id, &student)
-	if err != nil {
+	// ✅ map เข้า model.Student
+	student := &models.Student{
+		Name:      req.Name,
+		EngName:   req.EngName,
+		Code:      req.Code,
+		Major:     req.Major,
+		SoftSkill: req.SoftSkill,
+		HardSkill: req.HardSkill,
+	}
+
+	// ✅ ส่งทั้ง student และ email แยกไป
+	if err := students.UpdateStudent(id, student, req.Email); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error updating student",
 		})
@@ -201,8 +224,8 @@ func UpdateStudent(c *fiber.Ctx) error {
 // @Router /students/{id} [delete]
 func DeleteStudent(c *fiber.Ctx) error {
 	id := c.Params("id")
-	err := students.DeleteStudent(id)
-	if err != nil {
+
+	if err := students.DeleteStudent(id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Error deleting student",
 		})

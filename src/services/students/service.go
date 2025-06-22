@@ -158,7 +158,7 @@ func GetStudentByCode(code string) (*models.Student, error) {
 }
 
 // ✅ ฟังก์ชันเข้ารหัส Password
-func HashPassword(password string) (string, error) {
+func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
@@ -182,12 +182,13 @@ func isStudentExists(code, email string) (bool, error) {
 	return count > 0, nil
 }
 
-// ✅ สร้าง Student พร้อมเพิ่ม User (ใช้ ID เดียวกัน)
-func CreateStudent(student *models.Student) error {
+// ✅ สร้าง Student พร้อมเพิ่ม User
+func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	exists, err := isStudentExists(student.Code, student.Email)
+	// 🔍 ตรวจว่าซ้ำหรือไม่
+	exists, err := isStudentExists(studentInput.Code, userInput.Email)
 	if err != nil {
 		return err
 	}
@@ -195,51 +196,63 @@ func CreateStudent(student *models.Student) error {
 		return errors.New("student already exists")
 	}
 
-	hashedPassword, err := HashPassword(student.Password)
+	// ✅ เข้ารหัสรหัสผ่าน
+	hashedPassword, err := hashPassword(userInput.Password)
 	if err != nil {
 		return errors.New("failed to hash password")
 	}
-	student.Password = hashedPassword
-	student.ID = primitive.NewObjectID() // ใช้ ID เดียวกันกับ User
+	userInput.Password = hashedPassword
 
-	_, err = studentCollection.InsertOne(ctx, student)
+	// ✅ สร้าง student ก่อน
+	studentInput.ID = primitive.NewObjectID()
+	_, err = studentCollection.InsertOne(ctx, studentInput)
 	if err != nil {
 		return err
 	}
 
-	user := models.User{
-		ID:        student.ID, // ใช้ ID เดียวกัน
-		Email:     student.Email,
-		Password:  student.Password,
-		Role:      "Student",
-		StudentID: &student.ID,
-		AdminID:   nil,
-	}
+	// ✅ สร้าง user โดยใช้ refId ไปยัง student
+	userInput.ID = primitive.NewObjectID()
+	userInput.Role = "Student"
+	userInput.RefID = studentInput.ID // 👈 จุดสำคัญ
+	userInput.Email = strings.ToLower(strings.TrimSpace(userInput.Email))
+
 	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.InsertOne(ctx, user)
+	_, err = userCollection.InsertOne(ctx, userInput)
 	if err != nil {
-		studentCollection.DeleteOne(ctx, bson.M{"_id": student.ID})
+		// rollback
+		studentCollection.DeleteOne(ctx, bson.M{"_id": studentInput.ID})
 		return err
 	}
 
 	return nil
 }
 
-// UpdateStudent - อัปเดตข้อมูลผู้ใช้
-func UpdateStudent(id string, student *models.Student) error {
+// UpdateStudent - อัปเดตข้อมูล Student และ sync ไปยัง User
+func UpdateStudent(id string, student *models.Student, email string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return errors.New("invalid student ID")
 	}
 
+	// ✅ อัปเดต student
 	filter := bson.M{"_id": objID}
 	update := bson.M{"$set": student}
+	if _, err := studentCollection.UpdateOne(context.Background(), filter, update); err != nil {
+		return err
+	}
 
-	_, err = studentCollection.UpdateOne(context.Background(), filter, update)
+	// ✅ Sync ทั้ง name และ email ไปยัง user
+	userCollection := database.GetCollection("BluelockDB", "users")
+	_, err = userCollection.UpdateOne(context.Background(),
+		bson.M{"refId": objID, "role": "student"},
+		bson.M{"$set": bson.M{
+			"name":  student.Name,
+			"email": email, // ✅ เพิ่ม email
+		}})
 	return err
 }
 
-// ✅ ลบ Student พร้อมลบ User ที่เกี่ยวข้อง
+// DeleteStudent - ลบ Student พร้อมลบ User ที่อ้างถึง
 func DeleteStudent(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -247,11 +260,17 @@ func DeleteStudent(id string) error {
 	}
 
 	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
+
+	// ลบ user ที่ refId เป็น student.id และ role เป็น "student"
+	_, err = userCollection.DeleteOne(context.Background(), bson.M{
+		"refId": objID,
+		"role":  "student",
+	})
 	if err != nil {
 		return err
 	}
 
+	// ลบ student
 	_, err = studentCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
 	return err
 }

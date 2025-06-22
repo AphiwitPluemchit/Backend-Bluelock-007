@@ -532,6 +532,7 @@ func IsStudentEnrolled(studentId string, activityItemId string) bool {
 	aID, err2 := primitive.ObjectIDFromHex(activityItemId)
 
 	if err1 != nil || err2 != nil {
+		log.Printf("Invalid ObjectID: studentId=%s, activityItemId=%s", studentId, activityItemId)
 		return false
 	}
 
@@ -541,5 +542,10 @@ func IsStudentEnrolled(studentId string, activityItemId string) bool {
 	}
 
 	count, err := DB.EnrollmentCollection.CountDocuments(context.TODO(), filter)
-	return err == nil && count > 0
+	if err != nil {
+		log.Printf("MongoDB error when checking enrollment: %v", err)
+		return false
+	}
+
+	return count > 0
 }
