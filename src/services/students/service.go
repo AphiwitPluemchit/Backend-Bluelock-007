@@ -215,6 +215,7 @@ func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	userInput.Role = "Student"
 	userInput.RefID = studentInput.ID // 👈 จุดสำคัญ
 	userInput.Email = strings.ToLower(strings.TrimSpace(userInput.Email))
+	userInput.IsActive = true
 
 	userCollection := database.GetCollection("BluelockDB", "users")
 	_, err = userCollection.InsertOne(ctx, userInput)
@@ -276,6 +277,7 @@ func DeleteStudent(id string) error {
 }
 
 // ✅ UpdateStatusToZero - เปลี่ยนสถานะนิสิตเป็น 0
+
 func UpdateStatusToZero(studentID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -286,15 +288,23 @@ func UpdateStatusToZero(studentID string) error {
 		return err
 	}
 
-	// ค้นหานิสิตตาม ID และอัพเดตสถานะเป็น 0
+	// ✅ อัปเดต status เป็น 0
 	filter := bson.M{"_id": objectID}
 	update := bson.M{"$set": bson.M{"status": 0}}
 
-	// Update นิสิทธ์ใน MongoDB
-	_, err = studentCollection.UpdateOne(ctx, filter, update)
-	if err != nil {
+	if _, err := studentCollection.UpdateOne(ctx, filter, update); err != nil {
 		return err
 	}
 
+	userCollection := database.GetCollection("BluelockDB", "users")
+	_, err = userCollection.UpdateOne(ctx, bson.M{
+		"refId": objectID,
+		"role":  "Student",
+	}, bson.M{
+		"$set": bson.M{"isActive": false},
+	})
+	if err != nil {
+		return err
+	}
 	return nil
 }

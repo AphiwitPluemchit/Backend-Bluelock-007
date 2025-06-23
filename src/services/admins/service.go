@@ -122,6 +122,7 @@ func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
 	userInput.ID = primitive.NewObjectID()
 	userInput.Role = "Admin"
 	userInput.RefID = adminInput.ID
+	userInput.IsActive = true
 
 	userCollection := database.GetCollection("BluelockDB", "users")
 	_, err = userCollection.InsertOne(ctx, userInput)
@@ -138,9 +139,23 @@ func UpdateAdmin(id string, admin *models.Admin) error {
 	if err != nil {
 		return errors.New("invalid admin ID")
 	}
+
 	filter := bson.M{"_id": objID}
 	update := bson.M{"$set": admin}
 	_, err = adminCollection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
+
+	// ✅ sync ชื่อใน users ด้วย
+	userCollection := database.GetCollection("BluelockDB", "users")
+	_, err = userCollection.UpdateOne(context.Background(), bson.M{
+		"refId": objID,
+		"role":  "Admin",
+	}, bson.M{
+		"$set": bson.M{"name": admin.Name},
+	})
+
 	return err
 }
 
@@ -150,13 +165,20 @@ func DeleteAdmin(id string) error {
 		return errors.New("invalid admin ID")
 	}
 	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
+
+	// 🔧 ควรลบจาก user โดยใช้ refId ไม่ใช่ _id
+	_, err = userCollection.DeleteOne(context.Background(), bson.M{
+		"refId": objID,
+		"role":  "Admin",
+	})
 	if err != nil {
 		return err
 	}
+
 	_, err = adminCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
 	return err
 }
+
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
