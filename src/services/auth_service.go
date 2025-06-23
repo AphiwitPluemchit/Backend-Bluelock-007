@@ -33,6 +33,7 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		Email: dbUser.Email,
 		Role:  dbUser.Role,
 		RefID: dbUser.RefID,
+		Code:  dbUser.Code,
 	}
 
 	// 🔍 ดึง name จาก profile ตาม role
@@ -45,6 +46,7 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		if err == nil {
 			result.ID = student.ID
 			result.Name = student.Name
+			result.Code = student.Code
 		}
 	case "Admin":
 		var admin models.Admin

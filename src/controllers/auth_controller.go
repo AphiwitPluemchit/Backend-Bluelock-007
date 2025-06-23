@@ -33,9 +33,10 @@ func LoginUser(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"token": token,
 		"user": fiber.Map{
-			"id":    user.ID.Hex(),
+			"id":    user.RefID.Hex(),
 			"name":  user.Name,
 			"email": user.Email,
+			"code":  user.Code,
 			"role":  user.Role,
 		},
 	})

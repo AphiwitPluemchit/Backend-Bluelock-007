@@ -10,4 +10,5 @@ type User struct {
 	Role     string             `bson:"role" json:"role"`
 	RefID    primitive.ObjectID `bson:"refId" json:"refId"`
 	Name     string             `bson:"-" json:"name"`
+	Code     string             `bson:"-" json:"code"`
 }

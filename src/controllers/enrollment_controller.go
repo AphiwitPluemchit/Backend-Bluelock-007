@@ -176,7 +176,7 @@ func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 // @Param        studentId path string true "Student ID"
 // @Param        activityId path string true "Activity ID"
 // @Failure      400  {object}  models.ErrorResponse
-// @Failure      500  {object}  models.ErrorResponse	
+// @Failure      500  {object}  models.ErrorResponse
 // @Router       /enrollments/student/{studentId}/activity/{activityId} [get]
 func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 	studentIDHex := c.Params("studentId")
@@ -192,13 +192,14 @@ func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid activityId"})
 	}
 
-	isEnrolled, enrollmentID, err := enrollments.IsStudentEnrolledInActivity(studentID, activityID)
+	isEnrolled, enrollmentID, actiactivityItemID, err := enrollments.IsStudentEnrolledInActivity(studentID, activityID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
-		"isEnrolled":   isEnrolled,
-		"enrollmentId": enrollmentID.Hex(),
+		"isEnrolled":     isEnrolled,
+		"enrollmentId":   enrollmentID.Hex(),
+		"activityItemId": actiactivityItemID.Hex(),
 	})
 }
