@@ -19,7 +19,18 @@ func getLightweightActivitiesPipeline(
 	majors []string, studentYears []int,
 ) mongo.Pipeline {
 
-	loc, _ := time.LoadLocation("Asia/Bangkok")
+	// โหลด Timezone สำหรับ "Asia/Bangkok"
+	// ควรมีการจัดการ error หากโหลดไม่ได้
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		// หากโหลด Timezone ไม่ได้ ให้ log error และอาจจะใช้ UTC แทน
+		// หรือ panic ถ้าถือว่าเป็นข้อผิดพลาดร้ายแรงที่ไม่สามารถดำเนินต่อได้
+		// สำหรับ Production ควร log error และหาวิธีจัดการที่เหมาะสม
+		fmt.Printf("Error loading timezone 'Asia/Bangkok': %v. Using UTC instead.", err)
+		loc = time.UTC // ใช้ UTC เป็น fallback
+		// UTC คือเวลามาตรฐานโลกที่ใช้เป็นจุดอ้างอิงสำหรับทุกโซนเวลา เช่น เวลาประเทศไทยเร็วกว่า UTC อยู่ 7 ชั่วโมง (UTC+7)
+	}
+
 	today := time.Now().In(loc).Format("2006-01-02")
 
 	pipeline := mongo.Pipeline{
