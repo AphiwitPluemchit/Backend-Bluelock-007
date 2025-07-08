@@ -21,12 +21,17 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		return nil, errors.New("Invalid email or password")
 	}
 
-	// ตรวจสอบ password
+	// ✅ ตรวจสอบสถานะการใช้งาน
+	if !dbUser.IsActive {
+		return nil, errors.New("บัญชีนี้ถูกระงับการใช้งาน")
+	}
+
+	// ✅ ตรวจสอบ password
 	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(password)); err != nil {
 		return nil, errors.New("Invalid password")
 	}
 
-	// เตรียม response
+	// ✅ เตรียมข้อมูล response
 	result := &models.User{
 		ID:    dbUser.ID,
 		Name:  dbUser.Name,
@@ -42,7 +47,6 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		var student models.Student
 		studentCol := database.GetCollection("BluelockDB", "students")
 		err := studentCol.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
-		println(student.Name)
 		if err == nil {
 			result.ID = student.ID
 			result.Name = student.Name
@@ -52,7 +56,6 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		var admin models.Admin
 		adminCol := database.GetCollection("BluelockDB", "admins")
 		err := adminCol.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
-		println(admin.Name)
 		if err == nil {
 			result.ID = admin.ID
 			result.Name = admin.Name
