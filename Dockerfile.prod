@@ -1,0 +1,41 @@
+# Stage 1: Build Golang Application
+FROM golang:1.24.0 AS builder
+
+# ตั้งค่า Working Directory ใน Container
+WORKDIR /app
+
+# คัดลอก go.mod และ go.sum ไปก่อนเพื่อลดเวลาการ build
+COPY go.mod go.sum ./
+
+# Download dependencies (ใช้ go mod download หรือ go mod tidy ตามความเหมาะสม)
+RUN go mod tidy
+
+# คัดลอกโค้ดทั้งหมดเข้า Container
+COPY . .
+
+
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+RUN swag init -g src/main.go
+
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./src/main.go
+
+
+FROM alpine:latest
+
+# ติดตั้ง tzdata เพื่อให้ Timezone ทำงานได้ถูกต้อง
+RUN apk add --no-cache tzdata
+
+# ตั้งค่า Working Directory
+WORKDIR /app
+
+# คัดลอก Binary จาก Stage 1
+COPY --from=builder /app/main .
+
+COPY --from=builder /app/docs ./docs
+
+
+EXPOSE 8888
+
+# รันแอป
+CMD ["./main"]
