@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -26,8 +27,18 @@ var (
 
 // ConnectMongoDB เชื่อมต่อกับ MongoDB แค่ครั้งเดียว
 func ConnectMongoDB() error {
+
+	// โหลดค่า Environment Variables จากไฟล์ .env
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("⚠️ Warning: No .env file found")
+	}
+
 	// ดึงค่าจาก Environment Variable
 	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		log.Fatal("❌ MONGO_URI environment variable not set. Please create a .env file and set it.")
+	}
 
 	once.Do(func() { // ✅ Run only once
 		clientOptions := options.Client().ApplyURI(mongoURI)

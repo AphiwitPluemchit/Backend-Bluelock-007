@@ -28,6 +28,15 @@ func main() {
 	if origins == "" {
 		origins = "*"
 	}
+
+	// เชื่อมต่อกับ MongoDB
+	err := database.ConnectMongoDB()
+	if err != nil {
+		log.Fatalf("Error connecting to the database: %v", err)
+	}
+
+	fmt.Println("🚀 Server is starting...", origins)
+
 	// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
 	database.InitRedis()
 	// ✅ สร้าง Asynq Client และเริ่มรัน Asynq Worker
@@ -52,12 +61,6 @@ func main() {
 			}
 		}()
 
-	}
-
-	// เชื่อมต่อกับ MongoDB
-	err := database.ConnectMongoDB()
-	if err != nil {
-		log.Fatalf("Error connecting to the database: %v", err)
 	}
 
 	// สร้าง app instance
