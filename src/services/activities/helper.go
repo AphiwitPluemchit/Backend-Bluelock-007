@@ -264,7 +264,9 @@ func countActivities(ctx context.Context, filter bson.M, majors []string, studen
 func populateEnrollmentCounts(ctx context.Context, activities []models.ActivityDto) {
 	for i, activity := range activities {
 		for j, item := range activity.ActivityItems {
-			count, err := database.ActivityCollection.CountDocuments(ctx, bson.M{"activityItemId": item.ID})
+			count, err := database.EnrollmentCollection.CountDocuments(ctx, bson.M{
+				"activityItemId": item.ID,
+			})
 			if err == nil {
 				activities[i].ActivityItems[j].EnrollmentCount = int(count)
 			}
