@@ -16,6 +16,12 @@ import (
 	"github.com/hibiken/asynq"
 )
 
+// @title Bluelock API
+// @version 1.0
+// @description This is the API documentation for Bluelock project.
+// @host 
+// @BasePath /api
+
 func main() {
 
 	// get url from .env

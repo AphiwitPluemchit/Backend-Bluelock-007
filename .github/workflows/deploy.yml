@@ -1,0 +1,44 @@
+name: Deploy Backend & Docker Compose
+
+on:
+  push:
+    branches:
+      - main # ทริกเกอร์เมื่อมีการ Push ไปที่ main branch
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted # บอก GitHub ให้ใช้ Self-Hosted Runner ของคุณ
+
+    steps:
+      - name: Checkout Backend Code # Step นี้จะ Checkout โค้ดของ Backend Repository ปัจจุบัน
+        # actions/checkout@v4 เป็น Action มาตรฐานสำหรับการ Checkout Git repository
+        # มันจะ Checkout โค้ดไปยัง Workspace ชั่วคราวของ Runner
+        # (เช่น /home/dev1/actions-runner/_work/Backend-Bluelock-007/Backend-Bluelock-007)
+        uses: actions/checkout@v4
+
+      - name: Sync Backend Code to Deployment Directory # คัดลอกโค้ด Backend ที่ Checkout มา ไปยังโฟลเดอร์จริงบน Server
+        run: |
+          rsync -av --delete --exclude '.git/' "${GITHUB_WORKSPACE}/" "/home/dev1/bluelocks/Backend-Bluelock-007/"
+
+      - name: Pull Frontend Code # ดึงโค้ด Frontend ล่าสุด (ในกรณีที่ Backend อัปเดต Frontend อาจจะไม่อัปเดต)
+        run: |
+          cd /home/dev1/bluelocks/Fronend-Bluelock-007/
+          git pull origin main # ดึงโค้ดจาก main branch ของ Frontend
+
+      - name: Build and Deploy Docker Compose # รันคำสั่ง Docker Compose
+          # หยุดและลบ Docker Container และ Volume เก่า
+          # สร้าง Docker Image ใหม่ (ไม่ใช้ Cache)
+          # สร้างและรัน Container ใหม่
+        run: |
+          cd /home/dev1/bluelocks/ # เข้าไปที่โฟลเดอร์ที่มี docker-compose.yml
+          docker compose down --volumes         
+          docker compose build --no-cache       
+          docker compose up -d --force-recreate 
+
+      - name: Clean up Runner Workspace (Optional but Recommended)
+        run: |
+          # ลบไฟล์ใน workspace ชั่วคราวของ Runner เพื่อประหยัดพื้นที่
+          rm -rf "${GITHUB_WORKSPACE}"
