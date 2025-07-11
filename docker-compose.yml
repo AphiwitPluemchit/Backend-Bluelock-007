@@ -20,8 +20,8 @@ services:
   # ยังไม่มี port ให้ใช้ ว่าจะทำเป็น reverse proxy ผ่าน nginx
   asynqmon:
     image: hibiken/asynqmon
-    ports:
-      - "8080:8080"
+    # ports:
+    #   - "8080:8080"
     environment:
       - REDIS_ADDR=redis:6379
     depends_on:
