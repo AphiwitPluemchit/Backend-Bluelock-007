@@ -52,38 +52,32 @@ func GenerateCheckinUUID(activityId string, checkType string) (string, error) {
 }
 func Checkin(uuid, userId string) (bool, string) {
 	key := fmt.Sprintf("checkin:%s", uuid)
-
 	val, err := database.RedisClient.Get(database.RedisCtx, key).Result()
-	fmt.Println("Redis Value:", val)
-
 	if err != nil {
 		return false, "QR code หมดอายุหรือไม่ถูกต้อง"
 	}
 
 	var data struct {
-		ActivityId string `json:"activityId"` // 🔄 เปลี่ยนจาก ActivityItemId
-		Type       string `json:"type"`
+		ActivityId string `json:"activityId"`
+		Type       string `json:"type"` // checkin หรือ checkout
 	}
 	if err := json.Unmarshal([]byte(val), &data); err != nil {
-		return false, "ข้อมูลใน QR ไม่ถูกต้อง"
+		return false, "ข้อมูล QR ไม่ถูกต้อง"
 	}
-	fmt.Println("data.ActivityId:", data.ActivityId)
-	fmt.Println("userId:", userId)
 
-	// ✅ ดึง activityItemId ที่นิสิตลงทะเบียนไว้ โดย matching กับ activityId
 	enrolledItemID, found := enrollments.FindEnrolledItem(userId, data.ActivityId)
 	if !found {
 		return false, "คุณยังไม่ได้ลงทะเบียนกิจกรรมนี้"
 	}
 
-	// ✅ แปลง ObjectID
+	// Convert ObjectID
 	uID, err1 := primitive.ObjectIDFromHex(userId)
 	aID, err2 := primitive.ObjectIDFromHex(enrolledItemID)
 	if err1 != nil || err2 != nil {
 		return false, "รหัสไม่ถูกต้อง"
 	}
 
-	// 🔁 ป้องกันการเช็คชื่อซ้ำใน type เดียวกัน
+	// ป้องกันเช็คชื่อซ้ำ
 	filter := bson.M{
 		"userId":         uID,
 		"activityItemId": aID,
@@ -94,7 +88,7 @@ func Checkin(uuid, userId string) (bool, string) {
 		return false, fmt.Sprintf("คุณได้ %s แล้ว", data.Type)
 	}
 
-	// ✅ บันทึกเวลาที่เช็คชื่อ
+	// ✅ Insert
 	_, err = checkInOutCollection.InsertOne(context.TODO(), bson.M{
 		"userId":         uID,
 		"activityItemId": aID,
@@ -107,7 +101,8 @@ func Checkin(uuid, userId string) (bool, string) {
 
 	return true, fmt.Sprintf("%s สำเร็จ", data.Type)
 }
-func Checkout(uuid, userId string) (bool, string) {
+
+func Checkout(uuid, userId, evaluationId string) (bool, string) {
 	key := fmt.Sprintf("checkin:%s", uuid)
 
 	val, err := database.RedisClient.Get(database.RedisCtx, key).Result()
@@ -157,7 +152,9 @@ func Checkout(uuid, userId string) (bool, string) {
 		"activityItemId": aID,
 		"type":           data.Type,
 		"checkedAt":      time.Now(),
+		"evaluationId":   evaluationId, // ✅ เพิ่มตรงนี้เท่านั้น
 	})
+
 	if err != nil {
 		return false, "ไม่สามารถบันทึกข้อมูลได้"
 	}

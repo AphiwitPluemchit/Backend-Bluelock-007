@@ -34,7 +34,7 @@ func Checkin(c *fiber.Ctx) error {
 	uuid := c.Params("uuid")
 
 	var body struct {
-		UserId string `json:"userId"` // จาก client ที่สแกน
+		UserId string `json:"userId"` // ✅ รับจาก frontend
 	}
 	if err := c.BodyParser(&body); err != nil || body.UserId == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ userId"})
@@ -46,22 +46,25 @@ func Checkin(c *fiber.Ctx) error {
 	}
 	return c.Status(401).JSON(fiber.Map{"error": msg})
 }
+
 func Checkout(c *fiber.Ctx) error {
 	uuid := c.Params("uuid")
 
 	var body struct {
-		UserId string `json:"userId"` // จาก client ที่สแกน
+		UserId       string `json:"userId"`
+		EvaluationId string `json:"evaluationId"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.UserId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ userId"})
+	if err := c.BodyParser(&body); err != nil || body.UserId == "" || body.EvaluationId == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ userId และ evaluationId"})
 	}
 
-	success, msg := services.Checkout(uuid, body.UserId) // ✅ ใช้ฟังก์ชันเดียวกัน เพราะ type ต่างกัน
+	success, msg := services.Checkout(uuid, body.UserId, body.EvaluationId)
 	if success {
 		return c.JSON(fiber.Map{"message": msg, "uuid": uuid})
 	}
 	return c.Status(401).JSON(fiber.Map{"error": msg})
 }
+
 func GetCheckinStatus(c *fiber.Ctx) error {
 	studentId := c.Query("studentId")
 	activityItemId := c.Query("activityItemId")
