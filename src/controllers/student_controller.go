@@ -272,6 +272,15 @@ func UpdateStudentStatus(c *fiber.Ctx) error {
 		"message": "Student status updated to 0 successfully",
 	})
 }
+
+func GetSammaryByCode(c *fiber.Ctx) error {
+	code := c.Params("code")
+	student, err := students.GetSammaryByCode(code)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Student not found"})
+	}
+	return c.JSON(student)
+}
 func calculateStatus(softSkill, hardSkill int) int {
 	total := softSkill + hardSkill
 

@@ -15,4 +15,6 @@ func studentRoutes(app *fiber.App) {
 	studentRoutes.Put("/:id", controllers.UpdateStudent)                  // อัปเดตข้อมูลผู้ใช้
 	studentRoutes.Delete("/:id", controllers.DeleteStudent)               // ลบผู้ใช้
 	studentRoutes.Post("/update-status", controllers.UpdateStudentStatus) // สร้างผู้ใช้ใหม่
+	studentRoutes.Get("sammary/:code", controllers.GetSammaryByCode)
+
 }

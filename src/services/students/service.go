@@ -308,3 +308,75 @@ func UpdateStatusToZero(studentID string) error {
 	}
 	return nil
 }
+
+func GetSammaryByCode(code string) (bson.M, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 🔍 ดึงข้อมูล student
+	var student models.Student
+	err := studentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student)
+	if err != nil {
+		return nil, errors.New("student not found")
+	}
+
+	// 🔄 Pipeline สำหรับหาประวัติ
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"studentId": student.ID}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "activityItems",
+			"localField":   "activityItemId",
+			"foreignField": "_id",
+			"as":           "activityItem",
+		}}},
+		{{Key: "$unwind", Value: "$activityItem"}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "activitys",
+			"localField":   "activityItem.activityId",
+			"foreignField": "_id",
+			"as":           "activity",
+		}}},
+		{{Key: "$unwind", Value: "$activity"}},
+		{{Key: "$project", Value: bson.M{
+			"_id":              0,
+			"registrationDate": "$registrationDate",
+			"activity": bson.M{
+				"id":            "$activity._id",
+				"name":          "$activity.name",
+				"type":          "$activity.type",
+				"activityState": "$activity.activityState",
+				"skill":         "$activity.skill",
+				"activityItem": bson.M{
+					"id":          "$activityItem._id",
+					"name":        "$activityItem.name",
+					"dates":       "$activityItem.dates",
+					"hour":        "$activityItem.hour",
+					"operator":    "$activityItem.operator",
+					"description": "$activityItem.description",
+				},
+			},
+		}}},
+	}
+
+	cursor, err := database.EnrollmentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var history []bson.M
+	if err := cursor.All(ctx, &history); err != nil {
+		return nil, err
+	}
+
+	// ✅ return พร้อม history เต็ม
+	return bson.M{
+		"studentId": student.ID.Hex(),
+		"code":      student.Code,
+		"name":      student.Name,
+		"major":     student.Major,
+		"softSkill": student.SoftSkill,
+		"hardSkill": student.HardSkill,
+		"history":   history,
+	}, nil
+}
