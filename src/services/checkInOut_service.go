@@ -181,6 +181,9 @@ func GetCheckinStatus(studentId, activityItemId string) (map[string]interface{},
 	}
 	defer cursor.Close(context.TODO())
 
+	// โหลด timezone ประเทศไทย
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+
 	result := map[string]interface{}{
 		"checkIn":  nil,
 		"checkOut": nil,
@@ -195,10 +198,12 @@ func GetCheckinStatus(studentId, activityItemId string) (map[string]interface{},
 			continue
 		}
 
+		checkedTime := record.CheckedAt.In(loc) // แปลงเป็นเวลาไทย
+
 		if record.Type == "checkin" {
-			result["checkIn"] = record.CheckedAt
+			result["checkIn"] = checkedTime
 		} else if record.Type == "checkout" {
-			result["checkOut"] = record.CheckedAt
+			result["checkOut"] = checkedTime
 		}
 	}
 
