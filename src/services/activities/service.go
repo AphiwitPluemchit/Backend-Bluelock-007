@@ -27,7 +27,6 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	activityToInsert := models.Activity{
 		ID:            activity.ID,
 		Name:          activity.Name,
-		Type:          activity.Type,
 		ActivityState: activity.ActivityState,
 		Skill:         activity.Skill,
 		File:          activity.File,
@@ -306,7 +305,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 	update := bson.M{
 		"$set": bson.M{
 			"name":          activity.Name,
-			"type":          activity.Type,
 			"activityState": activity.ActivityState,
 			"skill":         activity.Skill,
 			"file":          activity.File,

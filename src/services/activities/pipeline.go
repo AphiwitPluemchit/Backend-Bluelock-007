@@ -88,7 +88,6 @@ func getLightweightActivitiesPipeline(
 				{Key: "_id", Value: "$_id"},
 				{Key: "nextDate", Value: bson.D{{Key: "$min", Value: "$activityItems.dates.date"}}}, // nextDate คือ array ของ
 				{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
-				{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
 				{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
 				{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
 				{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
@@ -451,7 +450,6 @@ func GetActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip 
 		{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: "$_id"},
 			{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
-			{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
 			{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
 			{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
 			{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
@@ -541,7 +539,6 @@ func GetAllActivityCalendarPipeline(startDateStr string, endDateStr string) mong
 		{{Key: "$project", Value: bson.M{
 			"id":              "$_id", // Exclude the default _id field
 			"name":            "$activityInfo.name",
-			"type":            "$activityInfo.type",
 			"activityState":   "$activityInfo.activityState",
 			"skill":           "$activityInfo.skill",
 			"foodVotes":       "$activityInfo.foodVotes",

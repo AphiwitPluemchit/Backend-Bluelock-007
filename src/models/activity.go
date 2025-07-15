@@ -6,7 +6,6 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 type Activity struct {
 	ID            primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	Name          *string            `json:"name" bson:"name" example:"Football Tournament"`
-	Type          string             `json:"type" bson:"type" example:"one"`
 	ActivityState string             `json:"activityState" bson:"activityState" example:"planning"`
 	Skill         string             `json:"skill" bson:"skill" example:"hard"`
 	EndDateEnroll string             `json:"endDateEnroll" bson:"endDateEnroll"`
