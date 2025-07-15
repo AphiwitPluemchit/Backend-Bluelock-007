@@ -343,6 +343,7 @@ func GetSammaryByCode(code string) (bson.M, error) {
 			"activity": bson.M{
 				"id":            "$activity._id",
 				"name":          "$activity.name",
+				"type":          "$activity.type",
 				"activityState": "$activity.activityState",
 				"skill":         "$activity.skill",
 				"activityItem": bson.M{

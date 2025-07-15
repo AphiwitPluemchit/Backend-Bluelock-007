@@ -440,6 +440,7 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 			"activity": bson.M{
 				"id":              "$activityDetails._id",
 				"name":            "$activityDetails.name",
+				"type":            "$activityDetails.type",
 				"adminId":         "$activityDetails.adminId",
 				"activityStateId": "$activityDetails.activityStateId",
 				"skillId":         "$activityDetails.skillId",
