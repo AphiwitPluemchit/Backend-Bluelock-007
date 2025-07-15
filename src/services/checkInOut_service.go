@@ -43,7 +43,7 @@ func GenerateCheckinUUID(activityId string, checkType string) (string, error) {
 		return "", err
 	}
 
-	err = database.RedisClient.Set(database.RedisCtx, key, jsonData, 10*time.Second).Err()
+	err = database.RedisClient.Set(database.RedisCtx, key, jsonData, 1000*time.Second).Err()
 	if err != nil {
 		return "", err
 	}
@@ -53,6 +53,8 @@ func GenerateCheckinUUID(activityId string, checkType string) (string, error) {
 func Checkin(uuid, userId string) (bool, string) {
 	key := fmt.Sprintf("checkin:%s", uuid)
 	val, err := database.RedisClient.Get(database.RedisCtx, key).Result()
+	fmt.Println("Redis Value:", val)
+
 	if err != nil {
 		return false, "QR code หมดอายุหรือไม่ถูกต้อง"
 	}
