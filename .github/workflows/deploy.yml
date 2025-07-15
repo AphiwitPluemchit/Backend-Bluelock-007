@@ -16,21 +16,21 @@ jobs:
       - name: Checkout Backend Code # Step นี้จะ Checkout โค้ดของ Backend Repository ปัจจุบัน
         uses: actions/checkout@v4
 
-      - name: Pull Backend 
+      - name: Pull Backend
         run: |
           cd /home/BUU/65160309/bluelock/Backend-Bluelock-007/
           git pull origin master
 
       - name: Build and Deploy Docker Compose # รันคำสั่ง Docker Compose
-        run:
-          cd /home/BUU/65160309/bluelock/
-          docker compose down  --volumes backend
-          docker compose build --no-cache backend
+        run: |
+          cd /home/BUU/65160309/bluelock/ && \
+          docker compose down --volumes backend && \
+          docker compose build --no-cache backend && \
           docker compose up -d --force-recreate backend
 
-        # for standalone 
+        # for standalone
         # run: |
-        #   cd /home/BUU/65160309/bluelock/Backend-Bluelock-007/ 
-        #   docker compose down --volumes         
-        #   docker compose build --no-cache       
-        #   docker compose up -d --force-recreate 
+        #   cd /home/BUU/65160309/bluelock/Backend-Bluelock-007/
+        #   docker compose down --volumes
+        #   docker compose build --no-cache
+        #   docker compose up -d --force-recreate
