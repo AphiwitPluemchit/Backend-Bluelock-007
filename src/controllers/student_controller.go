@@ -293,3 +293,11 @@ func calculateStatus(softSkill, hardSkill int) int {
 		return 1 // น้อยมาก
 	}
 }
+func GetSammaryAll(c *fiber.Ctx) error {
+	log.Println("==== CALLED GetSammaryAll ====") // เพิ่มบรรทัดนี้
+	summary, err := students.GetStudentSummary()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error generating summary"})
+	}
+	return c.JSON(summary)
+}

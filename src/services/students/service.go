@@ -380,3 +380,84 @@ func GetSammaryByCode(code string) (bson.M, error) {
 		"history":   history,
 	}, nil
 }
+
+// Summary struct สำหรับ response
+type SkillSummary struct {
+	Completed    int `json:"completed"`
+	NotCompleted int `json:"notCompleted"`
+	Progress     int `json:"progress"` // %
+}
+
+type StudentSummary struct {
+	Total          int          `json:"total"`
+	Completed      int          `json:"completed"`
+	NotCompleted   int          `json:"notCompleted"`
+	CompletionRate int          `json:"completionRate"` // %
+	SoftSkill      SkillSummary `json:"softSkill"`
+	HardSkill      SkillSummary `json:"hardSkill"`
+}
+
+// GetStudentSummary - summary ตาม format ที่ต้องการ
+func GetStudentSummary() (StudentSummary, error) {
+	const softSkillTarget = 30
+	const hordSkillTarget = 12
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cur, err := studentCollection.Find(ctx, bson.M{})
+	if err != nil {
+		return StudentSummary{}, err
+	}
+	defer cur.Close(ctx)
+
+	var students []models.Student
+	if err := cur.All(ctx, &students); err != nil {
+		return StudentSummary{}, err
+	}
+
+	total := len(students)
+	completed := 0
+	softCompleted := 0
+	hardCompleted := 0
+
+	for _, s := range students {
+		if s.SoftSkill >= softSkillTarget {
+			softCompleted++
+		}
+		if s.HardSkill >= hordSkillTarget {
+			hardCompleted++
+		}
+		if s.SoftSkill >= softSkillTarget && s.HardSkill >= hordSkillTarget {
+			completed++
+		}
+	}
+
+	notCompleted := total - completed
+
+	summary := StudentSummary{
+		Total:          total,
+		Completed:      completed,
+		NotCompleted:   notCompleted,
+		CompletionRate: percent(completed, total),
+		SoftSkill: SkillSummary{
+			Completed:    softCompleted,
+			NotCompleted: total - softCompleted,
+			Progress:     percent(softCompleted, total),
+		},
+		HardSkill: SkillSummary{
+			Completed:    hardCompleted,
+			NotCompleted: total - hardCompleted,
+			Progress:     percent(hardCompleted, total),
+		},
+	}
+	log.Printf("Student Summary: %+v", summary)
+	return summary, nil
+}
+
+func percent(part, total int) int {
+	if total == 0 {
+		return 0
+	}
+	return int(float64(part) / float64(total) * 100)
+}
