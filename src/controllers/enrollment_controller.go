@@ -3,6 +3,7 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/enrollments"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -71,14 +72,13 @@ func GetEnrollmentsByStudent(c *fiber.Ctx) error {
 	params.SortBy = c.Query("sortBy", "name")
 	params.Order = c.Query("order", "asc")
 
-	// ✅ 2. แปลง Query skill เป็น array
-	skillFilter := strings.Split(c.Query("skills"), ",")
-	if len(skillFilter) == 1 && skillFilter[0] == "" {
-		skillFilter = []string{}
-	}
-
-	// ✅ 3. เรียก service
-	activities, total, totalPages, err := enrollments.GetEnrollmentsByStudent(studentID, params, skillFilter)
+	// ✅ 2. รับ filter เพิ่มเติมเหมือน GetAllActivities
+	skillFilter := cleanList(strings.Split(c.Query("skill"), ","))
+	stateFilter := cleanList(strings.Split(c.Query("activityState"), ","))
+	log.Println("skillFilter:", skillFilter)
+	log.Println("stateFilter:", stateFilter)
+	// ✅ 3. เรียก service (ต้องปรับ service ให้รับ filter เพิ่ม)
+	activities, total, totalPages, err := enrollments.GetEnrollmentsByStudent(studentID, params, skillFilter, stateFilter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

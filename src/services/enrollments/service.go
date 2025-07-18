@@ -3,13 +3,11 @@ package enrollments
 import (
 	DB "Backend-Bluelock-007/src/database" // dot import
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services/activities"
 	"context"
 	"errors"
 	"fmt"
 	"log"
 	"math"
-	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -141,11 +139,15 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 }
 
 // ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
-func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ActivityDto, int64, int, error) {
+func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string, stateFilter []string) ([]models.ActivityDto, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// ✅ Step 1: ดึง activityItemIds จาก enrollment ที่ student ลงทะเบียน
+	// --- sanitize filter ---
+	skillFilter = filterEmpty(skillFilter)
+	stateFilter = filterEmpty(stateFilter)
+
+	// 1. ดึง activityIds ที่ student ลงทะเบียนไว้
 	matchStage := bson.D{{Key: "$match", Value: bson.M{"studentId": studentID}}}
 	lookupActivityItem := bson.D{{Key: "$lookup", Value: bson.M{
 		"from":         "activityItems",
@@ -171,10 +173,10 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	}
 	activityIDs := enrollmentResult[0]["activityIds"].(primitive.A)
 
-	// ✅ Step 2: Filter + Paginate + Lookup activities เหมือน GetAllActivities
+	// 2. Query activities (filter, paginate, sort ที่ระดับ activity)
 	skip := int64((params.Page - 1) * params.Limit)
 	sort := bson.D{{Key: params.SortBy, Value: 1}}
-	if strings.ToLower(params.Order) == "desc" {
+	if params.Order == "desc" {
 		sort[0].Value = -1
 	}
 
@@ -182,29 +184,65 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	if params.Search != "" {
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
 	}
-	if len(skillFilter) > 0 && skillFilter[0] != "" {
+	// --- เพิ่ม filter skill และ activityState ---
+	if len(skillFilter) > 0 {
 		filter["skill"] = bson.M{"$in": skillFilter}
 	}
+	if len(stateFilter) > 0 {
+		filter["activityState"] = bson.M{"$in": stateFilter}
+	}
 
-	total, err := DB.ActivityCollection.CountDocuments(ctx, filter)
+	count, err := DB.ActivityCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	pipeline := activities.GetActivitiesPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
-	cursor, err := DB.ActivityCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.ActivityCollection.Find(ctx, filter, &options.FindOptions{
+		Sort:  sort,
+		Skip:  &skip,
+		Limit: &[]int64{int64(params.Limit)}[0],
+	})
 	if err != nil {
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
 	var activities []models.ActivityDto
-	if err := cursor.All(ctx, &activities); err != nil {
-		return nil, 0, 0, err
+	for cursor.Next(ctx) {
+		var activity models.Activity
+		if err := cursor.Decode(&activity); err != nil {
+			continue
+		}
+		// ดึง activityItems ที่ student ลงทะเบียนไว้เท่านั้น
+		var items []models.ActivityItem
+		itemCursor, _ := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activity.ID, "_id": bson.M{"$in": enrollmentResult[0]["activityItemIds"].(primitive.A)}})
+		_ = itemCursor.All(ctx, &items)
+		activityDto := models.ActivityDto{
+			ID:            activity.ID,
+			Name:          activity.Name,
+			Type:          activity.Type,
+			ActivityState: activity.ActivityState,
+			Skill:         activity.Skill,
+			File:          activity.File,
+			FoodVotes:     activity.FoodVotes,
+			EndDateEnroll: activity.EndDateEnroll,
+			ActivityItems: ToActivityItemDto(items),
+		}
+		activities = append(activities, activityDto)
 	}
+	totalPages := int(math.Ceil(float64(count) / float64(params.Limit)))
+	return activities, int64(count), totalPages, nil
+}
 
-	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
-	return activities, total, totalPages, nil
+// --- helper สำหรับ sanitize filter ---
+func filterEmpty(arr []string) []string {
+	var result []string
+	for _, v := range arr {
+		if v != "" && v != "null" {
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 // ✅ 3. ยกเลิกการลงทะเบียน
@@ -586,4 +624,13 @@ func FindEnrolledItem(userId string, activityId string) (string, bool) {
 	}
 
 	return "", false
+}
+
+// --- helper สำหรับแปลง ActivityItem -> ActivityItemDto ---
+func ToActivityItemDto(items []models.ActivityItem) []models.ActivityItemDto {
+	result := make([]models.ActivityItemDto, len(items))
+	for i, v := range items {
+		result[i] = models.ActivityItemDto(v)
+	}
+	return result
 }
