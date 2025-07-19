@@ -65,7 +65,7 @@ func getLightweightActivitiesPipeline(
 	}
 
 	// ✅ เงื่อนไขถ้าอยากเรียงตามวันจัดที่ใกล้สุด
-	if sortField == "dates" && isSortNearest {
+	if sortField == "dates" {
 
 		pipeline = append(pipeline,
 			// Unwind activityItems
@@ -77,32 +77,35 @@ func getLightweightActivitiesPipeline(
 			bson.D{{Key: "$unwind", Value: bson.D{
 				{Key: "path", Value: "$activityItems.dates"},
 				{Key: "preserveNullAndEmptyArrays", Value: true},
-			}}},
+			}}})
 
-			// Match เฉพาะวันในอนาคต
-			bson.D{{Key: "$match", Value: bson.D{
+		// Match เฉพาะวันในอนาคต ของ open close activity
+		if isSortNearest {
+			pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
 				{Key: "activityItems.dates.date", Value: bson.D{{Key: "$gte", Value: today}}},
-			}}},
-			// Group เอาวันที่ใกล้ที่สุดต่อ activity
-			bson.D{{Key: "$group", Value: bson.D{
-				{Key: "_id", Value: "$_id"},
-				{Key: "nextDate", Value: bson.D{{Key: "$min", Value: "$activityItems.dates.date"}}}, // nextDate คือ array ของ
-				{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
-				{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
-				{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
-				{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
-				{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
-				{Key: "activityItems", Value: bson.D{{Key: "$first", Value: "$fullActivityItems"}}},
-			}}},
+			}}})
+		}
+		// Group เอาวันที่ใกล้ที่สุดต่อ activity
+		pipeline = append(pipeline, bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id"},
+			{Key: "nextDate", Value: bson.D{{Key: "$min", Value: "$activityItems.dates.date"}}}, // nextDate คือ array ของ
+			{Key: "name", Value: bson.D{{Key: "$first", Value: "$name"}}},
+			{Key: "type", Value: bson.D{{Key: "$first", Value: "$type"}}},
+			{Key: "activityState", Value: bson.D{{Key: "$first", Value: "$activityState"}}},
+			{Key: "skill", Value: bson.D{{Key: "$first", Value: "$skill"}}},
+			{Key: "file", Value: bson.D{{Key: "$first", Value: "$file"}}},
+			{Key: "activityItems", Value: bson.D{{Key: "$first", Value: "$fullActivityItems"}}},
+		}}},
 
 			// Sort nextDate
 			bson.D{{Key: "$sort", Value: bson.D{{Key: "nextDate", Value: sortOrder}}}},
 		)
-	} else if sortField == "dates" {
-		// ✅ กรณีใช้ field ปกติ
-		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{
-			{Key: sortField, Value: sortOrder},
-		}}})
+	} else if sortField != "" {
+		fmt.Println("sortField", sortField)
+		fmt.Println("sortOrder", sortOrder)
+		pipeline = append(pipeline,
+			bson.D{{Key: "$sort", Value: bson.D{{Key: sortField, Value: sortOrder}}}},
+		)
 	}
 
 	// ✅ pagination
