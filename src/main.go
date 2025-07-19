@@ -79,12 +79,12 @@ func main() {
 		AllowCredentials: false, // ❌ ต้องเป็น false ถ้าใช้ "*"
 	}))
 
-	// เปิดใช้งาน Swagger ที่ URL /swagger
-	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// Group API routes under /api
-	api := app.Group("/api")
-	routes.InitRoutes(api)
+	routes.InitRoutes(app)
+
+	// เปิดใช้งาน Swagger ที่ URL /swagger
+	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// ✅ ให้บริการไฟล์ใน uploads/activity/images/
 	app.Static("/uploads/activity/images", "./uploads/activity/images")
