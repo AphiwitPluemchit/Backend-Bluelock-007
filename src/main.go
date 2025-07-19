@@ -19,7 +19,7 @@ import (
 // @title Bluelock API
 // @version 1.0
 // @description This is the API documentation for Bluelock project.
-// @host 
+// @host
 // @BasePath /api
 
 func main() {

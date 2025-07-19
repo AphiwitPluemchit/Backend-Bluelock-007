@@ -23,6 +23,7 @@ var (
 	ActivityItemCollection *mongo.Collection // Renamed: exported
 	EnrollmentCollection   *mongo.Collection
 	StudentCollection      *mongo.Collection // Renamed: exported
+	CourseCollection       *mongo.Collection // ✅ เพิ่มตัวแปรนี้
 )
 
 // ConnectMongoDB เชื่อมต่อกับ MongoDB แค่ครั้งเดียว
@@ -57,6 +58,11 @@ func ConnectMongoDB() error {
 		}
 
 		log.Println("✅ MongoDB connected successfully")
+		ActivityCollection = GetCollection("bluelock", "activities")
+		ActivityItemCollection = GetCollection("bluelock", "activityItems")
+		EnrollmentCollection = GetCollection("bluelock", "enrollments")
+		StudentCollection = GetCollection("bluelock", "students")
+		CourseCollection = GetCollection("bluelock", "courses") // ✅ กำหนดค่าให้ CourseCollection
 		ListDatabases()
 	})
 

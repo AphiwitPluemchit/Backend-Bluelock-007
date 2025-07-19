@@ -5,6 +5,7 @@ import (
 )
 
 func InitRoutes(app *fiber.App) {
+	// Group API routes under /api
 	// เรียกใช้ฟังก์ชัน InitUserRoutes และ InitOrderRoutes
 	authRoutes(app)
 	activityRoutes(app)
@@ -17,6 +18,7 @@ func InitRoutes(app *fiber.App) {
 	studentRoutes(app)
 	suggestionRoutes(app)
 	ocrRoutes(app)
+	courseRoutes(app) // 👈 เพิ่มตรงนี้
 
 	// Route เช็คว่า API ทำงานอยู่
 	app.Get("/", func(c *fiber.Ctx) error {
