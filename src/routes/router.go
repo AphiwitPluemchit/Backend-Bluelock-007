@@ -21,7 +21,7 @@ func InitRoutes(router fiber.Router) {
 	courseRoutes(router) // 👈 เพิ่มตรงนี้
 
 	// Route เช็คว่า API ทำงานอยู่
-	router.Get("/", func(c *fiber.Ctx) error {
+	router.Get("/api", func(c *fiber.Ctx) error {
 		return c.SendString("✅ API is running...")
 	})
 
