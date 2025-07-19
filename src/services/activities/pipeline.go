@@ -484,8 +484,9 @@ func GetAllActivityCalendarPipeline(startDateStr string, endDateStr string) mong
 			"dates": bson.M{
 				"$elemMatch": bson.M{
 					"date": bson.M{
-						"$gte": startDateStr,
-						"$lte": endDateStr,
+						// ดึงเพิ่ม 6 วันข้างหน้าและ 6 วันข้างหลัง
+						"$gte": startDateStr + "-06",
+						"$lte": endDateStr + "+06",
 					},
 				},
 			},
