@@ -4,24 +4,24 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func InitRoutes(app *fiber.App) {
+func InitRoutes(router fiber.Router) {
 	// Group API routes under /api
 	// เรียกใช้ฟังก์ชัน InitUserRoutes และ InitOrderRoutes
-	authRoutes(app)
-	activityRoutes(app)
-	adminRoutes(app)
-	checkInOutRoutes(app)
-	enrollmentRoutes(app)
-	evaluationScoreRoutes(app)
-	foodRoutes(app)
-	formEvaluationRoutes(app)
-	studentRoutes(app)
-	suggestionRoutes(app)
-	ocrRoutes(app)
-	courseRoutes(app) // 👈 เพิ่มตรงนี้
+	authRoutes(router)
+	activityRoutes(router)
+	adminRoutes(router)
+	checkInOutRoutes(router)
+	enrollmentRoutes(router)
+	evaluationScoreRoutes(router)
+	foodRoutes(router)
+	formEvaluationRoutes(router)
+	studentRoutes(router)
+	suggestionRoutes(router)
+	ocrRoutes(router)
+	courseRoutes(router) // 👈 เพิ่มตรงนี้
 
 	// Route เช็คว่า API ทำงานอยู่
-	app.Get("/", func(c *fiber.Ctx) error {
+	router.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("✅ API is running...")
 	})
 

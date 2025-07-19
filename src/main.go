@@ -82,8 +82,9 @@ func main() {
 	// เปิดใช้งาน Swagger ที่ URL /swagger
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
-	// รวม routes จากแต่ละ module
-	routes.InitRoutes(app)
+	// Group API routes under /api
+	api := app.Group("/api")
+	routes.InitRoutes(api)
 
 	// ✅ ให้บริการไฟล์ใน uploads/activity/images/
 	app.Static("/uploads/activity/images", "./uploads/activity/images")

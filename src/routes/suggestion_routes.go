@@ -7,8 +7,8 @@ import (
 )
 
 // SuggestionRoutes กำหนดเส้นทางสำหรับ Suggestion API
-func suggestionRoutes(app *fiber.App) {
-	suggestionRoutes := app.Group("/suggestions")
+func suggestionRoutes(router fiber.Router) {
+	suggestionRoutes := router.Group("/suggestions")
 	suggestionRoutes.Get("/", controllers.GetSuggestions)         // ดึงผู้ใช้ทั้งหมด
 	suggestionRoutes.Post("/", controllers.CreateSuggestion)      // สร้างผู้ใช้ใหม่
 	suggestionRoutes.Get("/:id", controllers.GetSuggestionByID)   // ดึงข้อมูลผู้ใช้ตาม ID

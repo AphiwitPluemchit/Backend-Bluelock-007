@@ -7,8 +7,8 @@ import (
 )
 
 // AuthRoutes กำหนด route สำหรับ auth (login/logout/register)
-func authRoutes(app *fiber.App) {
-	auth := app.Group("/auth")
+func authRoutes(router fiber.Router) {
+	auth := router.Group("/auth")
 
 	auth.Post("/login", controllers.LoginUser) // 🔐 login
 }

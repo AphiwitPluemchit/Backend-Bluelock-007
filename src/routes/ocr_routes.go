@@ -12,12 +12,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func ocrRoutes(app *fiber.App) {
+func ocrRoutes(router fiber.Router) {
 	// Upload route
-	app.Post("/ocr/upload", uploadHandler)
+	router.Post("/ocr/upload", uploadHandler)
 
 	// Approve route
-	app.Post("/ocr/approve", approveHandler)
+	router.Post("/ocr/approve", approveHandler)
 }
 
 // uploadHandler จัดการการอัปโหลดไฟล์

@@ -7,8 +7,8 @@ import (
 )
 
 // ActivityRoutes กำหนดเส้นทางสำหรับ Activity API
-func activityRoutes(app *fiber.App) {
-	activityRoutes := app.Group("/activitys")
+func activityRoutes(router fiber.Router) {
+	activityRoutes := router.Group("/activitys")
 	activityRoutes.Get("/", controllers.GetAllActivities) // ดึงผู้ใช้ทั้งหมด
 	activityRoutes.Post("/", controllers.CreateActivity)  // สร้างผู้ใช้ใหม่
 	activityRoutes.Post(":id/image", controllers.UploadActivityImage)
