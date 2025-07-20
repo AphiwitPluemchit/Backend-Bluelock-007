@@ -3,6 +3,7 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/utils"
+	"fmt"
 	"strings"
 	"time"
 
@@ -34,10 +35,15 @@ func LoginUser(c *fiber.Ctx) error {
 	}
 
 	// 3. Rate limiting
-	if services.IsRateLimited(c.IP()) {
+	if services.IsRateLimited(req.Email) {
+		// คำนวณเวลาที่เหลือ
+		remainingTime := services.GetRemainingCooldownTime(req.Email)
 		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-			"error": "Too many login attempts. Please try again later.",
-			"code":  "RATE_LIMITED",
+			"error": fmt.Sprintf("Too many login attempts. Please try again in %d minutes and %d seconds.",
+				int(remainingTime.Minutes()),
+				int(remainingTime.Seconds())%60),
+			"code":          "RATE_LIMITED",
+			"remainingTime": int(remainingTime.Seconds()),
 		})
 	}
 
@@ -75,6 +81,7 @@ func LoginUser(c *fiber.Ctx) error {
 		"expiresIn": 3600,
 		"user": fiber.Map{
 			"id":          user.RefID.Hex(),
+			"code":        user.Code,
 			"name":        user.Name,
 			"email":       user.Email,
 			"role":        user.Role,

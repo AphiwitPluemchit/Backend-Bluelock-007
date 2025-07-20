@@ -16,38 +16,51 @@ import (
 )
 
 // Rate limiting variables
+// TODO: สำหรับ Production ควรใช้ Redis แทน memory เพื่อรองรับ multiple servers
 var (
-	loginAttempts = make(map[string][]time.Time)
+	loginAttempts = make(map[string][]time.Time) // key: "email"
 	attemptsMutex sync.RWMutex
 )
 
-// IsRateLimited ตรวจสอบ rate limiting สำหรับ IP
-func IsRateLimited(ip string) bool {
+// IsRateLimited ตรวจสอบ rate limiting สำหรับ email
+func IsRateLimited(email string) bool {
 	attemptsMutex.Lock()
 	defer attemptsMutex.Unlock()
 
+	key := strings.ToLower(email)
 	now := time.Now()
-	window := 5 * time.Minute // 15 นาที
-	maxAttempts := 5          // สูงสุด 5 ครั้ง
+	window := 5 * time.Minute         // 5 นาที
+	maxAttempts := 5                  // สูงสุด 5 ครั้ง
+	cooldownPeriod := 5 * time.Minute // รอ 5 นาทีหลังจากเกิน maxAttempts
 
 	// ลบ attempts ที่เก่ากว่า window
-	if attempts, exists := loginAttempts[ip]; exists {
+	if attempts, exists := loginAttempts[key]; exists {
 		var validAttempts []time.Time
 		for _, attempt := range attempts {
 			if now.Sub(attempt) < window {
 				validAttempts = append(validAttempts, attempt)
 			}
 		}
-		loginAttempts[ip] = validAttempts
+		loginAttempts[key] = validAttempts
 	}
 
 	// ตรวจสอบจำนวน attempts
-	if attempts, exists := loginAttempts[ip]; exists && len(attempts) >= maxAttempts {
-		return true
+	if attempts, exists := loginAttempts[key]; exists {
+		if len(attempts) >= maxAttempts {
+			// ตรวจสอบว่าเกิน cooldown period หรือยัง
+			oldestAttempt := attempts[0]
+			if now.Sub(oldestAttempt) < cooldownPeriod {
+				// ยังอยู่ในช่วง cooldown
+				return true
+			} else {
+				// ผ่าน cooldown period แล้ว ให้รีเซ็ต attempts
+				loginAttempts[key] = []time.Time{}
+			}
+		}
 	}
 
 	// เพิ่ม attempt ปัจจุบัน
-	loginAttempts[ip] = append(loginAttempts[ip], now)
+	loginAttempts[key] = append(loginAttempts[key], now)
 	return false
 }
 
@@ -88,6 +101,28 @@ func UpdateLastLogout(userID string) {
 	if err != nil {
 		log.Printf("Failed to update last logout for user %s: %v", userID, err)
 	}
+}
+
+// GetRemainingCooldownTime คำนวณเวลาที่เหลือสำหรับ email ที่ถูก rate limit
+func GetRemainingCooldownTime(email string) time.Duration {
+	attemptsMutex.RLock()
+	defer attemptsMutex.RUnlock()
+
+	key := strings.ToLower(email)
+	now := time.Now()
+	cooldownPeriod := 5 * time.Minute
+
+	if attempts, exists := loginAttempts[key]; exists && len(attempts) > 0 {
+		oldestAttempt := attempts[0]
+		elapsed := now.Sub(oldestAttempt)
+		remaining := cooldownPeriod - elapsed
+
+		if remaining > 0 {
+			return remaining
+		}
+	}
+
+	return 0
 }
 
 // extractStudentYearFromCode ดึงชั้นปีจากรหัสนิสิต
