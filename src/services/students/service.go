@@ -106,6 +106,14 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 	}
 	total := countResult.Total
 
+	// 🔗 Lookup email จาก users collection
+	pipeline = append(pipeline, bson.D{{Key: "$lookup", Value: bson.M{
+		"from":         "users",
+		"localField":   "_id",
+		"foreignField": "refId",
+		"as":           "user",
+	}}})
+
 	// 📌 Project เฉพาะฟิลด์ที่ต้องการ
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
 		"_id":       0,
@@ -117,6 +125,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 		"softSkill": 1,
 		"hardSkill": 1,
 		"major":     1,
+		"email":     bson.M{"$arrayElemAt": bson.A{"$user.email", 0}},
 	}}})
 
 	// 🔁 Sort, skip, limit
@@ -146,15 +155,49 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 	return results, total, totalPages, nil
 }
 
-// GetStudentByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code
-func GetStudentByCode(code string) (*models.Student, error) {
-	var student models.Student
-	err := studentCollection.FindOne(context.Background(), bson.M{"code": code}).Decode(&student)
+// GetStudentByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code พร้อม email
+func GetStudentByCode(code string) (bson.M, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"code": code}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "users",
+			"localField":   "_id",
+			"foreignField": "refId",
+			"as":           "user",
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"_id":       0,
+			"id":        "$_id",
+			"code":      1,
+			"name":      1,
+			"engName":   1,
+			"status":    1,
+			"softSkill": 1,
+			"hardSkill": 1,
+			"major":     1,
+			"email":     bson.M{"$arrayElemAt": bson.A{"$user.email", 0}},
+		}}},
+	}
+
+	cursor, err := studentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
+	defer cursor.Close(ctx)
 
-	return &student, nil
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	if len(results) == 0 {
+		return nil, errors.New("student not found")
+	}
+
+	return results[0], nil
 }
 
 // ✅ ฟังก์ชันเข้ารหัส Password
