@@ -481,14 +481,15 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 	return result[0], nil // ✅ ส่ง Object เดียว
 }
 
-func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool, primitive.ObjectID, primitive.ObjectID, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// ✅ 6. ดึงข้อมูล Enrollment ของ Student ใน Activity (รวม IsStudentEnrolledInActivity + GetEnrollmentByStudentAndActivity)
+func GetStudentEnrollmentInActivity(studentID, activityID primitive.ObjectID) (bson.M, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// 1️⃣ ดึง activityItems ทั้งหมดใน activity นี้
 	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
 	if err != nil {
-		return false, primitive.NilObjectID, primitive.NilObjectID, err
+		return nil, fmt.Errorf("error fetching activity items: %v", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -503,7 +504,7 @@ func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool
 	}
 
 	if len(itemIDs) == 0 {
-		return false, primitive.NilObjectID, primitive.NilObjectID, nil
+		return nil, errors.New("No activity items found for this activity")
 	}
 
 	// 2️⃣ ตรวจสอบว่านิสิตลงทะเบียนใน item ใดๆ เหล่านี้หรือไม่
@@ -519,12 +520,74 @@ func IsStudentEnrolledInActivity(studentID, activityID primitive.ObjectID) (bool
 	err = DB.EnrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return false, primitive.NilObjectID, primitive.NilObjectID, nil
+			return nil, errors.New("Student not enrolled in this activity")
 		}
-		return false, primitive.NilObjectID, primitive.NilObjectID, err
+		return nil, fmt.Errorf("database error: %v", err)
 	}
 
-	return true, enrollment.ID, enrollment.ActivityItemID, nil
+	// 3️⃣ Aggregate Query เพื่อดึงข้อมูลเต็มของ Enrollment ที่ตรงกับ Student และ ActivityItem
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID, "activityItemId": enrollment.ActivityItemID}}},
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "activityItems",
+			"localField":   "activityItemId",
+			"foreignField": "_id",
+			"as":           "activityItemDetails",
+		}}},
+		bson.D{{Key: "$unwind", Value: "$activityItemDetails"}},
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "activitys",
+			"localField":   "activityItemDetails.activityId",
+			"foreignField": "_id",
+			"as":           "activityDetails",
+		}}},
+		bson.D{{Key: "$unwind", Value: "$activityDetails"}},
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id":              0,
+			"id":               "$_id",
+			"registrationDate": "$registrationDate",
+			"studentId":        "$studentId",
+			"food":             "$food",
+			"activity": bson.M{
+				"id":              "$activityDetails._id",
+				"name":            "$activityDetails.name",
+				"adminId":         "$activityDetails.adminId",
+				"activityStateId": "$activityDetails.activityStateId",
+				"skillId":         "$activityDetails.skillId",
+				"majorIds":        "$activityDetails.majorIds",
+				"activityItems": bson.M{
+					"id":              "$activityItemDetails._id",
+					"activityId":      "$activityItemDetails.activityId",
+					"name":            "$activityItemDetails.name",
+					"maxParticipants": "$activityItemDetails.maxParticipants",
+					"description":     "$activityItemDetails.description",
+					"rooms":           "$activityItemDetails.rooms",
+					"startDate":       "$activityItemDetails.startDate",
+					"endDate":         "$activityItemDetails.endDate",
+					"duration":        "$activityItemDetails.duration",
+					"operator":        "$activityItemDetails.operator",
+					"hour":            "$activityItemDetails.hour",
+				},
+			},
+		}}},
+	}
+
+	cursor, err = DB.EnrollmentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("aggregation error: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var result []bson.M
+	if err := cursor.All(ctx, &result); err != nil {
+		return nil, fmt.Errorf("cursor error: %v", err)
+	}
+
+	if len(result) == 0 {
+		return nil, errors.New("Enrollment not found")
+	}
+
+	return result[0], nil
 }
 
 func isTimeOverlap(start1, end1, start2, end2 string) bool {
