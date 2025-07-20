@@ -8,8 +8,8 @@ import (
 )
 
 // StudentRoutes กำหนดเส้นทางสำหรับ Student API
-func studentRoutes(app *fiber.App) {
-	studentRoutes := app.Group("/students")
+func studentRoutes(router fiber.Router) {
+	studentRoutes := router.Group("/students")
 	studentRoutes.Get("/", controllers.GetStudents)                       // ดึงผู้ใช้ทั้งหมด
 	studentRoutes.Post("/", controllers.CreateStudent)                    // สร้างผู้ใช้ใหม่
 	studentRoutes.Get("/:code", controllers.GetStudentByCode)             // ดึงข้อมูลผู้ใช้ตาม ID

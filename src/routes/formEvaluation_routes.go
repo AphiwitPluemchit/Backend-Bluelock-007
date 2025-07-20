@@ -7,8 +7,8 @@ import (
 )
 
 // FormEvaluationRoutes กำหนดเส้นทางสำหรับ FormEvaluation API
-func formEvaluationRoutes(app *fiber.App) {
-	formEvaluationRoutes := app.Group("/formEvaluations")
+func formEvaluationRoutes(router fiber.Router) {
+	formEvaluationRoutes := router.Group("/formEvaluations")
 	// formEvaluationRoutes.Get("/", controllers.GetFormEvaluations)         // ดึงผู้ใช้ทั้งหมด
 	formEvaluationRoutes.Post("/", controllers.CreateFormEvaluation)      // สร้างผู้ใช้ใหม่
 	formEvaluationRoutes.Get("/:id", controllers.GetFormEvaluationByID)   // ดึงข้อมูลผู้ใช้ตาม ID

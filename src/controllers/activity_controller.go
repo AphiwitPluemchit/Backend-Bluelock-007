@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services/activities"
+	activities "Backend-Bluelock-007/src/services/activities"
 	"Backend-Bluelock-007/src/utils"
 	"fmt"
 	"log"

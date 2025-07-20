@@ -7,8 +7,8 @@ import (
 )
 
 // FoodRoutes กำหนดเส้นทางสำหรับ Food API
-func foodRoutes(app *fiber.App) {
-	foodRoutes := app.Group("/foods")
+func foodRoutes(router fiber.Router) {
+	foodRoutes := router.Group("/foods")
 	foodRoutes.Get("/", controllers.GetFoods)
 	foodRoutes.Post("/", controllers.CreateFood)
 	foodRoutes.Get("/:id", controllers.GetFoodByID)

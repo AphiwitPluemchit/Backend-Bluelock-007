@@ -7,8 +7,8 @@ import (
 )
 
 // EvaluationScoreRoutes กำหนดเส้นทางสำหรับ EvaluationScore API
-func evaluationScoreRoutes(app *fiber.App) {
-	evaluationScoreRoutes := app.Group("/evaluationScores")
+func evaluationScoreRoutes(router fiber.Router) {
+	evaluationScoreRoutes := router.Group("/evaluationScores")
 	// evaluationScoreRoutes.Get("/", controllers.GetEvaluationScores)         // ดึงผู้ใช้ทั้งหมด
 	evaluationScoreRoutes.Post("/", controllers.CreateEvaluationScore)      // สร้างผู้ใช้ใหม่
 	evaluationScoreRoutes.Get("/:id", controllers.GetEvaluationScoreByID)   // ดึงข้อมูลผู้ใช้ตาม ID

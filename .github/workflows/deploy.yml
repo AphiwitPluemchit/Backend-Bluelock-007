@@ -3,10 +3,10 @@ name: Deploy Backend & Docker Compose
 on:
   push:
     branches:
-      - master # ทริกเกอร์เมื่อมีการ Push ไปที่ main branch
+      - main # ทริกเกอร์เมื่อมีการ Push ไปที่ main branch
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   deploy:
@@ -19,7 +19,7 @@ jobs:
       - name: Pull Backend
         run: |
           cd /home/BUU/65160309/bluelock/Backend-Bluelock-007/
-          git pull origin master
+          git pull origin main
 
       - name: Build and Deploy Docker Compose # รันคำสั่ง Docker Compose
         run: |

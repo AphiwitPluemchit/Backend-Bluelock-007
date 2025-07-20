@@ -4,6 +4,9 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -13,10 +16,48 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// --- Redis Cache Helper ---
+func hashParams(params interface{}) string {
+	b, _ := json.Marshal(params)
+	h := sha1.New()
+	h.Write(b)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func setCache(key string, value interface{}, ttl time.Duration) {
+	if DB.RedisClient == nil { return }
+	b, _ := json.Marshal(value)
+	DB.RedisClient.Set(DB.RedisCtx, key, b, ttl)
+}
+
+func getCache(key string, dest interface{}) bool {
+	if DB.RedisClient == nil { return false }
+	val, err := DB.RedisClient.Get(DB.RedisCtx, key).Result()
+	if err != nil { return false }
+	return json.Unmarshal([]byte(val), dest) == nil
+}
+
+func delCache(keys ...string) {
+	if DB.RedisClient == nil { return }
+	DB.RedisClient.Del(DB.RedisCtx, keys...)
+}
+
+func invalidateAllActivitiesListCache() {
+	if DB.RedisClient == nil { return }
+	iter := DB.RedisClient.Scan(DB.RedisCtx, 0, "activities:list:*", 0).Iterator()
+	for iter.Next(DB.RedisCtx) {
+		DB.RedisClient.Del(DB.RedisCtx, iter.Val())
+	}
+}
+
+
 var ctx = context.Background()
 
 // CreateActivity - สร้าง Activity และ ActivityItems
 func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
+	// หลังจาก insert DB สำเร็จ ให้ invalidate cache list
+	defer invalidateAllActivitiesListCache()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -110,12 +151,21 @@ func GetAllActivities(params models.PaginationParams, skills, states, majors []s
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	key := buildActivitiesCacheKey(params, skills, states, majors, studentYears)
+	key := "activities:list:" + hashParams(struct{
+		Params      models.PaginationParams
+		Skills      []string
+		States      []string
+		Majors      []string
+		StudentYears []int
+	}{params, skills, states, majors, studentYears})
 
-	if DB.RedisURI != "" {
-		if cached, err := getActivitiesFromCache(key); err == nil && cached != nil {
-			return cached.Data, cached.Total, cached.TotalPages, nil
-		}
+	var cached struct {
+		Data       []models.ActivityDto
+		Total      int64
+		TotalPages int
+	}
+	if getCache(key, &cached) {
+		return cached.Data, cached.Total, cached.TotalPages, nil
 	}
 
 	filter, isSortNearest := buildActivitiesFilter(params, skills, states)
@@ -135,6 +185,13 @@ func GetAllActivities(params models.PaginationParams, skills, states, majors []s
 
 	populateEnrollmentCounts(ctx, results)
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+
+	setCache(key, struct {
+		Data       []models.ActivityDto
+		Total      int64
+		TotalPages int
+	}{results, total, totalPages}, 5*time.Minute)
+
 
 	if DB.RedisURI != "" {
 		cacheActivitiesResult(key, results, total, totalPages)
@@ -183,6 +240,11 @@ func GetAllActivityCalendar(month int, year int) ([]models.ActivityDto, error) {
 }
 
 func GetActivityByID(activityID string) (*models.ActivityDto, error) {
+	cacheKey := "activity:" + activityID
+	var cached models.ActivityDto
+	if getCache(cacheKey, &cached) {
+		return &cached, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -208,6 +270,7 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 			return nil, err
 		}
 
+		setCache(cacheKey, result, 5*time.Minute)
 		return &result, nil
 	}
 
@@ -299,6 +362,11 @@ func GetActivityItemsByActivityID(activityID primitive.ObjectID) ([]models.Activ
 }
 
 func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models.ActivityDto, error) {
+	defer func() {
+		invalidateAllActivitiesListCache()
+		delCache("activity:" + id.Hex())
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -479,6 +547,11 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 
 // DeleteActivity - ลบกิจกรรมและ ActivityItems ที่เกี่ยวข้อง
 func DeleteActivity(id primitive.ObjectID) error {
+	defer func() {
+		invalidateAllActivitiesListCache()
+		delCache("activity:" + id.Hex())
+	}()
+
 	// ลบ ActivityItems ที่เชื่อมโยงกับ Activity
 	_, err := DB.ActivityItemCollection.DeleteMany(ctx, bson.M{"activityId": id})
 	if err != nil {

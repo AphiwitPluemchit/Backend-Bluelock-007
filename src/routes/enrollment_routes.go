@@ -7,8 +7,8 @@ import (
 )
 
 // EnrollmentRoutes กำหนดเส้นทางสำหรับ Enrollment API
-func enrollmentRoutes(app *fiber.App) {
-	enrollmentRoutes := app.Group("/enrollments")
+func enrollmentRoutes(router fiber.Router) {
+	enrollmentRoutes := router.Group("/enrollments")
 	enrollmentRoutes.Post("/", controllers.CreateEnrollment)                                                                // ✅ ลงทะเบียน
 	enrollmentRoutes.Get("/student/:studentId", controllers.GetEnrollmentsByStudent)                                        // ✅ ดูกิจกรรมที่ Student ลงทะเบียนไว้
 	enrollmentRoutes.Delete("/:enrollmentId", controllers.DeleteEnrollment)                                                 // ✅ ยกเลิกลงทะเบียน
