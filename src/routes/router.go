@@ -15,6 +15,7 @@ func InitRoutes(app fiber.Router) {
 	evaluationScoreRoutes(app)
 	foodRoutes(app)
 	formEvaluationRoutes(app)
+	formRoutes(app) // 👈 เพิ่ม form routes
 	studentRoutes(app)
 	suggestionRoutes(app)
 	ocrRoutes(app)
