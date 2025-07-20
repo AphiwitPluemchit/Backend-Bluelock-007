@@ -319,8 +319,7 @@ func DeleteStudent(id string) error {
 	return err
 }
 
-// ✅ UpdateStatusToZero - เปลี่ยนสถานะนิสิตเป็น 0
-
+// ✅ UpdateStatusToZero - เปลี่ยนสถานะ isActive ใน users เป็น false และ status = 0
 func UpdateStatusToZero(studentID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -331,7 +330,7 @@ func UpdateStatusToZero(studentID string) error {
 		return err
 	}
 
-	// ✅ อัปเดต status เป็น 0
+	// ✅ อัปเดต status เป็น 0 ใน students collection
 	filter := bson.M{"_id": objectID}
 	update := bson.M{"$set": bson.M{"status": 0}}
 
@@ -339,6 +338,7 @@ func UpdateStatusToZero(studentID string) error {
 		return err
 	}
 
+	// ✅ อัปเดต isActive เป็น false ใน users collection
 	userCollection := database.GetCollection("BluelockDB", "users")
 	_, err = userCollection.UpdateOne(ctx, bson.M{
 		"refId": objectID,
@@ -440,15 +440,43 @@ type StudentSummary struct {
 	HardSkill      SkillSummary `json:"hardSkill"`
 }
 
-// GetStudentSummary - summary ตาม format ที่ต้องการ
-func GetStudentSummary() (StudentSummary, error) {
+// GetStudentSummary - summary ตาม format ที่ต้องการ (เฉพาะนักเรียนที่มี status ไม่ใช่ 0)
+func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, error) {
 	const softSkillTarget = 30
 	const hordSkillTarget = 12
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cur, err := studentCollection.Find(ctx, bson.M{})
+	// 🔍 สร้าง filter สำหรับ query
+	filter := bson.M{"status": bson.M{"$ne": 0}}
+
+	// 🔍 Filter by major
+	if len(majors) > 0 {
+		filter["major"] = bson.M{"$in": majors}
+	}
+
+	// 🔍 Filter by studentYears
+	if len(studentYears) > 0 {
+		// แปลง string เป็น int
+		intYears := make([]int, 0)
+		for _, y := range studentYears {
+			if v, err := strconv.Atoi(y); err == nil {
+				intYears = append(intYears, v)
+			}
+		}
+		if len(intYears) > 0 {
+			yearPrefixes := activities.GenerateStudentCodeFilter(intYears)
+			var regexFilters []bson.M
+			for _, prefix := range yearPrefixes {
+				regexFilters = append(regexFilters, bson.M{"code": bson.M{"$regex": "^" + prefix}})
+			}
+			filter["$or"] = regexFilters
+		}
+	}
+
+	// 🔍 ดึงข้อมูลนักเรียนตาม filter
+	cur, err := studentCollection.Find(ctx, filter)
 	if err != nil {
 		return StudentSummary{}, err
 	}
@@ -494,7 +522,7 @@ func GetStudentSummary() (StudentSummary, error) {
 			Progress:     percent(hardCompleted, total),
 		},
 	}
-	log.Printf("Student Summary: %+v", summary)
+	log.Printf("Student Summary (Status != 0): %+v", summary)
 	return summary, nil
 }
 
