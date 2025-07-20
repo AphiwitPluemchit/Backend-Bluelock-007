@@ -238,38 +238,39 @@ func DeleteStudent(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateStudentStatus godoc
-// @Summary Update student status to 0
-// @Description Set status of students to 0 by IDs
-// @Tags students
-// @Accept json
-// @Produce json
-// @Param ids body []map[string]string true "List of student IDs"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
-// @Router /students/status [patch]
-func UpdateStudentStatus(c *fiber.Ctx) error {
-	var req []struct {
-		ID string `json:"id"`
+// UpdateStudentStatusByIDs - อัปเดตสถานะนักเรียนหลายคนโดยใช้ ID
+func UpdateStudentStatusByIDs(c *fiber.Ctx) error {
+	type UpdateStatusRequest struct {
+		StudentIDs []string `json:"studentIds"`
 	}
 
-	// รับข้อมูลจาก body
+	var req UpdateStatusRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request format",
+			"code":  "INVALID_REQUEST",
+		})
 	}
 
-	// วนลูปอัพเดตสถานะของนิสิต
-	for _, studentData := range req {
-		// เรียกใช้ Service เพื่อเปลี่ยนสถานะของนิสิต
-		err := students.UpdateStatusToZero(studentData.ID)
-		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-		}
+	if len(req.StudentIDs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Student IDs are required",
+			"code":  "MISSING_IDS",
+		})
 	}
 
-	return c.Status(http.StatusOK).JSON(fiber.Map{
-		"message": "Student status updated to 0 successfully",
+	err := students.UpdateStudentStatusByIDs(req.StudentIDs)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update student status",
+			"code":  "UPDATE_FAILED",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Student status updated successfully",
+		"updated": len(req.StudentIDs),
+		"success": true,
 	})
 }
 

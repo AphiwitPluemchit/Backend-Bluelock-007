@@ -2,22 +2,19 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
-	"log"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 // StudentRoutes กำหนดเส้นทางสำหรับ Student API
 func studentRoutes(router fiber.Router) {
-	studentRoutes := router.Group("/students")
-	studentRoutes.Get("/", controllers.GetStudents)                       // ดึงผู้ใช้ทั้งหมด
-	studentRoutes.Post("/", controllers.CreateStudent)                    // สร้างผู้ใช้ใหม่
-	studentRoutes.Get("/:code", controllers.GetStudentByCode)             // ดึงข้อมูลผู้ใช้ตาม ID
-	studentRoutes.Put("/:id", controllers.UpdateStudent)                  // อัปเดตข้อมูลผู้ใช้
-	studentRoutes.Delete("/:id", controllers.DeleteStudent)               // ลบผู้ใช้
-	studentRoutes.Post("/update-status", controllers.UpdateStudentStatus) // สร้างผู้ใช้ใหม่
-	studentRoutes.Get("/report/sammary-all", controllers.GetSammaryAll)
-
-	studentRoutes.Get("/sammary/:code", controllers.GetSammaryByCode)
-	log.Println("Register route /students/sammary-all")
+	studentGroup := router.Group("/students")
+	studentGroup.Get("/", controllers.GetStudents)                                   // ดึงผู้ใช้ทั้งหมด
+	studentGroup.Post("/", controllers.CreateStudent)                                // สร้างผู้ใช้ใหม่
+	studentGroup.Get("/:code", controllers.GetStudentByCode)                         // ดึงข้อมูลผู้ใช้ตาม ID
+	studentGroup.Put("/:id", controllers.UpdateStudent)                              // อัปเดตข้อมูลผู้ใช้
+	studentGroup.Delete("/:id", controllers.DeleteStudent)                           // ลบผู้ใช้
+	studentGroup.Get("/report/sammary-all", controllers.GetSammaryAll)               // ดึงข้อมูลสรุปทั้งหมด
+	studentGroup.Get("/sammary/:code", controllers.GetSammaryByCode)                 // ดึงข้อมูลสรุปตามรหัส
+	studentGroup.Post("/update-status-by-ids", controllers.UpdateStudentStatusByIDs) // เพิ่ม route ใหม่
 }

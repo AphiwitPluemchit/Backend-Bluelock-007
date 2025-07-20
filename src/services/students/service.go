@@ -6,6 +6,7 @@ import (
 	"Backend-Bluelock-007/src/services/activities"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"strconv"
@@ -319,36 +320,59 @@ func DeleteStudent(id string) error {
 	return err
 }
 
-// ✅ UpdateStatusToZero - เปลี่ยนสถานะ isActive ใน users เป็น false และ status = 0
-func UpdateStatusToZero(studentID string) error {
+// UpdateStudentStatusByIDs - อัปเดตสถานะนักเรียนหลายคนโดยใช้ ID
+func UpdateStudentStatusByIDs(studentIDs []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// แปลง studentID จาก string เป็น ObjectID
-	objectID, err := primitive.ObjectIDFromHex(studentID)
-	if err != nil {
-		return err
+	studentCollection := database.GetCollection("BluelockDB", "students")
+	userCollection := database.GetCollection("BluelockDB", "users")
+
+	// แปลง string IDs เป็น ObjectIDs
+	var objectIDs []primitive.ObjectID
+	for _, id := range studentIDs {
+		objectID, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			return fmt.Errorf("invalid student ID: %s", id)
+		}
+		objectIDs = append(objectIDs, objectID)
 	}
 
-	// ✅ อัปเดต status เป็น 0 ใน students collection
-	filter := bson.M{"_id": objectID}
+	// อัปเดตสถานะนักเรียน
+	filter := bson.M{"_id": bson.M{"$in": objectIDs}}
 	update := bson.M{"$set": bson.M{"status": 0}}
 
-	if _, err := studentCollection.UpdateOne(ctx, filter, update); err != nil {
-		return err
+	result, err := studentCollection.UpdateMany(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update students: %v", err)
 	}
 
-	// ✅ อัปเดต isActive เป็น false ใน users collection
-	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.UpdateOne(ctx, bson.M{
-		"refId": objectID,
-		"role":  "Student",
-	}, bson.M{
-		"$set": bson.M{"isActive": false},
-	})
+	// ถ้าสถานะเป็น 0 (จัดเก็บ) ให้อัปเดต isActive ใน users collection ด้วย
+
+	// ดึง student IDs ที่อัปเดตแล้ว
+	var students []models.Student
+	cursor, err := studentCollection.Find(ctx, filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find updated students: %v", err)
 	}
+	defer cursor.Close(ctx)
+
+	if err = cursor.All(ctx, &students); err != nil {
+		return fmt.Errorf("failed to decode students: %v", err)
+	}
+
+	// อัปเดต isActive ใน users collection
+	for _, student := range students {
+		userFilter := bson.M{"refId": student.ID}
+		userUpdate := bson.M{"$set": bson.M{"isActive": false}}
+
+		_, err := userCollection.UpdateOne(ctx, userFilter, userUpdate)
+		if err != nil {
+			log.Printf("Failed to update user isActive for student %s: %v", student.ID.Hex(), err)
+		}
+	}
+
+	log.Printf("Updated %d students status to %d", result.ModifiedCount, 0)
 	return nil
 }
 
