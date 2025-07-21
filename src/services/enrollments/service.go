@@ -650,3 +650,41 @@ func FindEnrolledItem(userId string, activityId string) (string, bool) {
 
 	return "", false
 }
+
+// FindEnrolledItems คืน activityItemIds ทั้งหมดที่นิสิตลงทะเบียนไว้ใน activityId นี้
+func FindEnrolledItems(userId string, activityId string) ([]string, bool) {
+	uID, _ := primitive.ObjectIDFromHex(userId)
+	aID, _ := primitive.ObjectIDFromHex(activityId)
+
+	var enrolledItemIDs []string
+
+	// 1. ดึง enrollments ทั้งหมดของ userId
+	cursor, err := DB.EnrollmentCollection.Find(context.TODO(), bson.M{
+		"studentId": uID, // หรือ "userId" ถ้าคุณใช้ชื่อนี้
+	})
+	if err != nil {
+		return nil, false
+	}
+	defer cursor.Close(context.TODO())
+
+	// 2. เช็กแต่ละรายการว่า activityItemId → activityId ตรงหรือไม่
+	for cursor.Next(context.TODO()) {
+		var enrollment models.Enrollment
+		if err := cursor.Decode(&enrollment); err != nil {
+			continue
+		}
+
+		var item models.ActivityItem
+		err := DB.ActivityItemCollection.FindOne(context.TODO(), bson.M{
+			"_id": enrollment.ActivityItemID,
+		}).Decode(&item)
+		if err == nil && item.ActivityID == aID {
+			enrolledItemIDs = append(enrolledItemIDs, enrollment.ActivityItemID.Hex())
+		}
+	}
+
+	if len(enrolledItemIDs) == 0 {
+		return nil, false
+	}
+	return enrolledItemIDs, true
+}
