@@ -33,6 +33,27 @@ func CreateForm(ctx *fiber.Ctx) error {
 	return utils.SendSuccessResponse(ctx, "Form created successfully", result)
 }
 
+// DeleteForm handles DELETE /forms/:id
+func DeleteForm(ctx *fiber.Ctx) error {
+	formIDStr := ctx.Params("id")
+
+	formID, err := primitive.ObjectIDFromHex(formIDStr)
+	if err != nil {
+		return utils.SendErrorResponse(ctx, "Invalid form ID", 400)
+	}
+
+	// Call service to delete form
+	err = forms.DeleteForm(ctx.Context(), formID)
+	if err != nil {
+		if err.Error() == "form not found" {
+			return utils.SendErrorResponse(ctx, "Form not found", 404)
+		}
+		return utils.SendErrorResponse(ctx, err.Error(), 500)
+	}
+
+	return utils.SendSuccessResponse(ctx, "Form deleted successfully", nil)
+}
+
 // GetForms handles GET /forms
 func GetForms(ctx *fiber.Ctx) error {
 	// Parse pagination parameters
