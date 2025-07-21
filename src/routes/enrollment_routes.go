@@ -13,7 +13,6 @@ func enrollmentRoutes(router fiber.Router) {
 	enrollmentRoutes.Get("/student/:studentId", controllers.GetEnrollmentsByStudent)                                        // ✅ ดูกิจกรรมที่ Student ลงทะเบียนไว้
 	enrollmentRoutes.Delete("/:enrollmentId", controllers.DeleteEnrollment)                                                 // ✅ ยกเลิกลงทะเบียน
 	enrollmentRoutes.Get("/activity/:activityId", controllers.GetStudentsByActivity)                                        // ✅ Admin ดูนักศึกษาที่ลงทะเบียน
-	enrollmentRoutes.Get("/student/:studentId/activityItem/:activityItemId", controllers.GetEnrollmentByStudentAndActivity) // ✅ ดูกิจกรรมที่ลงทะเบียน (1 ตัว)
-	enrollmentRoutes.Get("/student/:studentId/activity/:activityId", controllers.CheckEnrollmentByStudentAndActivity)
-
+	enrollmentRoutes.Get("/student/:studentId/activity/:activityId/check", controllers.CheckEnrollmentByStudentAndActivity) // ✅ ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
+	enrollmentRoutes.Get("/student/:studentId/activity/:activityId", controllers.GetStudentEnrollmentInActivity)            // ✅ ดึงข้อมูล Enrollment ของ Student ใน Activity
 }
