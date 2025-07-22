@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"Backend-Bluelock-007/src/services"
+	"Backend-Bluelock-007/src/services/enrollments"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -28,21 +29,6 @@ import (
 //			"url":  fmt.Sprintf("/%s/%s", body.Type, uuid),
 //		})
 //	}
-func AdminCreateQRToken(c *fiber.Ctx) error {
-	var body struct {
-		ActivityId string `json:"activityId"`
-		Type       string `json:"type"`
-	}
-	if err := c.BodyParser(&body); err != nil || body.ActivityId == "" || body.Type == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityId และ type"})
-	}
-	token, expiresAt, err := services.CreateQRToken(body.ActivityId, body.Type)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
-	url := "/student/qr/" + token
-	return c.JSON(fiber.Map{"token": token, "expiresAt": expiresAt, "url": url, "type": body.Type})
-}
 
 // func Checkin(c *fiber.Ctx) error {
 // 	uuid := c.Params("uuid")
@@ -81,21 +67,42 @@ func AdminCreateQRToken(c *fiber.Ctx) error {
 
 func GetCheckinStatus(c *fiber.Ctx) error {
 	studentId := c.Query("studentId")
-	activityItemId := c.Query("activityItemId")
+	activityId := c.Query("activityId")
 
-	if studentId == "" || activityItemId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ studentId และ activityItemId"})
+	if studentId == "" || activityId == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ studentId และ activityId"})
 	}
 
-	results, err := services.GetCheckinStatus(studentId, activityItemId)
+	// ดึง activityItemIds ทั้งหมดที่นิสิตลงทะเบียนไว้ใน activityId นี้
+	activityItemIds, found := enrollments.FindEnrolledItems(studentId, activityId)
+	if !found || len(activityItemIds) == 0 {
+		return c.JSON([]interface{}{}) // ส่ง array ว่าง
+	}
+
+	// ใช้แค่ activityItemId อันแรก
+	results, err := services.GetCheckinStatus(studentId, activityItemIds[0])
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-
 	return c.JSON(results)
 }
 
 // POST /admin/qr-token
+func AdminCreateQRToken(c *fiber.Ctx) error {
+	var body struct {
+		ActivityId string `json:"activityId"`
+		Type       string `json:"type"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.ActivityId == "" || body.Type == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityId และ type"})
+	}
+	token, expiresAt, err := services.CreateQRToken(body.ActivityId, body.Type)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	url := "/student/qr/" + token
+	return c.JSON(fiber.Map{"token": token, "expiresAt": expiresAt, "url": url, "type": body.Type})
+}
 
 // GET /student/qr/:token
 func StudentClaimQRToken(c *fiber.Ctx) error {
