@@ -285,10 +285,25 @@ func GetEnrollmentByActivityItemID(
 		}}},
 		{{Key: "$unwind", Value: "$student"}},
 		{{Key: "$lookup", Value: bson.M{
+			"from": "checkInOuts",
+			"let":  bson.M{"studentId": "$student._id", "activityItemId": "$activityItemId"},
+			"pipeline": mongo.Pipeline{
+				{{Key: "$match", Value: bson.M{
+					"$expr": bson.M{
+						"$and": bson.A{
+							bson.M{"$eq": bson.A{"$userId", "$$studentId"}},
+							bson.M{"$eq": bson.A{"$activityItemId", "$$activityItemId"}},
+						},
+					},
+				}}},
+			},
+			"as": "checkInOuts",
+		}}},
+		{{Key: "$lookup", Value: bson.M{
 			"from": "enrollments",
 			"let":  bson.M{"studentId": "$student._id"},
 			"pipeline": mongo.Pipeline{
-				{{"$match", bson.M{
+				{{Key: "$match", Value: bson.M{
 					"$expr": bson.M{
 						"$and": bson.A{
 							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
@@ -299,7 +314,6 @@ func GetEnrollmentByActivityItemID(
 			},
 			"as": "enrollment",
 		}}},
-
 		{{Key: "$unwind", Value: bson.M{
 			"path":                       "$enrollment",
 			"preserveNullAndEmptyArrays": true,
@@ -324,7 +338,6 @@ func GetEnrollmentByActivityItemID(
 	if pagination.Search != "" {
 		regex := bson.M{"$regex": pagination.Search, "$options": "i"}
 		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
-			bson.M{"student.name": regex},
 			bson.M{"student.code": regex},
 		}})
 	}
@@ -332,7 +345,7 @@ func GetEnrollmentByActivityItemID(
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: filter}})
 	}
 
-	// Project student fields
+	// Project student fields + checkInOuts
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
 		"_id":              0,
 		"id":               "$student._id",
@@ -345,6 +358,7 @@ func GetEnrollmentByActivityItemID(
 		"major":            "$student.major",
 		"food":             "$enrollment.food",
 		"registrationDate": "$enrollment.registrationDate",
+		"checkInOut":       "$checkInOuts",
 	}}})
 
 	// Count total before skip/limit
