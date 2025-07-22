@@ -219,7 +219,7 @@ func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 // @Produce      json
 // @Param        studentId path string true "Student ID"
 // @Param        activityId path string true "Activity ID"
-// @Success      200  {object}  bson.M
+// @Success      200  {object}  models.Enrollment
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      404  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
