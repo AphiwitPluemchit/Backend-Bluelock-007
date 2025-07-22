@@ -89,6 +89,31 @@ func CreateForm(ctx context.Context, req *models.CreateFormRequest) (*models.For
 		Questions: createdQuestions,
 	}, nil
 }
+// DeleteForm deletes a form and its related questions and submissions
+func DeleteForm(ctx context.Context, formID primitive.ObjectID) error {
+	// ลบ form
+	result, err := formsCollection.DeleteOne(ctx, bson.M{"_id": formID})
+	if err != nil {
+		return err
+	}
+	if result.DeletedCount == 0 {
+		return errors.New("form not found")
+	}
+
+	// ลบคำถามที่เกี่ยวข้อง
+	_, err = questionsCollection.DeleteMany(ctx, bson.M{"formId": formID})
+	if err != nil {
+		return err
+	}
+
+	// ลบคำตอบทั้งหมดที่ส่งมากับฟอร์มนี้
+	_, err = submissionsCollection.DeleteMany(ctx, bson.M{"formId": formID})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // GetForms retrieves all forms with pagination
 func GetForms(ctx context.Context, page, limit int) (*models.PaginatedFormsResponse, error) {
