@@ -26,8 +26,8 @@ services:
       - REDIS_ADDR=redis:6379
       - ASYNQMON_EXTERNAL_URL=http://dekdee3.informatics.buu.ac.th:8888/asynqmon
     depends_on:
-      - redis
-          condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - bluelock-net
 
