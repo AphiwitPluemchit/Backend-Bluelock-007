@@ -11,18 +11,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// CreateEnrollment godoc
-// @Summary      ลงทะเบียนกิจกรรม
-// @Description  นักศึกษาสามารถลงทะเบียนกิจกรรมได้
-// @Tags         enrollments
-// @Accept       json
-// @Produce      json
-// @Param        enrollment body models.Enrollment true "Enrollment data"
-// @Success      201  {object}  models.SuccessResponse
-// @Failure      400  {object}  models.ErrorResponse
-// @Failure      409  {object}  models.ErrorResponse
-// @Router       /enrollments [post]
-// ✅ 1. Student ลงทะเบียนกิจกรรม
 func CreateEnrollment(c *fiber.Ctx) error {
 	var req struct {
 		ActivityItemID string  `json:"activityItemId"`
@@ -45,17 +33,6 @@ func CreateEnrollment(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Enrollment successful"})
 }
 
-// GetEnrollmentsByStudent godoc
-// @Summary      ดึงรายการกิจกรรมที่นักศึกษาลงทะเบียนไว้
-// @Description  ให้นักศึกษาดูรายการกิจกรรมที่ลงทะเบียนไว้ทั้งหมด
-// @Tags         enrollments
-// @Produce      json
-// @Param        studentId path string true "Student ID"
-// @Success      200  {array}   models.Enrollment
-// @Failure      400  {object}  models.ErrorResponse
-// @Failure      500  {object}  models.ErrorResponse
-// @Router       /enrollments/student/{studentId} [get]
-// ✅ 2. Student ดูกิจกรรมที่ลงทะเบียนไปแล้ว
 func GetEnrollmentsByStudent(c *fiber.Ctx) error {
 	// 🔍 แปลง studentId จาก path param
 	studentID, err := primitive.ObjectIDFromHex(c.Params("studentId"))
@@ -95,15 +72,6 @@ func GetEnrollmentsByStudent(c *fiber.Ctx) error {
 	})
 }
 
-// DeleteEnrollment godoc
-// @Summary      ยกเลิกการลงทะเบียนกิจกรรม
-// @Description  นักศึกษาสามารถยกเลิกการลงทะเบียนกิจกรรมได้
-// @Tags         enrollments
-// @Param        enrollmentId path string true "Enrollment ID"
-// @Success      200  {object}  models.SuccessResponse
-// @Failure      400  {object}  models.ErrorResponse
-// @Failure      404  {object}  models.ErrorResponse
-// @Router       /enrollments/{enrollmentId} [delete]
 // ✅ 3. Student ยกเลิกการลงทะเบียน
 func DeleteEnrollment(c *fiber.Ctx) error {
 	enrollmentID, err := primitive.ObjectIDFromHex(c.Params("enrollmentId"))
@@ -119,17 +87,6 @@ func DeleteEnrollment(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Enrollment deleted successfully"})
 }
 
-// GetStudentsByActivity godoc
-// @Summary      ดูนักศึกษาที่ลงทะเบียนในกิจกรรม
-// @Description  แอดมินสามารถดูรายชื่อนักศึกษาที่ลงทะเบียนในกิจกรรมได้
-// @Tags         enrollments
-// @Produce      json
-// @Param        activityItemId path string true "Activity Item ID"
-// @Success      200  {array}   models.Enrollment
-// @Failure      400  {object}  models.ErrorResponse
-// @Failure      404  {object}  models.ErrorResponse
-// @Router       /enrollments/activity/{activityItemId} [get]
-// ✅ 4. Admin ดู Student ที่ลงทะเบียนในกิจกรรม
 func GetStudentsByActivity(c *fiber.Ctx) error {
 	activityId, err := primitive.ObjectIDFromHex(c.Params("activityId"))
 	if err != nil {
@@ -144,18 +101,6 @@ func GetStudentsByActivity(c *fiber.Ctx) error {
 	return c.JSON(enrollmentData)
 }
 
-// GetEnrollmentByStudentAndActivity godoc
-// @Summary      ดูรายละเอียดของกิจกรรมที่นักศึกษาลงทะเบียนไว้ (เฉพาะ 1 รายการ)
-// @Description  นักศึกษาสามารถดูรายละเอียดของกิจกรรมที่ลงทะเบียนไว้
-// @Tags         enrollments
-// @Produce      json
-// @Param        studentId path string true "Student ID"
-// @Param        activityItemId path string true "Activity Item ID"
-// @Success      200  {object}  models.EnrollmentSummary
-// @Failure      400  {object}  models.ErrorResponse
-// @Failure      404  {object}  models.ErrorResponse
-// @Router       /enrollments/student/{studentId}/activityItem/{activityItemId} [get]
-// ✅ 5. Student ดูกิจกรรมที่ลงทะเบียนไว้ (1 ตัว)
 func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 	studentID, _ := primitive.ObjectIDFromHex(c.Params("studentId"))
 	activityItemID, _ := primitive.ObjectIDFromHex(c.Params("activityItemId"))
@@ -168,18 +113,6 @@ func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 	return c.JSON(enrollment)
 }
 
-// CheckEnrollmentByStudentAndActivity godoc
-// @Summary      ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
-// @Description  ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
-// @Tags         enrollments
-// @Produce      json
-// @Param        studentId path string true "Student ID"
-// @Param        activityId path string true "Activity ID"
-// @Success      200  {object}  map[string]interface{}
-// @Failure      400  {object}  models.ErrorResponse
-// @Failure      500  {object}  models.ErrorResponse
-// @Router       /enrollments/student/{studentId}/activityItem/{activityId} [get]
-// ✅ 5. ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
 func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 	studentIDHex := c.Params("studentId")
 	activityIDHex := c.Params("activityId")
