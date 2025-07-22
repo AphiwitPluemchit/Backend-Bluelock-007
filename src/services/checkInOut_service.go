@@ -201,9 +201,10 @@ func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{
 			continue
 		}
 		t := r.CheckedAt.In(loc)
-		if r.Type == "checkin" {
+		switch r.Type {
+		case "checkin":
 			checkins = append(checkins, t)
-		} else if r.Type == "checkout" {
+		case "checkout":
 			checkouts = append(checkouts, t)
 		}
 	}
@@ -240,7 +241,7 @@ func CreateQRToken(activityId string, qrType string) (string, int64, error) {
 		return "", 0, err
 	}
 	now := time.Now().Unix()
-	expiresAt := now + 5
+	expiresAt := now + 50
 	qrToken := models.QRToken{
 		Token:      token,
 		ActivityID: activityObjID,
