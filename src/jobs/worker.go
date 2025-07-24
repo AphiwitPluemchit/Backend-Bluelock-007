@@ -12,7 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func HandlecompleteActivityTask(ctx context.Context, t *asynq.Task) error {
+func HandleCompleteActivityTask(ctx context.Context, t *asynq.Task) error {
 	log.Println("🎯 Start task handler")
 
 	var payload ActivityPayload

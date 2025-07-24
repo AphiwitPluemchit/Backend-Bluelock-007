@@ -1117,14 +1117,14 @@ const docTemplate = `{
         },
         "/enrollments/student/{studentId}/activity/{activityId}": {
             "get": {
-                "description": "ตรวจสอบว่านิสิตได้ลงทะเบียนกิจกรรมนี้หรือไม่",
+                "description": "ดึงข้อมูล Enrollment ที่ Student ลงทะเบียนใน Activity นี้ (รวม activity และ activityItem details)",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "enrollments"
                 ],
-                "summary": "ตรวจสอบว่านิสิตลงทะเบียนกิจกรรมหรือไม่",
+                "summary": "ดึงข้อมูล Enrollment ของ Student ใน Activity",
                 "parameters": [
                     {
                         "type": "string",
@@ -1142,6 +1142,67 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Enrollment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/enrollments/student/{studentId}/activityItem/{activityId}": {
+            "get": {
+                "description": "ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "enrollments"
+                ],
+                "summary": "ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Student ID",
+                        "name": "studentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "activityId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
@@ -1561,61 +1622,6 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
-        "/students/status": {
-            "patch": {
-                "description": "Set status of students to 0 by IDs",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "students"
-                ],
-                "summary": "Update student status to 0",
-                "parameters": [
-                    {
-                        "description": "List of student IDs",
-                        "name": "ids",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "additionalProperties": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -2142,7 +2148,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "",
-	BasePath:         "/api",
+	BasePath:         "",
 	Schemes:          []string{},
 	Title:            "Bluelock API",
 	Description:      "This is the API documentation for Bluelock project.",

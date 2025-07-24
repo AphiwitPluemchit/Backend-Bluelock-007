@@ -1,12 +1,13 @@
 services:
+  # Redis service for caching and message queuing
   redis:
     image: redis:7
     container_name: bluelock-redis
-    # ports:
-    #   - "6379:6379"
     volumes:
       - redis-data:/data
     restart: always
+    ports:
+      - "6379:6379"
     networks:
       - bluelock-net
     healthcheck:
@@ -17,49 +18,85 @@ services:
     environment:
       - TZ=Asia/Bangkok
 
-  # ยังไม่มี port ให้ใช้ ว่าจะทำเป็น reverse proxy ผ่าน nginx
+  # Asynqmon for task queue monitoring
   asynqmon:
     image: hibiken/asynqmon
-    # ports:
-    #   - "8080:8080"
+    container_name: bluelock-asynqmon
+    ports:
+      - "8080:8080"
     environment:
       - REDIS_ADDR=redis:6379
-      - ASYNQMON_EXTERNAL_URL=http://dekdee3.informatics.buu.ac.th:8888/asynqmon
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - bluelock-net
 
+  # Golang backend service
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bluelock-backend
     ports:
       - "8888:8888"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./.env:/app/.env
     environment:
       - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
+      - REDIS_URI=redis:6379
+      - APP_URI=8888
       - TZ=Asia/Bangkok
+      - ALLOWED_ORIGINS=*
     restart: always
-    container_name: bluelock-backend
     networks:
       - bluelock-net
     depends_on:
       redis:
         condition: service_healthy
 
+  # OCR service with FastAPI
   ocr:
     build:
       context: ./ocr
-    # ports:
-    #   - "8000:8000"
-    container_name: fastapi-ocr
+      dockerfile: Dockerfile
+    container_name: bluelock-ocr
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
     restart: always
     networks:
       - bluelock-net
+
+  # Nginx as reverse proxy
+  # nginx:
+  #   image: nginx:1.25
+  #   container_name: bluelock-nginx
+  #   ports:
+  #     - "8080:80"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/conf.d:/etc/nginx/conf.d:ro
+  #     - ./uploads:/var/www/uploads:ro
+  #   restart: always
+  #   networks:
+  #     - bluelock-net
+  #   depends_on:
+  #     - backend
+  #     - ocr
+  #     - asynqmon
+  #     - redis
 
 networks:
   bluelock-net:
     driver: bridge
 
-# ✅ ต้องมีส่วนนี้อยู่ด้านล่าง!
 volumes:
   redis-data:
