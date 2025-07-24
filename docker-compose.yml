@@ -1,29 +1,48 @@
+x-common: &common
+  networks:
+    - bluelock-net
+  restart: unless-stopped
+  environment:
+    - TZ=Asia/Bangkok
+
 services:
   # Redis service for caching and message queuing
   redis:
+    <<: *common
     image: redis:7
     container_name: bluelock-redis
     volumes:
       - redis-data:/data
-    restart: always
-    ports:
-      - "6379:6379"
-    networks:
-      - bluelock-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
-    environment:
-      - TZ=Asia/Bangkok
+    profiles: ["production"]
+
+  # Development Redis with exposed port
+  redis-dev:
+    <<: *common
+    image: redis:7
+    container_name: bluelock-redis-dev
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    profiles: ["development"]
 
   # Asynqmon for task queue monitoring
   asynqmon:
+    <<: *common
     image: hibiken/asynqmon
     container_name: bluelock-asynqmon
     ports:
-      - "8080:8080"
+      - "9078:8080"
     environment:
       - REDIS_ADDR=redis:6379
     healthcheck:
@@ -34,11 +53,25 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    networks:
-      - bluelock-net
+    profiles: ["production"]
+
+  # Development Asynqmon with different port
+  asynqmon-dev:
+    <<: *common
+    image: hibiken/asynqmon
+    container_name: bluelock-asynqmon-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: ["development"]
 
   # Golang backend service
   backend:
+    <<: *common
     build:
       context: .
       dockerfile: Dockerfile
@@ -48,21 +81,19 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./.env:/app/.env
-    environment:
-      - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
-      - REDIS_URI=redis:6379
-      - APP_URI=8888
-      - TZ=Asia/Bangkok
-      - ALLOWED_ORIGINS=*
-    restart: always
-    networks:
-      - bluelock-net
+    # environment:
+    #   - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
+    #   - REDIS_URI=redis:6379
+    #   - APP_URI=8888
+    #   - ALLOWED_ORIGINS=*
     depends_on:
       redis:
         condition: service_healthy
+    profiles: ["production"]
 
-  # OCR service with FastAPI
+  # OCR service with FastAPI (development only)
   ocr:
+    <<: *common
     build:
       context: ./ocr
       dockerfile: Dockerfile
@@ -71,9 +102,18 @@ services:
       - "8000:8000"
     volumes:
       - ./uploads:/app/uploads
-    restart: always
-    networks:
-      - bluelock-net
+    profiles: ["development"]
+
+  # Production OCR (no ports exposed)
+  ocr-prod:
+    <<: *common
+    build:
+      context: ./ocr
+      dockerfile: Dockerfile
+    container_name: bluelock-ocr-prod
+    volumes:
+      - ./uploads:/app/uploads
+    profiles: ["production"]
 
   # Nginx as reverse proxy
   # nginx:
@@ -100,3 +140,6 @@ networks:
 
 volumes:
   redis-data:
+# Usage:
+# Development: docker compose --profile development up -d
+# Production:  docker compose --profile production up -d
