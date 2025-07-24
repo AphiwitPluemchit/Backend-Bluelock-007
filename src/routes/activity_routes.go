@@ -2,6 +2,7 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
+	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -9,6 +10,7 @@ import (
 // ActivityRoutes กำหนดเส้นทางสำหรับ Activity API
 func activityRoutes(router fiber.Router) {
 	activityRoutes := router.Group("/activitys")
+	activityRoutes.Use(middleware.AuthJWT)
 	activityRoutes.Get("/", controllers.GetAllActivities) // ดึงผู้ใช้ทั้งหมด
 	activityRoutes.Post("/", controllers.CreateActivity)  // สร้างผู้ใช้ใหม่
 	activityRoutes.Post(":id/image", controllers.UploadActivityImage)

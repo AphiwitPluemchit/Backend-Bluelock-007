@@ -10,6 +10,8 @@ import (
 
 	"Backend-Bluelock-007/src/models"
 
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -17,7 +19,8 @@ import (
 )
 
 var checkInOutCollection *mongo.Collection
-var qrTokenCollection *mongo.Collection
+
+// var qrTokenCollection *mongo.Collection // ลบการใช้งาน MongoDB QRToken
 
 func init() {
 	if err := database.ConnectMongoDB(); err != nil {
@@ -29,145 +32,9 @@ func init() {
 	if checkInOutCollection == nil {
 		log.Fatal("Failed to get the checkInOuts collection")
 	}
-	// New collections for QR system
-	qrTokenCollection = database.GetCollection("BluelockDB", "qr_tokens")
+	// qrTokenCollection = database.GetCollection("BluelockDB", "qr_tokens") // ไม่ใช้แล้ว
 }
 
-// func GenerateCheckinUUID(activityId string, checkType string) (string, error) {
-// 	id := uuid.NewString()
-// 	key := fmt.Sprintf("checkin:%s", id)
-
-// 	data := map[string]string{
-// 		"activityId": activityId, // ✅ เปลี่ยนตรงนี้
-// 		"type":       checkType,
-// 	}
-
-// 	jsonData, err := json.Marshal(data)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	err = database.RedisClient.Set(database.RedisCtx, key, jsonData, 1000*time.Second).Err()
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	return id, nil
-// }
-// func Checkin(uuid, userId string) (bool, string) {
-// 	key := fmt.Sprintf("checkin:%s", uuid)
-// 	val, err := database.RedisClient.Get(database.RedisCtx, key).Result()
-// 	fmt.Println("Redis Value:", val)
-
-// 	if err != nil {
-// 		return false, "QR code หมดอายุหรือไม่ถูกต้อง"
-// 	}
-
-// 	var data struct {
-// 		ActivityId string `json:"activityId"`
-// 		Type       string `json:"type"` // checkin หรือ checkout
-// 	}
-// 	if err := json.Unmarshal([]byte(val), &data); err != nil {
-// 		return false, "ข้อมูล QR ไม่ถูกต้อง"
-// 	}
-
-// 	enrolledItemID, found := enrollments.FindEnrolledItem(userId, data.ActivityId)
-// 	if !found {
-// 		return false, "คุณยังไม่ได้ลงทะเบียนกิจกรรมนี้"
-// 	}
-
-// 	// Convert ObjectID
-// 	uID, err1 := primitive.ObjectIDFromHex(userId)
-// 	aID, err2 := primitive.ObjectIDFromHex(enrolledItemID)
-// 	if err1 != nil || err2 != nil {
-// 		return false, "รหัสไม่ถูกต้อง"
-// 	}
-
-// 	// ป้องกันเช็คชื่อซ้ำ
-// 	filter := bson.M{
-// 		"userId":         uID,
-// 		"activityItemId": aID,
-// 		"type":           data.Type,
-// 	}
-// 	count, _ := checkInOutCollection.CountDocuments(context.TODO(), filter)
-// 	if count > 0 {
-// 		return false, fmt.Sprintf("คุณได้ %s แล้ว", data.Type)
-// 	}
-
-// 	// ✅ Insert
-// 	_, err = checkInOutCollection.InsertOne(context.TODO(), bson.M{
-// 		"userId":         uID,
-// 		"activityItemId": aID,
-// 		"type":           data.Type,
-// 		"checkedAt":      time.Now(),
-// 	})
-// 	if err != nil {
-// 		return false, "ไม่สามารถบันทึกข้อมูลได้"
-// 	}
-
-// 	return true, fmt.Sprintf("%s สำเร็จ", data.Type)
-// }
-
-// func Checkout(uuid, userId, evaluationId string) (bool, string) {
-// 	key := fmt.Sprintf("checkin:%s", uuid)
-
-// 	val, err := database.RedisClient.Get(database.RedisCtx, key).Result()
-// 	fmt.Println("Redis Value:", val)
-
-// 	if err != nil {
-// 		return false, "QR code หมดอายุหรือไม่ถูกต้อง"
-// 	}
-
-// 	var data struct {
-// 		ActivityId string `json:"activityId"` // 🔄 เปลี่ยนจาก ActivityItemId
-// 		Type       string `json:"type"`
-// 	}
-// 	if err := json.Unmarshal([]byte(val), &data); err != nil {
-// 		return false, "ข้อมูลใน QR ไม่ถูกต้อง"
-// 	}
-// 	fmt.Println("data.ActivityId:", data.ActivityId)
-// 	fmt.Println("userId:", userId)
-
-// 	// ✅ ดึง activityItemId ที่นิสิตลงทะเบียนไว้ โดย matching กับ activityId
-// 	enrolledItemID, found := enrollments.FindEnrolledItem(userId, data.ActivityId)
-// 	if !found {
-// 		return false, "คุณยังไม่ได้ลงทะเบียนกิจกรรมนี้"
-// 	}
-
-// 	// ✅ แปลง ObjectID
-// 	uID, err1 := primitive.ObjectIDFromHex(userId)
-// 	aID, err2 := primitive.ObjectIDFromHex(enrolledItemID)
-// 	if err1 != nil || err2 != nil {
-// 		return false, "รหัสไม่ถูกต้อง"
-// 	}
-
-// 	// 🔁 ป้องกันการเช็คชื่อซ้ำใน type เดียวกัน
-// 	filter := bson.M{
-// 		"userId":         uID,
-// 		"activityItemId": aID,
-// 		"type":           data.Type,
-// 	}
-// 	count, _ := checkInOutCollection.CountDocuments(context.TODO(), filter)
-// 	if count > 0 {
-// 		return false, fmt.Sprintf("คุณได้ %s แล้ว", data.Type)
-// 	}
-
-// 	// ✅ บันทึกเวลาที่เช็คชื่อ
-// 	_, err = checkInOutCollection.InsertOne(context.TODO(), bson.M{
-// 		"userId":         uID,
-// 		"activityItemId": aID,
-// 		"type":           data.Type,
-// 		"checkedAt":      time.Now(),
-// 		"evaluationId":   evaluationId, // ✅ เพิ่มตรงนี้เท่านั้น
-// 	})
-
-// 	if err != nil {
-// 		return false, "ไม่สามารถบันทึกข้อมูลได้"
-// 	}
-
-//		return true, fmt.Sprintf("%s สำเร็จ", data.Type)
-//	}
-//
 // GetCheckinStatus returns all check-in/out records for a student and activityItemId
 func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{}, error) {
 	uID, err1 := primitive.ObjectIDFromHex(studentId)
@@ -241,7 +108,7 @@ func CreateQRToken(activityId string, qrType string) (string, int64, error) {
 		return "", 0, err
 	}
 	now := time.Now().Unix()
-	expiresAt := now + 50
+	expiresAt := now + 8 // 8 วินาที
 	qrToken := models.QRToken{
 		Token:      token,
 		ActivityID: activityObjID,
@@ -249,10 +116,18 @@ func CreateQRToken(activityId string, qrType string) (string, int64, error) {
 		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
 	}
-	_, err = qrTokenCollection.InsertOne(context.TODO(), qrToken)
+	jsonData, err := json.Marshal(qrToken)
 	if err != nil {
 		return "", 0, err
 	}
+	key := "qr_token:" + token
+	err = database.RedisClient.Set(database.RedisCtx, key, jsonData, 5*time.Second).Err()
+	if err != nil {
+		return "", 0, err
+	}
+	// เตรียม key สำหรับ claim (ยังไม่ต้อง set ค่า แต่ reserve TTL 1 ชั่วโมง)
+	claimKey := "qr_claimed:" + token
+	database.RedisClient.Set(database.RedisCtx, claimKey, "", 1*time.Hour)
 	return token, expiresAt, nil
 }
 
@@ -262,25 +137,46 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	var qrToken models.QRToken
-	err = qrTokenCollection.FindOne(context.TODO(), bson.M{"token": token}).Decode(&qrToken)
+	key := "qr_token:" + token
+	val, err := database.RedisClient.Get(database.RedisCtx, key).Result()
 	if err != nil {
+		return nil, fmt.Errorf("QR token expired or invalid")
+	}
+	var qrToken models.QRToken
+	if err := json.Unmarshal([]byte(val), &qrToken); err != nil {
 		return nil, err
 	}
-	now := time.Now().Unix()
-	if now > qrToken.ExpiresAt && qrToken.ClaimedByStudentID == nil {
-		return nil, fmt.Errorf("QR token expired")
-	}
-	if qrToken.ClaimedByStudentID == nil {
-		// Claim it
-		_, err := qrTokenCollection.UpdateOne(context.TODO(), bson.M{"token": token}, bson.M{"$set": bson.M{"claimedByStudentId": studentObjID}})
-		if err != nil {
-			return nil, err
+	// ตรวจสอบว่าเคย claim หรือยัง
+	claimKey := "qr_claimed:" + token
+	claimVal, _ := database.RedisClient.Get(database.RedisCtx, claimKey).Result()
+	if claimVal != "" {
+		// มีคน claim ไปแล้ว
+		var claimed struct {
+			StudentID  string `json:"studentId"`
+			ActivityID string `json:"activityId"`
+			Type       string `json:"type"`
 		}
+		_ = json.Unmarshal([]byte(claimVal), &claimed)
+		if claimed.StudentID != studentObjID.Hex() {
+			return nil, fmt.Errorf("QR token already claimed by another student")
+		}
+		// ถ้าเป็นคนเดิม ให้คืนข้อมูลเดิม
 		qrToken.ClaimedByStudentID = &studentObjID
-	} else if qrToken.ClaimedByStudentID.Hex() != studentObjID.Hex() {
-		return nil, fmt.Errorf("QR token already claimed by another student")
+		return &qrToken, nil
 	}
+	// ยังไม่เคย claim ให้บันทึกลง qr_claimed:<token>
+	claimData := struct {
+		StudentID  string `json:"studentId"`
+		ActivityID string `json:"activityId"`
+		Type       string `json:"type"`
+	}{
+		StudentID:  studentObjID.Hex(),
+		ActivityID: qrToken.ActivityID.Hex(),
+		Type:       qrToken.Type,
+	}
+	claimJson, _ := json.Marshal(claimData)
+	database.RedisClient.Set(database.RedisCtx, claimKey, claimJson, 1*time.Hour)
+	qrToken.ClaimedByStudentID = &studentObjID
 	return &qrToken, nil
 }
 
@@ -290,18 +186,31 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	var qrToken models.QRToken
-	err = qrTokenCollection.FindOne(context.TODO(), bson.M{"token": token}).Decode(&qrToken)
-	if err != nil {
+	claimKey := "qr_claimed:" + token
+	claimVal, err := database.RedisClient.Get(database.RedisCtx, claimKey).Result()
+	if err != nil || claimVal == "" {
+		return nil, fmt.Errorf("QR token not claimed or expired")
+	}
+	var claimed struct {
+		StudentID  string `json:"studentId"`
+		ActivityID string `json:"activityId"`
+		Type       string `json:"type"`
+	}
+	if err := json.Unmarshal([]byte(claimVal), &claimed); err != nil {
 		return nil, err
 	}
-	if qrToken.ClaimedByStudentID == nil {
-		return nil, fmt.Errorf("QR token not claimed yet")
-	}
-	if qrToken.ClaimedByStudentID.Hex() != studentObjID.Hex() {
+	if claimed.StudentID != studentObjID.Hex() {
 		return nil, fmt.Errorf("QR token claimed by another student")
 	}
-	return &qrToken, nil
+	// สร้าง QRToken struct สำหรับคืนค่า (ข้อมูลจาก claim)
+	activityObjID, _ := primitive.ObjectIDFromHex(claimed.ActivityID)
+	qrToken := &models.QRToken{
+		Token:              token,
+		ActivityID:         activityObjID,
+		Type:               claimed.Type,
+		ClaimedByStudentID: &studentObjID,
+	}
+	return qrToken, nil
 }
 
 // SaveCheckInOut saves a check-in/out for a specific activityItemId, prevents duplicate in the same day
