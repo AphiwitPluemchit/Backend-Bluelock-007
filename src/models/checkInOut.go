@@ -36,3 +36,14 @@ type CheckinRecord struct {
 	Type       string             `bson:"type" json:"type"`
 	Timestamp  int64              `bson:"timestamp" json:"timestamp"`
 }
+
+// QRClaim สำหรับเก็บข้อมูลการ claim QR ใน MongoDB
+// { token, studentId, activityId, type, claimedAt, expireAt }
+type QRClaim struct {
+	Token      string             `bson:"token" json:"token"`
+	StudentID  primitive.ObjectID `bson:"studentId" json:"studentId"`
+	ActivityID primitive.ObjectID `bson:"activityId" json:"activityId"`
+	Type       string             `bson:"type" json:"type"`
+	ClaimedAt  time.Time          `bson:"claimedAt" json:"claimedAt"`
+	ExpireAt   time.Time          `bson:"expireAt" json:"expireAt"`
+}
