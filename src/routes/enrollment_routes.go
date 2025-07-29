@@ -16,5 +16,5 @@ func enrollmentRoutes(router fiber.Router) {
 	enrollmentRoutes.Delete("/:enrollmentId", controllers.DeleteEnrollment)                                                 // ✅ ยกเลิกลงทะเบียน
 	enrollmentRoutes.Get("/activity/:activityId", controllers.GetStudentsByActivity)                                        // ✅ Admin ดูนักศึกษาที่ลงทะเบียน
 	enrollmentRoutes.Get("/student/:studentId/activity/:activityId/check", controllers.CheckEnrollmentByStudentAndActivity) // ✅ ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
-	enrollmentRoutes.Get("/student/:studentId/activity/:activityId", controllers.GetStudentEnrollmentInActivity)            // ✅ ดึงข้อมูล Enrollment ของ Student ใน Activity
+	// enrollmentRoutes.Get("/student/:studentId/activity/:activityId", controllers.GetStudentEnrollmentInActivity)            // ✅ ดึงข้อมูล Enrollment ของ Student ใน Activity
 }
