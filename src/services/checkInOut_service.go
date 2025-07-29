@@ -118,7 +118,7 @@ func CreateQRToken(activityId string, qrType string) (string, int64, error) {
 		return "", 0, err
 	}
 	now := time.Now().Unix()
-	expiresAt := now + 8 // 8 วินาที
+	expiresAt := now + 12 // 8 วินาที
 	qrToken := models.QRToken{
 		Token:      token,
 		ActivityID: activityObjID,
