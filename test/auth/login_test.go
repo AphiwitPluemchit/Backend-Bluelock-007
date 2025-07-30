@@ -256,9 +256,7 @@ func TestLogin(t *testing.T) {
 			if email == "" {
 				assert.Empty(t, email)
 			} else {
-				// Check if email is invalid (doesn't have both @ and .)
-				isValid := len(email) > 0 && contains(email, "@") && contains(email, ".")
-				assert.False(t, isValid, "Email '%s' should be invalid", email)
+				assert.False(t, len(email) > 0 && contains(email, "@") && contains(email, "."))
 			}
 		}
 	})
