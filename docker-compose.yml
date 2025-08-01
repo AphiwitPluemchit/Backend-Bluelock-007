@@ -77,7 +77,7 @@ services:
       dockerfile: Dockerfile
     container_name: bluelock-backend
     ports:
-      - "8888:8888"
+      - "8765:8888"
     volumes:
       - ./uploads:/app/uploads
       - ./.env:/app/.env
