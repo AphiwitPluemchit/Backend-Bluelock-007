@@ -266,13 +266,13 @@ func TestStudentValidation(t *testing.T) {
 		assert.True(t, inactiveStudent.Status == 0)
 
 		// Test valid status values
-		validStatuses := []int{0, 1}
+		validStatuses := []int{0, 1, 2, 3, 4}
 		for _, status := range validStatuses {
 			assert.Contains(t, validStatuses, status)
 		}
 
 		// Test invalid status values
-		invalidStatuses := []int{-1, 2, 10, 100}
+		invalidStatuses := []int{-1, 5, 10, 100}
 		for _, status := range invalidStatuses {
 			assert.NotContains(t, validStatuses, status)
 		}

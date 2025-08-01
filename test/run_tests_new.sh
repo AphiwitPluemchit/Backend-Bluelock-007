@@ -207,9 +207,12 @@ run_specific_function() {
                 "skills")
                     run_function_tests "Student" "Skills" "./test/student/student_skills_test.go"
                     ;;
+                "status")
+                    run_function_tests "Student" "Status" "./test/student/student_status_test.go"
+                    ;;
                 *)
                     print_error "Unknown function: $function_name"
-                    print_status "Available functions: creation, validation, skills"
+                    print_status "Available functions: creation, validation, skills, status"
                     exit 1
                     ;;
             esac
