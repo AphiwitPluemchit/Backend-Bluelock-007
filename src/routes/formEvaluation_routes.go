@@ -2,6 +2,7 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
+	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -9,6 +10,7 @@ import (
 // FormEvaluationRoutes กำหนดเส้นทางสำหรับ FormEvaluation API
 func formEvaluationRoutes(router fiber.Router) {
 	formEvaluationRoutes := router.Group("/formEvaluations")
+	formEvaluationRoutes.Use(middleware.AuthJWT)
 	// formEvaluationRoutes.Get("/", controllers.GetFormEvaluations)         // ดึงผู้ใช้ทั้งหมด
 	formEvaluationRoutes.Post("/", controllers.CreateFormEvaluation)      // สร้างผู้ใช้ใหม่
 	formEvaluationRoutes.Get("/:id", controllers.GetFormEvaluationByID)   // ดึงข้อมูลผู้ใช้ตาม ID

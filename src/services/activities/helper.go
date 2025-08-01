@@ -110,24 +110,41 @@ func ScheduleChangeActivityStateJob(AsynqClient *asynq.Client, redisURI string, 
 	if AsynqClient == nil {
 		return errors.New("asynq client is not initialized")
 	}
-	deadline, err := time.ParseInLocation("2006-01-02", endDateEnroll, time.Local)
-	if err != nil {
-		return err
-	}
+
+	// First, delete any existing scheduled jobs for this activity
+	// This ensures we don't have duplicate jobs when activity is updated
+	DeleteTask("complete-activity-"+activityID, activityID, redisURI)
+	DeleteTask("close-enroll-"+activityID, activityID, redisURI)
+
+	// Schedule the "complete" state transition at the latest activity end time
 	if !latestTime.IsZero() && latestTime.After(time.Now()) {
 		if err := enqueueTask(
 			AsynqClient,
 			"complete-activity-"+activityID,
-			jobs.NewcompleteActivityTask,
-			latestTime,
+			jobs.NewCompleteActivityTask,
+			latestTime.Add(time.Hour*1), // เพิ่ม 1 ชั่วโมงเพื่อให้ task ไม่ถูก run ทันที
 			activityID,
 			redisURI,
 		); err != nil {
 			return err
 		}
+		log.Println("✅ Complete-activity task scheduled: complete-activity-" + activityID)
 	} else {
 		log.Println("⏩ Skipped complete-activity task (invalid or past time)")
 	}
+
+	// Schedule the "close" state transition at the endDateEnroll
+	deadline, err := time.ParseInLocation("2006-01-02", endDateEnroll, time.Local)
+	if err != nil {
+		log.Println("⚠️ Invalid endDateEnroll format:", endDateEnroll, err)
+		return err
+	}
+
+	// Add end of day time to ensure it runs at the end of the enrollment day
+	deadline = time.Date(deadline.Year(), deadline.Month(), deadline.Day(), 23, 59, 59, 0, deadline.Location())
+	log.Println("Enrollment deadline:", deadline.Format(time.RFC3339))
+
+	// Only schedule if deadline is in the future
 	if !deadline.IsZero() && deadline.After(time.Now()) {
 		if err := enqueueTask(
 			AsynqClient,
@@ -139,6 +156,8 @@ func ScheduleChangeActivityStateJob(AsynqClient *asynq.Client, redisURI string, 
 		); err != nil {
 			return err
 		}
+
+		log.Println("✅ Close-enroll task scheduled: close-enroll-" + activityID)
 	} else {
 		log.Println("⏩ Skipped close-enroll task (invalid or past time)")
 	}

@@ -6,18 +6,18 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-const TypecompleteActivity = "activity:complete"
+const TypeCompleteActivity = "activity:complete"
 
 type ActivityPayload struct {
 	ActivityID string `json:"activity_id"`
 }
 
-func NewcompleteActivityTask(activityID string) (*asynq.Task, error) {
+func NewCompleteActivityTask(activityID string) (*asynq.Task, error) {
 	payload, err := json.Marshal(ActivityPayload{ActivityID: activityID})
 	if err != nil {
 		return nil, err
 	}
-	return asynq.NewTask(TypecompleteActivity, payload), nil
+	return asynq.NewTask(TypeCompleteActivity, payload), nil
 }
 
 // jobs/task_payloads.go

@@ -1,65 +1,145 @@
+x-common: &common
+  networks:
+    - bluelock-net
+  restart: unless-stopped
+  environment:
+    - TZ=Asia/Bangkok
+
 services:
+  # Redis service for caching and message queuing
   redis:
+    <<: *common
     image: redis:7
     container_name: bluelock-redis
-    # ports:
-    #   - "6379:6379"
     volumes:
       - redis-data:/data
-    restart: always
-    networks:
-      - bluelock-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
-    environment:
-      - TZ=Asia/Bangkok
+    profiles: ["production"]
 
-  # ยังไม่มี port ให้ใช้ ว่าจะทำเป็น reverse proxy ผ่าน nginx
+  # Development Redis with exposed port
+  redis-dev:
+    <<: *common
+    image: redis:7
+    container_name: bluelock-redis-dev
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    profiles: ["development"]
+
+  # Asynqmon for task queue monitoring
   asynqmon:
+    <<: *common
     image: hibiken/asynqmon
-    # ports:
-    #   - "8080:8080"
+    container_name: bluelock-asynqmon
+    ports:
+      - "9078:8080"
     environment:
       - REDIS_ADDR=redis:6379
-      - ASYNQMON_EXTERNAL_URL=http://dekdee3.informatics.buu.ac.th:8888/asynqmon
-    depends_on:
-      - redis
-          condition: service_healthy
-    networks:
-      - bluelock-net
-
-  backend:
-    build: .
-    ports:
-      - "8888:8888"
-    environment:
-      - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
-      - TZ=Asia/Bangkok
-    restart: always
-    container_name: bluelock-backend
-    networks:
-      - bluelock-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       redis:
         condition: service_healthy
+    profiles: ["production"]
 
+  # Development Asynqmon with different port
+  asynqmon-dev:
+    <<: *common
+    image: hibiken/asynqmon
+    container_name: bluelock-asynqmon-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis-dev:6379
+    depends_on:
+      redis-dev:
+        condition: service_healthy
+    profiles: ["development"]
+
+  # Golang backend service
+  backend:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bluelock-backend
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./.env:/app/.env
+    # environment:
+    #   - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
+    #   - REDIS_URI=redis:6379
+    #   - APP_URI=8888
+    #   - ALLOWED_ORIGINS=*
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: ["production"]
+
+  # OCR service with FastAPI (development only)
   ocr:
+    <<: *common
     build:
       context: ./ocr
-    # ports:
-    #   - "8000:8000"
-    container_name: fastapi-ocr
-    restart: always
-    networks:
-      - bluelock-net
+      dockerfile: Dockerfile
+    container_name: bluelock-ocr
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+    profiles: ["development"]
+
+  # Production OCR (no ports exposed)
+  ocr-prod:
+    <<: *common
+    build:
+      context: ./ocr
+      dockerfile: Dockerfile
+    container_name: bluelock-ocr-prod
+    volumes:
+      - ./uploads:/app/uploads
+    profiles: ["production"]
+
+  # Nginx as reverse proxy
+  # nginx:
+  #   image: nginx:1.25
+  #   container_name: bluelock-nginx
+  #   ports:
+  #     - "8080:80"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/conf.d:/etc/nginx/conf.d:ro
+  #     - ./uploads:/var/www/uploads:ro
+  #   restart: always
+  #   networks:
+  #     - bluelock-net
+  #   depends_on:
+  #     - backend
+  #     - ocr
+  #     - asynqmon
+  #     - redis
 
 networks:
   bluelock-net:
     driver: bridge
 
-# ✅ ต้องมีส่วนนี้อยู่ด้านล่าง!
 volumes:
   redis-data:
+# Usage:
+# Development: docker compose --profile development up -d
+# Production:  docker compose --profile production up -d

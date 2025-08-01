@@ -20,7 +20,7 @@ import (
 // @version 1.0
 // @description This is the API documentation for Bluelock project.
 // @host
-// @BasePath /api
+// @BasePath
 
 func main() {
 
@@ -57,7 +57,7 @@ func main() {
 				},
 			)
 			mux := asynq.NewServeMux()
-			mux.HandleFunc(jobs.TypecompleteActivity, jobs.HandleCloseEnrollTask)
+			mux.HandleFunc(jobs.TypeCompleteActivity, jobs.HandleCompleteActivityTask)
 			mux.HandleFunc(jobs.TypeCloseEnroll, jobs.HandleCloseEnrollTask)
 
 			if err := srv.Run(mux); err != nil {

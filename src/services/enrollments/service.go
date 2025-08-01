@@ -688,3 +688,123 @@ func FindEnrolledItems(userId string, activityId string) ([]string, bool) {
 	}
 	return enrolledItemIDs, true
 }
+
+// GetEnrollmentActivityDetails คืนข้อมูล Activity ที่คล้ายกับ activity getOne แต่เอาเฉพาะ item ที่นักเรียนลงทะเบียน
+func GetEnrollmentActivityDetails(studentID, activityID primitive.ObjectID) (*models.ActivityDto, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1️⃣ ดึง activityItems ทั้งหมดใน activity นี้
+	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	if err != nil {
+		return nil, fmt.Errorf("error fetching activity items: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	itemIDs := []primitive.ObjectID{}
+	for cursor.Next(ctx) {
+		var item struct {
+			ID primitive.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&item); err == nil {
+			itemIDs = append(itemIDs, item.ID)
+		}
+	}
+
+	if len(itemIDs) == 0 {
+		return nil, errors.New("No activity items found for this activity")
+	}
+
+	// 2️⃣ ตรวจสอบว่านิสิตลงทะเบียนใน item ใดๆ เหล่านี้หรือไม่
+	filter := bson.M{
+		"studentId":      studentID,
+		"activityItemId": bson.M{"$in": itemIDs},
+	}
+
+	var enrollment struct {
+		ID             primitive.ObjectID `bson:"_id"`
+		ActivityItemID primitive.ObjectID `bson:"activityItemId"`
+	}
+	err = DB.EnrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("Student not enrolled in this activity")
+		}
+		return nil, fmt.Errorf("database error: %v", err)
+	}
+
+	// 3️⃣ Aggregate Query เพื่อดึงข้อมูล Activity พร้อม ActivityItems ที่นักเรียนลงทะเบียน
+	pipeline := mongo.Pipeline{
+		// Match Activity
+		bson.D{{Key: "$match", Value: bson.M{"_id": activityID}}},
+
+		// Lookup ActivityItems
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "activityItems",
+			"localField":   "_id",
+			"foreignField": "activityId",
+			"as":           "activityItems",
+		}}},
+
+		// Unwind ActivityItems
+		bson.D{{Key: "$unwind", Value: "$activityItems"}},
+
+		// Lookup Enrollments เพื่อเช็คว่านักเรียนลงทะเบียนใน item นี้หรือไม่
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "enrollments",
+			"localField":   "activityItems._id",
+			"foreignField": "activityItemId",
+			"as":           "enrollments",
+		}}},
+
+		// Match เฉพาะ ActivityItems ที่นักเรียนลงทะเบียน
+		bson.D{{Key: "$match", Value: bson.M{
+			"enrollments": bson.M{
+				"$elemMatch": bson.M{"studentId": studentID},
+			},
+		}}},
+
+		// Group กลับเป็น Activity พร้อม ActivityItems ที่กรองแล้ว
+		bson.D{{Key: "$group", Value: bson.M{
+			"_id":           "$_id",
+			"name":          bson.M{"$first": "$name"},
+			"type":          bson.M{"$first": "$type"},
+			"activityState": bson.M{"$first": "$activityState"},
+			"skill":         bson.M{"$first": "$skill"},
+			"file":          bson.M{"$first": "$file"},
+			"foodVotes":     bson.M{"$first": "$foodVotes"},
+			"endDateEnroll": bson.M{"$first": "$endDateEnroll"},
+			"activityItems": bson.M{"$push": "$activityItems"},
+		}}},
+
+		// Project ให้ตรงกับ ActivityDto
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id":           0,
+			"id":            "$_id",
+			"name":          "$name",
+			"type":          "$type",
+			"activityState": "$activityState",
+			"skill":         "$skill",
+			"file":          "$file",
+			"foodVotes":     "$foodVotes",
+			"endDateEnroll": "$endDateEnroll",
+			"activityItems": "$activityItems",
+		}}},
+	}
+
+	cursor, err = DB.ActivityCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("aggregation error: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var result models.ActivityDto
+	if cursor.Next(ctx) {
+		if err := cursor.Decode(&result); err != nil {
+			return nil, fmt.Errorf("cursor error: %v", err)
+		}
+		return &result, nil
+	}
+
+	return nil, errors.New("Activity not found")
+}

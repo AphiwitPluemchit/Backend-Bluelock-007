@@ -170,7 +170,7 @@ func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 
 // CheckEnrollmentByStudentAndActivity godoc
 // @Summary      ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
-// @Description  ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
+// @Description  ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่ และส่งข้อมูลกิจกรรมที่คล้ายกับ activity getOne
 // @Tags         enrollments
 // @Produce      json
 // @Param        studentId path string true "Student ID"
@@ -178,8 +178,8 @@ func GetEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse
-// @Router       /enrollments/student/{studentId}/activityItem/{activityId} [get]
-// ✅ 5. ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
+// @Router       /enrollments/student/{studentId}/activity/{activityId}/check [get]
+// ✅ 5. ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่ และส่งข้อมูลกิจกรรม
 func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 	studentIDHex := c.Params("studentId")
 	activityIDHex := c.Params("activityId")
@@ -194,7 +194,7 @@ func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid activityId"})
 	}
 
-	enrollment, err := enrollments.GetStudentEnrollmentInActivity(studentID, activityID)
+	activityDetails, err := enrollments.GetEnrollmentActivityDetails(studentID, activityID)
 	if err != nil {
 		if err.Error() == "Student not enrolled in this activity" {
 			return c.JSON(fiber.Map{
@@ -207,7 +207,7 @@ func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"isEnrolled": true,
-		"enrollment": enrollment,
+		"activity":   activityDetails,
 		"message":    "Student is enrolled in this activity",
 	})
 }
@@ -219,7 +219,7 @@ func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 // @Produce      json
 // @Param        studentId path string true "Student ID"
 // @Param        activityId path string true "Activity ID"
-// @Success      200  {object}  bson.M
+// @Success      200  {object}  models.Enrollment
 // @Failure      400  {object}  models.ErrorResponse
 // @Failure      404  {object}  models.ErrorResponse
 // @Failure      500  {object}  models.ErrorResponse

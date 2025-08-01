@@ -25,31 +25,40 @@ func hashParams(params interface{}) string {
 }
 
 func setCache(key string, value interface{}, ttl time.Duration) {
-	if DB.RedisClient == nil { return }
+	if DB.RedisClient == nil {
+		return
+	}
 	b, _ := json.Marshal(value)
 	DB.RedisClient.Set(DB.RedisCtx, key, b, ttl)
 }
 
 func getCache(key string, dest interface{}) bool {
-	if DB.RedisClient == nil { return false }
+	if DB.RedisClient == nil {
+		return false
+	}
 	val, err := DB.RedisClient.Get(DB.RedisCtx, key).Result()
-	if err != nil { return false }
+	if err != nil {
+		return false
+	}
 	return json.Unmarshal([]byte(val), dest) == nil
 }
 
 func delCache(keys ...string) {
-	if DB.RedisClient == nil { return }
+	if DB.RedisClient == nil {
+		return
+	}
 	DB.RedisClient.Del(DB.RedisCtx, keys...)
 }
 
 func invalidateAllActivitiesListCache() {
-	if DB.RedisClient == nil { return }
+	if DB.RedisClient == nil {
+		return
+	}
 	iter := DB.RedisClient.Scan(DB.RedisCtx, 0, "activities:list:*", 0).Iterator()
 	for iter.Next(DB.RedisCtx) {
 		DB.RedisClient.Del(DB.RedisCtx, iter.Val())
 	}
 }
-
 
 var ctx = context.Background()
 
@@ -104,12 +113,8 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		}
 		itemsToInsert = append(itemsToInsert, itemToInsert)
 
-		if DB.RedisURI != "" {
-
-			// ✅ คำนวณ latestTime
-			latestTime = MaxEndTimeFromItem(item, latestTime)
-		}
-
+		// ✅ คำนวณ latestTime
+		latestTime = MaxEndTimeFromItem(item, latestTime)
 	}
 
 	// ✅ Insert ทั้งหมดในครั้งเดียว เร็วขึ้นมากในการ insert หลายรายการ ลดจำนวนการ round-trip ไปยัง MongoDB
@@ -118,15 +123,18 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 		return nil, err
 	}
 
-	if DB.RedisURI != "" {
-		// Schedule job (helper.go)
+	log.Println("Activity and ActivityItems created successfully")
+
+	// Schedule state transitions if activity is created with "open" state
+	if DB.AsynqClient != nil && activity.ActivityState == "open" {
+		log.Println("✅ Scheduling state transitions for new activity:", activity.ID.Hex())
 		err = ScheduleChangeActivityStateJob(DB.AsynqClient, DB.RedisURI, latestTime, activity.EndDateEnroll, activity.ID.Hex())
 		if err != nil {
-			return nil, err
+			log.Println("❌ Failed to schedule state transitions for new activity:", err)
+			// Don't return error here, just log it - we don't want to fail activity creation
+			// if scheduling fails
 		}
 	}
-
-	log.Println("Activity and ActivityItems created successfully")
 
 	// ✅ ดึงข้อมูล Activity ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
 	return GetActivityByID(activity.ID.Hex())
@@ -151,11 +159,11 @@ func GetAllActivities(params models.PaginationParams, skills, states, majors []s
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	key := "activities:list:" + hashParams(struct{
-		Params      models.PaginationParams
-		Skills      []string
-		States      []string
-		Majors      []string
+	key := "activities:list:" + hashParams(struct {
+		Params       models.PaginationParams
+		Skills       []string
+		States       []string
+		Majors       []string
 		StudentYears []int
 	}{params, skills, states, majors, studentYears})
 
@@ -191,7 +199,6 @@ func GetAllActivities(params models.PaginationParams, skills, states, majors []s
 		Total      int64
 		TotalPages int
 	}{results, total, totalPages}, 5*time.Minute)
-
 
 	if DB.RedisURI != "" {
 		cacheActivitiesResult(key, results, total, totalPages)
@@ -370,6 +377,13 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Get the old activity to compare states and dates
+	var oldActivity models.ActivityDto
+	err := DB.ActivityCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&oldActivity)
+	if err != nil {
+		return nil, err
+	}
+
 	// ✅ อัปเดต Activity หลัก
 	update := bson.M{
 		"$set": bson.M{
@@ -383,7 +397,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 		},
 	}
 
-	_, err := DB.ActivityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
+	_, err = DB.ActivityCollection.UpdateOne(ctx, bson.M{"_id": id}, update)
 	if err != nil {
 		return nil, err
 	}
@@ -409,8 +423,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 
 	// ✅ วนหาเวลาสิ้นสุดที่มากที่สุด
 	var latestTime time.Time
-
-	// isOpen := 0
 
 	for _, newItem := range activity.ActivityItems {
 		if newItem.ID.IsZero() {
@@ -448,83 +460,6 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			}
 			latestTime = MaxEndTimeFromItem(newItem, latestTime)
 		}
-
-		// if activity.ActivityState == "open" {
-		// 	isOpen += 1
-		// }
-
-		// // ✅ ถ้า activityState เปลี่ยนเป็น "open" เพียงแค่ 1 ตัว → ส่งอีเมลหานิสิต
-		// if isOpen == 1 {
-		// 	// ดึง users ที่ role == student
-		// 	userCollection := GetCollection("BluelockDB", "users")
-		// 	cursor, err := userCollection.Find(ctx, bson.M{"role": "Student"})
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-
-		// 	var students []models.User
-		// 	if err := cursor.All(ctx, &students); err != nil {
-		// 		return nil, err
-		// 	}
-
-		// 	// ส่งอีเมลหาแต่ละคน
-		// 	for _, student := range students {
-		// 		fmt.Println("student", student.Email)
-		// 		name := ""
-		// 		if activity.Name != nil {
-		// 			name = *activity.Name
-		// 		}
-		// 		subject := fmt.Sprintf("📢 เปิดลงทะเบียนกิจกรรม: %s", name)
-		// 		body := fmt.Sprintf(`
-		// 		<table style="max-width: 600px; margin: auto; font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden;">
-		// 		  <tr>
-		// 			<td style="background-color: #2E86C1; color: white; padding: 20px; text-align: center;">
-		// 			  <h2 style="margin: 0;">📢 แจ้งเตือนกิจกรรม</h2>
-		// 			</td>
-		// 		  </tr>
-		// 		  <tr>
-		// 			<td style="padding: 24px;">
-		// 			  <h3 style="color: #333;">เรียน นิสิต,</h3>
-		// 			  <p style="font-size: 16px; color: #555;">
-		// 				กิจกรรม <strong style="color: #2E86C1;">%s</strong> ได้เปิดให้ลงทะเบียนแล้ว 🎉
-		// 			  </p>
-		// 			  <p style="font-size: 16px; color: #555;">
-		// 				สามารถเข้าสู่ระบบเพื่อลงทะเบียนได้ทันที โดยคลิกที่ปุ่มด้านล่าง
-		// 			  </p>
-		// 			  <div style="text-align: center; margin: 30px 0;">
-		// 				<a href="%s"
-		// 				   style="background-color: #2E86C1; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
-		// 				   📝 ลงทะเบียนกิจกรรม
-		// 				</a>
-		// 			  </div>
-		// 			  <p style="font-size: 14px; color: #888;">หากคุณไม่ได้เป็นผู้รับผิดชอบกิจกรรมนี้ กรุณาเมินเฉยอีเมลนี้</p>
-		// 			</td>
-		// 		  </tr>
-		// 		  <tr>
-		// 			<td style="background-color: #f4f4f4; text-align: center; padding: 12px; font-size: 12px; color: #999;">
-		// 			  © 2025 Activity Tracking System, Your University
-		// 			</td>
-		// 		  </tr>
-		// 		</table>
-		// 	  `, name, fmt.Sprintf("http://localhost:9000/#/Student/Activity/ActivityDetail/%s", id.Hex()))
-
-		// 		fmt.Println("subject", subject)
-		// 		fmt.Println("body", body)
-		// 		// ✅ ส่งอีเมล (อาจใส่ go routine เพื่อไม่ block)
-		// 		// go func(email string) {
-		// 		// 	if err := SendEmail(email, subject, body); err != nil {
-		// 		// 		fmt.Println("ส่งอีเมลล้มเหลว:", email, err)
-		// 		// 	}
-		// 		// }(student.Email)
-		// 	}
-		// }
-	}
-	if DB.RedisURI != "" {
-		// Schedule job (helper.go)
-		err = ScheduleChangeActivityStateJob(DB.AsynqClient, DB.RedisURI, latestTime, activity.EndDateEnroll, id.Hex())
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// ✅ ลบ `ActivityItems` ที่ไม่มีในรายการใหม่
@@ -538,6 +473,35 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 			if err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	// Handle scheduling of state transitions based on activity state changes
+	if DB.AsynqClient != nil {
+		stateChanged := oldActivity.ActivityState != activity.ActivityState
+		datesChanged := oldActivity.EndDateEnroll != activity.EndDateEnroll
+		itemsChanged := len(activity.ActivityItems) != len(oldActivity.ActivityItems)
+
+		// Case 1: Activity is set to "open" (either newly or was something else before)
+		if activity.ActivityState == "open" {
+			// Schedule state transitions when:
+			// - State changed to "open" from something else
+			// - State was already "open" but dates or items changed
+			if stateChanged || datesChanged || itemsChanged {
+				log.Println("✅ Scheduling state transitions for activity:", id.Hex())
+				err = ScheduleChangeActivityStateJob(DB.AsynqClient, DB.RedisURI, latestTime, activity.EndDateEnroll, activity.ID.Hex())
+				if err != nil {
+					log.Println("❌ Failed to schedule state transitions:", err)
+					return nil, err
+				}
+			}
+		} else if stateChanged && (oldActivity.ActivityState == "open" || oldActivity.ActivityState == "close") {
+			// Case 2: Activity was "open" or "close" but manually changed to something else
+			// Delete any scheduled jobs since manual intervention takes precedence
+			activityIDHex := id.Hex()
+			DeleteTask("complete-activity-"+activityIDHex, activityIDHex, DB.RedisURI)
+			DeleteTask("close-enroll-"+activityIDHex, activityIDHex, DB.RedisURI)
+			log.Println("✅ Removed scheduled jobs due to manual state change for activity:", activityIDHex)
 		}
 	}
 
@@ -564,11 +528,14 @@ func DeleteActivity(id primitive.ObjectID) error {
 		return err
 	}
 
+	// ลบ scheduled jobs ที่เกี่ยวข้องกับ activity นี้
 	if DB.RedisURI != "" {
-		DeleteTask("complete", id.Hex(), DB.RedisURI) // ลบ task ที่เกี่ยวข้อง
-		DeleteTask("close", id.Hex(), DB.RedisURI)    // ลบ task ที่เกี่ยวข้อง
-
+		activityIDHex := id.Hex()
+		// ลบ task ที่เกี่ยวข้องโดยใช้ task ID ที่ถูกต้อง
+		DeleteTask("complete-activity-"+activityIDHex, activityIDHex, DB.RedisURI)
+		DeleteTask("close-enroll-"+activityIDHex, activityIDHex, DB.RedisURI)
+		log.Println("✅ Deleted scheduled jobs for activity:", activityIDHex)
 	}
 
-	return err
+	return nil
 }

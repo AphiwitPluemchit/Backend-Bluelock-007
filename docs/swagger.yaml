@@ -1,4 +1,3 @@
-basePath: /api
 definitions:
   models.Activity:
     properties:
@@ -1022,7 +1021,8 @@ paths:
       - enrollments
   /enrollments/student/{studentId}/activity/{activityId}:
     get:
-      description: ตรวจสอบว่านิสิตได้ลงทะเบียนกิจกรรมนี้หรือไม่
+      description: ดึงข้อมูล Enrollment ที่ Student ลงทะเบียนใน Activity นี้ (รวม
+        activity และ activityItem details)
       parameters:
       - description: Student ID
         in: path
@@ -1037,6 +1037,47 @@ paths:
       produces:
       - application/json
       responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Enrollment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ดึงข้อมูล Enrollment ของ Student ใน Activity
+      tags:
+      - enrollments
+  /enrollments/student/{studentId}/activityItem/{activityId}:
+    get:
+      description: ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
+      parameters:
+      - description: Student ID
+        in: path
+        name: studentId
+        required: true
+        type: string
+      - description: Activity ID
+        in: path
+        name: activityId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -1045,7 +1086,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: ตรวจสอบว่านิสิตลงทะเบียนกิจกรรมหรือไม่
+      summary: ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
       tags:
       - enrollments
   /enrollments/student/{studentId}/activityItem/{activityItemId}:
@@ -1385,43 +1426,6 @@ paths:
             additionalProperties: true
             type: object
       summary: Update student
-      tags:
-      - students
-  /students/status:
-    patch:
-      consumes:
-      - application/json
-      description: Set status of students to 0 by IDs
-      parameters:
-      - description: List of student IDs
-        in: body
-        name: ids
-        required: true
-        schema:
-          items:
-            additionalProperties:
-              type: string
-            type: object
-          type: array
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Update student status to 0
       tags:
       - students
 swagger: "2.0"

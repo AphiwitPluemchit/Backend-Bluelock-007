@@ -2,6 +2,7 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
+	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -9,6 +10,7 @@ import (
 // EvaluationScoreRoutes กำหนดเส้นทางสำหรับ EvaluationScore API
 func evaluationScoreRoutes(router fiber.Router) {
 	evaluationScoreRoutes := router.Group("/evaluationScores")
+	evaluationScoreRoutes.Use(middleware.AuthJWT)
 	// evaluationScoreRoutes.Get("/", controllers.GetEvaluationScores)         // ดึงผู้ใช้ทั้งหมด
 	evaluationScoreRoutes.Post("/", controllers.CreateEvaluationScore)      // สร้างผู้ใช้ใหม่
 	evaluationScoreRoutes.Get("/:id", controllers.GetEvaluationScoreByID)   // ดึงข้อมูลผู้ใช้ตาม ID

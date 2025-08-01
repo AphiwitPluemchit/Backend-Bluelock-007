@@ -21,4 +21,5 @@ func checkInOutRoutes(router fiber.Router) {
 	checkInOutRoutes.Get("/student/qr/:token" /*middleware.AuthJWT,*/, controllers.StudentClaimQRToken) // add JWT middleware in main router
 	checkInOutRoutes.Post("/student/checkin" /*middleware.AuthJWT,*/, controllers.StudentCheckin)
 	checkInOutRoutes.Post("/student/checkout" /*middleware.AuthJWT,*/, controllers.StudentCheckout)
+	checkInOutRoutes.Get("/student/validate/:token", controllers.StudentValidateQRToken)
 }

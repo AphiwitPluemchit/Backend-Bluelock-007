@@ -58,11 +58,6 @@ func ConnectMongoDB() error {
 		}
 
 		log.Println("✅ MongoDB connected successfully")
-		ActivityCollection = GetCollection("bluelock", "activities")
-		ActivityItemCollection = GetCollection("bluelock", "activityItems")
-		EnrollmentCollection = GetCollection("bluelock", "enrollments")
-		StudentCollection = GetCollection("bluelock", "students")
-		CourseCollection = GetCollection("bluelock", "courses") // ✅ กำหนดค่าให้ CourseCollection
 		ListDatabases()
 	})
 
