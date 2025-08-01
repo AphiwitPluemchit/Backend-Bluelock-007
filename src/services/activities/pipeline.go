@@ -1,7 +1,7 @@
 package activities
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"fmt"
@@ -247,7 +247,7 @@ func GetActivityStatisticsPipeline(activityID primitive.ObjectID) mongo.Pipeline
 func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.ObjectID) ([]primitive.ObjectID, error) {
 	var activityItems []models.ActivityItem
 	filter := bson.M{"activityId": activityID}
-	cursor, err := database.ActivityItemCollection.Find(ctx, filter)
+	cursor, err := DB.ActivityItemCollection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +363,7 @@ func GetEnrollmentByActivityItemID(
 
 	// Count total before skip/limit
 	countPipeline := append(pipeline, bson.D{{Key: "$count", Value: "total"}})
-	countCursor, err := database.EnrollmentCollection.Aggregate(ctx, countPipeline)
+	countCursor, err := DB.EnrollmentCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -385,7 +385,7 @@ func GetEnrollmentByActivityItemID(
 		bson.D{{Key: "$limit", Value: pagination.Limit}},
 	)
 
-	cursor, err := database.EnrollmentCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.EnrollmentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, err
 	}

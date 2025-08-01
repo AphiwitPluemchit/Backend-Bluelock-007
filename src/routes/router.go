@@ -12,12 +12,9 @@ func InitRoutes(app fiber.Router) {
 	adminRoutes(app)
 	checkInOutRoutes(app)
 	enrollmentRoutes(app)
-	evaluationScoreRoutes(app)
 	foodRoutes(app)
-	formEvaluationRoutes(app)
 	formRoutes(app) // 👈 เพิ่ม form routes
 	studentRoutes(app)
-	suggestionRoutes(app)
 	ocrRoutes(app)
 	courseRoutes(app) // 👈 เพิ่มตรงนี้
 

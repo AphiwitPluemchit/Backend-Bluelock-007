@@ -1,14 +1,12 @@
 package forms
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
+	"Backend-Bluelock-007/src/models"
 	"context"
 	"errors"
-	"log"
 	"math"
 	"time"
-
-	"Backend-Bluelock-007/src/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,26 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var (
-	formsCollection       *mongo.Collection
-	questionsCollection   *mongo.Collection
-	submissionsCollection *mongo.Collection
-)
-
-func init() {
-	// เชื่อมต่อกับ MongoDB
-	if err := database.ConnectMongoDB(); err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-
-	formsCollection = database.GetCollection("BluelockDB", "forms")
-	questionsCollection = database.GetCollection("BluelockDB", "questions")
-	submissionsCollection = database.GetCollection("BluelockDB", "submissions")
-
-	if formsCollection == nil || questionsCollection == nil || submissionsCollection == nil {
-		log.Fatal("Failed to get the required collections")
-	}
-}
+// Collections are now initialized in service.go
 
 // CreateForm creates a new form with questions
 func CreateForm(ctx context.Context, req *models.CreateFormRequest) (*models.FormWithQuestions, error) {
@@ -49,7 +28,7 @@ func CreateForm(ctx context.Context, req *models.CreateFormRequest) (*models.For
 		UpdatedAt:   now,
 	}
 
-	formResult, err := formsCollection.InsertOne(ctx, form)
+	formResult, err := DB.FormCollection.InsertOne(ctx, form)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +51,7 @@ func CreateForm(ctx context.Context, req *models.CreateFormRequest) (*models.For
 	}
 
 	if len(questions) > 0 {
-		_, err = questionsCollection.InsertMany(ctx, questions)
+		_, err = DB.QuestionCollection.InsertMany(ctx, questions)
 		if err != nil {
 			return nil, err
 		}
@@ -89,10 +68,11 @@ func CreateForm(ctx context.Context, req *models.CreateFormRequest) (*models.For
 		Questions: createdQuestions,
 	}, nil
 }
+
 // DeleteForm deletes a form and its related questions and submissions
 func DeleteForm(ctx context.Context, formID primitive.ObjectID) error {
 	// ลบ form
-	result, err := formsCollection.DeleteOne(ctx, bson.M{"_id": formID})
+	result, err := DB.FormCollection.DeleteOne(ctx, bson.M{"_id": formID})
 	if err != nil {
 		return err
 	}
@@ -101,13 +81,13 @@ func DeleteForm(ctx context.Context, formID primitive.ObjectID) error {
 	}
 
 	// ลบคำถามที่เกี่ยวข้อง
-	_, err = questionsCollection.DeleteMany(ctx, bson.M{"formId": formID})
+	_, err = DB.QuestionCollection.DeleteMany(ctx, bson.M{"formId": formID})
 	if err != nil {
 		return err
 	}
 
 	// ลบคำตอบทั้งหมดที่ส่งมากับฟอร์มนี้
-	_, err = submissionsCollection.DeleteMany(ctx, bson.M{"formId": formID})
+	_, err = DB.SubmissionCollection.DeleteMany(ctx, bson.M{"formId": formID})
 	if err != nil {
 		return err
 	}
@@ -120,7 +100,7 @@ func GetForms(ctx context.Context, page, limit int) (*models.PaginatedFormsRespo
 	skip := (page - 1) * limit
 
 	// Get total count
-	total, err := formsCollection.CountDocuments(ctx, bson.M{})
+	total, err := DB.FormCollection.CountDocuments(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +111,7 @@ func GetForms(ctx context.Context, page, limit int) (*models.PaginatedFormsRespo
 		SetLimit(int64(limit)).
 		SetSort(bson.D{{Key: "createdAt", Value: -1}})
 
-	cursor, err := formsCollection.Find(ctx, bson.M{}, opts)
+	cursor, err := DB.FormCollection.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +137,7 @@ func GetForms(ctx context.Context, page, limit int) (*models.PaginatedFormsRespo
 func GetFormByID(ctx context.Context, formID primitive.ObjectID) (*models.FormWithQuestions, error) {
 	// Get form
 	var form models.Form
-	err := formsCollection.FindOne(ctx, bson.M{"_id": formID}).Decode(&form)
+	err := DB.FormCollection.FindOne(ctx, bson.M{"_id": formID}).Decode(&form)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, errors.New("form not found")
@@ -167,7 +147,7 @@ func GetFormByID(ctx context.Context, formID primitive.ObjectID) (*models.FormWi
 
 	// Get questions
 	opts := options.Find().SetSort(bson.D{{Key: "order", Value: 1}})
-	cursor, err := questionsCollection.Find(ctx, bson.M{"formId": formID}, opts)
+	cursor, err := DB.QuestionCollection.Find(ctx, bson.M{"formId": formID}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +168,7 @@ func GetFormByID(ctx context.Context, formID primitive.ObjectID) (*models.FormWi
 func SubmitForm(ctx context.Context, formID primitive.ObjectID, req *models.SubmitFormRequest) (*models.Submission, error) {
 	// Verify form exists
 	var form models.Form
-	err := formsCollection.FindOne(ctx, bson.M{"_id": formID}).Decode(&form)
+	err := DB.FormCollection.FindOne(ctx, bson.M{"_id": formID}).Decode(&form)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, errors.New("form not found")
@@ -214,7 +194,7 @@ func SubmitForm(ctx context.Context, formID primitive.ObjectID, req *models.Subm
 		Answers:     req.Answers,
 	}
 
-	result, err := submissionsCollection.InsertOne(ctx, submission)
+	result, err := DB.SubmissionCollection.InsertOne(ctx, submission)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +207,7 @@ func SubmitForm(ctx context.Context, formID primitive.ObjectID, req *models.Subm
 func GetFormSubmissions(ctx context.Context, formID primitive.ObjectID, page, limit int) (*models.PaginatedSubmissionsResponse, error) {
 	// Verify form exists
 	var form models.Form
-	err := formsCollection.FindOne(ctx, bson.M{"_id": formID}).Decode(&form)
+	err := DB.FormCollection.FindOne(ctx, bson.M{"_id": formID}).Decode(&form)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, errors.New("form not found")
@@ -238,7 +218,7 @@ func GetFormSubmissions(ctx context.Context, formID primitive.ObjectID, page, li
 	skip := (page - 1) * limit
 
 	// Get total count
-	total, err := submissionsCollection.CountDocuments(ctx, bson.M{"formId": formID})
+	total, err := DB.SubmissionCollection.CountDocuments(ctx, bson.M{"formId": formID})
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +229,7 @@ func GetFormSubmissions(ctx context.Context, formID primitive.ObjectID, page, li
 		SetLimit(int64(limit)).
 		SetSort(bson.D{{Key: "submittedAt", Value: -1}})
 
-	cursor, err := submissionsCollection.Find(ctx, bson.M{"formId": formID}, opts)
+	cursor, err := DB.SubmissionCollection.Find(ctx, bson.M{"formId": formID}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +272,7 @@ func validateQuestion(question *models.Question) error {
 
 func getFormQuestions(ctx context.Context, formID primitive.ObjectID) ([]models.Question, error) {
 	opts := options.Find().SetSort(bson.D{{Key: "order", Value: 1}})
-	cursor, err := questionsCollection.Find(ctx, bson.M{"formId": formID}, opts)
+	cursor, err := DB.QuestionCollection.Find(ctx, bson.M{"formId": formID}, opts)
 	if err != nil {
 		return nil, err
 	}

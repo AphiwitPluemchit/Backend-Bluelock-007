@@ -1,38 +1,24 @@
 package services
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var foodCollection *mongo.Collection
-
-func init() {
-	// เชื่อมต่อกับ MongoDB
-	if err := database.ConnectMongoDB(); err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-
-	foodCollection = database.GetCollection("BluelockDB", "foods")
-	if foodCollection == nil {
-		log.Fatal("Failed to get the foods collection")
-	}
-}
+// Collections are now initialized in service.go
 
 // CreateFoods - เพิ่มข้อมูลอาหารทีละตัว
 func CreateFood(food *models.Food) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := foodCollection.InsertOne(ctx, food)
+	_, err := DB.FoodCollection.InsertOne(ctx, food)
 	return err
 }
 
@@ -42,7 +28,7 @@ func GetAllFoods() ([]models.Food, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cursor, err := foodCollection.Find(ctx, bson.M{})
+	cursor, err := DB.FoodCollection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +53,7 @@ func GetFoodByID(id string) (*models.Food, error) {
 	}
 
 	var food models.Food
-	err = foodCollection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&food)
+	err = DB.FoodCollection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&food)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +71,7 @@ func UpdateFood(id string, food *models.Food) error {
 	filter := bson.M{"_id": objID}
 	update := bson.M{"$set": food}
 
-	_, err = foodCollection.UpdateOne(context.Background(), filter, update)
+	_, err = DB.FoodCollection.UpdateOne(context.Background(), filter, update)
 	return err
 }
 
@@ -96,6 +82,6 @@ func DeleteFood(id string) error {
 		return errors.New("invalid food ID")
 	}
 
-	_, err = foodCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
+	_, err = DB.FoodCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
 	return err
 }

@@ -1,7 +1,7 @@
 package admins
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 
 	"context"
@@ -18,17 +18,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var adminCollection *mongo.Collection
-
-func init() {
-	if err := database.ConnectMongoDB(); err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-	adminCollection = database.GetCollection("BluelockDB", "admins")
-	if adminCollection == nil {
-		log.Fatal("Failed to get the admins collection")
-	}
-}
+// Collections are now initialized in service.go
 
 func GetAllAdmins(params models.PaginationParams) ([]models.Admin, int64, int, error) {
 	var admins []models.Admin
@@ -52,7 +42,7 @@ func GetAllAdmins(params models.PaginationParams) ([]models.Admin, int64, int, e
 			{"email": bson.M{"$regex": params.Search, "$options": "i"}},
 		}
 	}
-	total, err := adminCollection.CountDocuments(ctx, filter)
+	total, err := DB.AdminCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -62,7 +52,7 @@ func GetAllAdmins(params models.PaginationParams) ([]models.Admin, int64, int, e
 		SetLimit(int64(params.Limit)).
 		SetSort(bson.D{{Key: sortField, Value: sortOrder}})
 
-	cursor, err := adminCollection.Find(ctx, filter, findOptions)
+	cursor, err := DB.AdminCollection.Find(ctx, filter, findOptions)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -89,7 +79,7 @@ func GetAdminByID(id string) (*models.Admin, error) {
 	defer cancel()
 
 	var admin models.Admin
-	err = adminCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&admin)
+	err = DB.AdminCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&admin)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, errors.New("admin not found")
 	} else if err != nil {
@@ -112,7 +102,7 @@ func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
 
 	// ✅ สร้าง admin profile
 	adminInput.ID = primitive.NewObjectID()
-	_, err = adminCollection.InsertOne(ctx, adminInput)
+	_, err = DB.AdminCollection.InsertOne(ctx, adminInput)
 	if err != nil {
 		log.Println("❌ Error inserting admin:", err)
 		return errors.New("failed to insert admin profile")
@@ -124,10 +114,9 @@ func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
 	userInput.RefID = adminInput.ID
 	userInput.IsActive = true
 
-	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.InsertOne(ctx, userInput)
+	_, err = DB.UserCollection.InsertOne(ctx, userInput)
 	if err != nil {
-		adminCollection.DeleteOne(ctx, bson.M{"_id": adminInput.ID}) // rollback
+		DB.AdminCollection.DeleteOne(ctx, bson.M{"_id": adminInput.ID}) // rollback
 		return errors.New("failed to create user for admin")
 	}
 
@@ -142,14 +131,13 @@ func UpdateAdmin(id string, admin *models.Admin) error {
 
 	filter := bson.M{"_id": objID}
 	update := bson.M{"$set": admin}
-	_, err = adminCollection.UpdateOne(context.Background(), filter, update)
+	_, err = DB.AdminCollection.UpdateOne(context.Background(), filter, update)
 	if err != nil {
 		return err
 	}
 
 	// ✅ sync ชื่อใน users ด้วย
-	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.UpdateOne(context.Background(), bson.M{
+	_, err = DB.UserCollection.UpdateOne(context.Background(), bson.M{
 		"refId": objID,
 		"role":  "Admin",
 	}, bson.M{
@@ -164,10 +152,8 @@ func DeleteAdmin(id string) error {
 	if err != nil {
 		return errors.New("invalid admin ID")
 	}
-	userCollection := database.GetCollection("BluelockDB", "users")
-
 	// 🔧 ควรลบจาก user โดยใช้ refId ไม่ใช่ _id
-	_, err = userCollection.DeleteOne(context.Background(), bson.M{
+	_, err = DB.UserCollection.DeleteOne(context.Background(), bson.M{
 		"refId": objID,
 		"role":  "Admin",
 	})
@@ -175,7 +161,7 @@ func DeleteAdmin(id string) error {
 		return err
 	}
 
-	_, err = adminCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
+	_, err = DB.AdminCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
 	return err
 }
 

@@ -2,6 +2,7 @@ package students
 
 import (
 	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/activities"
 	"context"
@@ -19,19 +20,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var studentCollection *mongo.Collection
-
-func init() {
-	// เชื่อมต่อกับ MongoDB
-	if err := database.ConnectMongoDB(); err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-
-	studentCollection = database.GetCollection("BluelockDB", "students")
-	if studentCollection == nil {
-		log.Fatal("Failed to get the students collection")
-	}
-}
+// Collections are now initialized in service.go
 
 // GetStudentsWithFilter - ดึงข้อมูลนิสิตทั้งหมดที่ผ่านการ filter ตามเงื่อนไขที่ระบุ
 func GetStudentsWithFilter(params models.PaginationParams, majors []string, studentYears []string, studentStatus []string) ([]bson.M, int64, int, error) {
@@ -95,7 +84,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 	log.Println(pipeline)
 	// 🔢 Count pipeline (before pagination)
 	countPipeline := append(pipeline, bson.D{{Key: "$count", Value: "total"}})
-	countCursor, err := studentCollection.Aggregate(ctx, countPipeline)
+	countCursor, err := DB.StudentCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -141,7 +130,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 	)
 
 	// 🚀 Run main pipeline
-	cursor, err := studentCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.StudentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -183,7 +172,7 @@ func GetStudentByCode(code string) (bson.M, error) {
 		}}},
 	}
 
-	cursor, err := studentCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.StudentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +201,7 @@ func isStudentExists(code, email string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	count, err := studentCollection.CountDocuments(ctx, bson.M{
+	count, err := DB.StudentCollection.CountDocuments(ctx, bson.M{
 		"$or": []bson.M{
 			{"code": code},
 			{"email": email},
@@ -249,7 +238,7 @@ func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 
 	// ✅ สร้าง student ก่อน
 	studentInput.ID = primitive.NewObjectID()
-	_, err = studentCollection.InsertOne(ctx, studentInput)
+	_, err = DB.StudentCollection.InsertOne(ctx, studentInput)
 	if err != nil {
 		return err
 	}
@@ -265,7 +254,7 @@ func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	_, err = userCollection.InsertOne(ctx, userInput)
 	if err != nil {
 		// rollback
-		studentCollection.DeleteOne(ctx, bson.M{"_id": studentInput.ID})
+		DB.StudentCollection.DeleteOne(ctx, bson.M{"_id": studentInput.ID})
 		return err
 	}
 
@@ -282,7 +271,7 @@ func UpdateStudent(id string, student *models.Student, email string) error {
 	// ✅ อัปเดต student
 	filter := bson.M{"_id": objID}
 	update := bson.M{"$set": student}
-	if _, err := studentCollection.UpdateOne(context.Background(), filter, update); err != nil {
+	if _, err := DB.StudentCollection.UpdateOne(context.Background(), filter, update); err != nil {
 		return err
 	}
 
@@ -316,7 +305,7 @@ func DeleteStudent(id string) error {
 	}
 
 	// ลบ student
-	_, err = studentCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
+	_, err = DB.StudentCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
 	return err
 }
 
@@ -325,7 +314,7 @@ func UpdateStudentStatusByIDs(studentIDs []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	studentCollection := database.GetCollection("BluelockDB", "students")
+	// Using centralized DB.StudentCollection instead of local initialization
 	userCollection := database.GetCollection("BluelockDB", "users")
 
 	// แปลง string IDs เป็น ObjectIDs
@@ -342,7 +331,7 @@ func UpdateStudentStatusByIDs(studentIDs []string) error {
 	filter := bson.M{"_id": bson.M{"$in": objectIDs}}
 	update := bson.M{"$set": bson.M{"status": 0}}
 
-	result, err := studentCollection.UpdateMany(ctx, filter, update)
+	result, err := DB.StudentCollection.UpdateMany(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update students: %v", err)
 	}
@@ -351,7 +340,7 @@ func UpdateStudentStatusByIDs(studentIDs []string) error {
 
 	// ดึง student IDs ที่อัปเดตแล้ว
 	var students []models.Student
-	cursor, err := studentCollection.Find(ctx, filter)
+	cursor, err := DB.StudentCollection.Find(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to find updated students: %v", err)
 	}
@@ -382,7 +371,7 @@ func GetSammaryByCode(code string) (bson.M, error) {
 
 	// 🔍 ดึงข้อมูล student
 	var student models.Student
-	err := studentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student)
+	err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student)
 	if err != nil {
 		return nil, errors.New("student not found")
 	}
@@ -500,7 +489,7 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 	}
 
 	// 🔍 ดึงข้อมูลนักเรียนตาม filter
-	cur, err := studentCollection.Find(ctx, filter)
+	cur, err := DB.StudentCollection.Find(ctx, filter)
 	if err != nil {
 		return StudentSummary{}, err
 	}

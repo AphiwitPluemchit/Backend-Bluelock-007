@@ -24,6 +24,15 @@ var (
 	EnrollmentCollection   *mongo.Collection
 	StudentCollection      *mongo.Collection // Renamed: exported
 	CourseCollection       *mongo.Collection // ✅ เพิ่มตัวแปรนี้
+	FormCollection         *mongo.Collection
+	QuestionCollection     *mongo.Collection
+	SubmissionCollection   *mongo.Collection
+	AdminCollection        *mongo.Collection
+	CheckinCollection      *mongo.Collection
+	FoodCollection         *mongo.Collection
+	QrTokenCollection      *mongo.Collection
+	QrClaimCollection      *mongo.Collection
+	UserCollection         *mongo.Collection
 )
 
 // ConnectMongoDB เชื่อมต่อกับ MongoDB แค่ครั้งเดียว

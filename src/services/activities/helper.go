@@ -1,7 +1,7 @@
 package activities
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/models"
 	"context"
@@ -198,7 +198,7 @@ type activitiesCache struct {
 }
 
 func getActivitiesFromCache(key string) (*activitiesCache, error) {
-	cached, err := database.RedisClient.Get(database.RedisCtx, key).Result()
+	cached, err := DB.RedisClient.Get(DB.RedisCtx, key).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func getSortFieldAndOrder(sortBy, order string) (string, int) {
 
 func aggregateActivities(ctx context.Context, pipeline mongo.Pipeline) ([]models.ActivityDto, error) {
 	var results []models.ActivityDto
-	cursor, err := database.ActivityCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.ActivityCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func aggregateActivities(ctx context.Context, pipeline mongo.Pipeline) ([]models
 func countActivities(ctx context.Context, filter bson.M, majors []string, studentYears []int, isSortNearest bool) (int64, error) {
 	countPipeline := getLightweightActivitiesPipeline(filter, "", 0, isSortNearest, 0, 0, majors, studentYears)
 	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
-	cursor, err := database.ActivityCollection.Aggregate(ctx, countPipeline)
+	cursor, err := DB.ActivityCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return 0, err
 	}
@@ -283,7 +283,7 @@ func countActivities(ctx context.Context, filter bson.M, majors []string, studen
 func populateEnrollmentCounts(ctx context.Context, activities []models.ActivityDto) {
 	for i, activity := range activities {
 		for j, item := range activity.ActivityItems {
-			count, err := database.EnrollmentCollection.CountDocuments(ctx, bson.M{
+			count, err := DB.EnrollmentCollection.CountDocuments(ctx, bson.M{
 				"activityItemId": item.ID,
 			})
 			if err == nil {
@@ -299,7 +299,7 @@ func cacheActivitiesResult(key string, results []models.ActivityDto, total int64
 		Total:      total,
 		TotalPages: totalPages,
 	})
-	_ = database.RedisClient.Set(database.RedisCtx, key, cacheValue, 2*time.Minute).Err()
+	_ = DB.RedisClient.Set(DB.RedisCtx, key, cacheValue, 2*time.Minute).Err()
 }
 
 // containsString checks if a slice contains a specific string.

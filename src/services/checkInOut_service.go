@@ -1,49 +1,18 @@
 package services
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
+	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/enrollments"
 	"context"
 	"fmt"
-	"log"
 	"time"
-
-	"Backend-Bluelock-007/src/models"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-var checkInOutCollection *mongo.Collection
-var qrTokenCollection *mongo.Collection
-var qrClaimCollection *mongo.Collection
-
-func init() {
-	if err := database.ConnectMongoDB(); err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-	database.InitRedis()
-
-	checkInOutCollection = database.GetCollection("BluelockDB", "checkInOuts")
-	qrTokenCollection = database.GetCollection("BluelockDB", "qr_tokens")
-	qrClaimCollection = database.GetCollection("BluelockDB", "qr_claims")
-	if checkInOutCollection == nil || qrTokenCollection == nil || qrClaimCollection == nil {
-		log.Fatal("Failed to get the required collections")
-	}
-	// Ensure TTL index for qr_tokens (expiresAt)
-	_, _ = qrTokenCollection.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
-		Keys:    bson.M{"expiresAt": 1},
-		Options: options.Index().SetExpireAfterSeconds(0),
-	})
-	// Ensure TTL index for qr_claims (expireAt)
-	_, _ = qrClaimCollection.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
-		Keys:    bson.M{"expireAt": 1},
-		Options: options.Index().SetExpireAfterSeconds(0),
-	})
-}
 
 // GetCheckinStatus returns all check-in/out records for a student and activityItemId
 func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{}, error) {
@@ -58,7 +27,7 @@ func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{
 		"activityItemId": aID,
 	}
 
-	cursor, err := checkInOutCollection.Find(context.TODO(), filter)
+	cursor, err := DB.CheckinCollection.Find(context.TODO(), filter)
 	if err != nil {
 		return nil, fmt.Errorf("ไม่สามารถค้นหาข้อมูลเช็คชื่อได้")
 	}
@@ -126,7 +95,7 @@ func CreateQRToken(activityId string, qrType string) (string, int64, error) {
 		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
 	}
-	_, err = qrTokenCollection.InsertOne(context.TODO(), qrToken)
+	_, err = DB.QrTokenCollection.InsertOne(context.TODO(), qrToken)
 	if err != nil {
 		return "", 0, err
 	}
@@ -149,7 +118,7 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 		ClaimedAt  time.Time          `bson:"claimedAt"`
 		ExpireAt   time.Time          `bson:"expireAt"`
 	}
-	err = qrClaimCollection.FindOne(ctx, bson.M{"token": token, "studentId": studentObjID, "expireAt": bson.M{"$gt": time.Now()}}).Decode(&claim)
+	err = DB.QrClaimCollection.FindOne(ctx, bson.M{"token": token, "studentId": studentObjID, "expireAt": bson.M{"$gt": time.Now()}}).Decode(&claim)
 	if err == nil {
 		return &models.QRToken{
 			Token:              claim.Token,
@@ -160,7 +129,7 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 	}
 	// 2. ถ้าไม่เจอ → ไปหาใน qr_tokens (token+expiresAt>now)
 	var qrToken models.QRToken
-	err = qrTokenCollection.FindOne(ctx, bson.M{"token": token, "expiresAt": bson.M{"$gt": time.Now().Unix()}}).Decode(&qrToken)
+	err = DB.QrTokenCollection.FindOne(ctx, bson.M{"token": token, "expiresAt": bson.M{"$gt": time.Now().Unix()}}).Decode(&qrToken)
 	if err != nil {
 		return nil, fmt.Errorf("QR token expired or invalid")
 	}
@@ -174,7 +143,7 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 		"claimedAt":  time.Now(),
 		"expireAt":   expireAt,
 	}
-	_, err = qrClaimCollection.UpdateOne(ctx, bson.M{"token": token, "studentId": studentObjID}, bson.M{"$set": claimDoc}, options.Update().SetUpsert(true))
+	_, err = DB.QrClaimCollection.UpdateOne(ctx, bson.M{"token": token, "studentId": studentObjID}, bson.M{"$set": claimDoc}, options.Update().SetUpsert(true))
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +166,7 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 		ClaimedAt  time.Time          `bson:"claimedAt"`
 		ExpireAt   time.Time          `bson:"expireAt"`
 	}
-	err = qrClaimCollection.FindOne(ctx, bson.M{"token": token, "studentId": studentObjID, "expireAt": bson.M{"$gt": time.Now()}}).Decode(&claim)
+	err = DB.QrClaimCollection.FindOne(ctx, bson.M{"token": token, "studentId": studentObjID, "expireAt": bson.M{"$gt": time.Now()}}).Decode(&claim)
 	if err != nil {
 		return nil, fmt.Errorf("QR token not claimed or expired")
 	}
@@ -232,7 +201,7 @@ func SaveCheckInOut(userId, activityItemId, checkType string) error {
 			"$lt":  endOfDay,
 		},
 	}
-	count, err := checkInOutCollection.CountDocuments(context.TODO(), filter)
+	count, err := DB.CheckinCollection.CountDocuments(context.TODO(), filter)
 	if err != nil {
 		return err
 	}
@@ -240,7 +209,7 @@ func SaveCheckInOut(userId, activityItemId, checkType string) error {
 		return fmt.Errorf("คุณได้เช็คชื่อ %s แล้วในวันนี้", checkType)
 	}
 	// Insert ใหม่
-	_, err = checkInOutCollection.InsertOne(context.TODO(), bson.M{
+	_, err = DB.CheckinCollection.InsertOne(context.TODO(), bson.M{
 		"userId":         uID,
 		"activityItemId": aID,
 		"type":           checkType,

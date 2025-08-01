@@ -1,7 +1,7 @@
 package services
 
 import (
-	"Backend-Bluelock-007/src/database"
+	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"errors"
@@ -92,8 +92,8 @@ func UpdateLastLogout(userID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err := userCollection.UpdateOne(ctx,
+	// Use the initialized collection from DB package
+	_, err := DB.UserCollection.UpdateOne(ctx,
 		bson.M{"_id": userID},
 		bson.M{"$set": bson.M{"lastLogout": time.Now()}},
 	)
@@ -152,10 +152,10 @@ func extractStudentYearFromCode(code string) int {
 
 func AuthenticateUser(email, password string) (*models.User, error) {
 	ctx := context.Background()
-	userCollection := database.GetCollection("BluelockDB", "users")
+	// Use the initialized collection from DB package
 
 	var dbUser models.User
-	err := userCollection.FindOne(ctx, bson.M{"email": strings.ToLower(email)}).Decode(&dbUser)
+	err := DB.UserCollection.FindOne(ctx, bson.M{"email": strings.ToLower(email)}).Decode(&dbUser)
 	if err != nil {
 		return nil, errors.New("Invalid email or password")
 	}
@@ -186,8 +186,8 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 	switch dbUser.Role {
 	case "Student":
 		var student models.Student
-		studentCol := database.GetCollection("BluelockDB", "students")
-		err := studentCol.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
+		// Use the initialized collection from DB package
+		err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
 		if err == nil {
 			result.ID = student.ID
 			result.Name = student.Name
@@ -197,8 +197,8 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 		}
 	case "Admin":
 		var admin models.Admin
-		adminCol := database.GetCollection("BluelockDB", "admins")
-		err := adminCol.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
+		// Use the initialized collection from DB package
+		err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
 		if err == nil {
 			result.ID = admin.ID
 			result.Name = admin.Name
