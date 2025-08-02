@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-var collection = "BluelockDB"
+var collection = "UAT"
 
 // var collection = "BluelockDB" // หรือ "UAT"
 func init() {
