@@ -310,7 +310,7 @@ func DeleteStudent(id string) error {
 }
 
 // UpdateStudentStatusByIDs - อัปเดตสถานะนักเรียนหลายคนโดยใช้ ID
-func UpdateStudentStatusByIDs(studentIDs []string) error {
+func UpdateStudentStatusByIDs(studentIDs []string, status int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -319,6 +319,7 @@ func UpdateStudentStatusByIDs(studentIDs []string) error {
 
 	// แปลง string IDs เป็น ObjectIDs
 	var objectIDs []primitive.ObjectID
+	var statusUpdate int
 	for _, id := range studentIDs {
 		objectID, err := primitive.ObjectIDFromHex(id)
 		if err != nil {
@@ -326,10 +327,10 @@ func UpdateStudentStatusByIDs(studentIDs []string) error {
 		}
 		objectIDs = append(objectIDs, objectID)
 	}
-
+	statusUpdate = status
 	// อัปเดตสถานะนักเรียน
 	filter := bson.M{"_id": bson.M{"$in": objectIDs}}
-	update := bson.M{"$set": bson.M{"status": 0}}
+	update := bson.M{"$set": bson.M{"status": statusUpdate}}
 
 	result, err := DB.StudentCollection.UpdateMany(ctx, filter, update)
 	if err != nil {
@@ -365,6 +366,7 @@ func UpdateStudentStatusByIDs(studentIDs []string) error {
 	return nil
 }
 
+// GetSammaryByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code
 func GetSammaryByCode(code string) (bson.M, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

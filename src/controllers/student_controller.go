@@ -242,6 +242,7 @@ func DeleteStudent(c *fiber.Ctx) error {
 func UpdateStudentStatusByIDs(c *fiber.Ctx) error {
 	type UpdateStatusRequest struct {
 		StudentIDs []string `json:"studentIds"`
+		Status     int      `json:"status"`
 	}
 
 	var req UpdateStatusRequest
@@ -259,7 +260,7 @@ func UpdateStudentStatusByIDs(c *fiber.Ctx) error {
 		})
 	}
 
-	err := students.UpdateStudentStatusByIDs(req.StudentIDs)
+	err := students.UpdateStudentStatusByIDs(req.StudentIDs, req.Status)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to update student status",
