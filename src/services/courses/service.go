@@ -4,13 +4,13 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"context"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-var ctx = context.Background()
 
 // CreateCourse - สร้างคอร์สใหม่
 func CreateCourse(course *models.Course) (*models.Course, error) {
@@ -24,19 +24,58 @@ func CreateCourse(course *models.Course) (*models.Course, error) {
 	return course, nil
 }
 
-// GetAllCourses - ดึงคอร์สทั้งหมด
-func GetAllCourses() ([]models.Course, error) {
+// GetAllCourses - ดึงข้อมูลคอร์สทั้งหมดแบบแบ่งหน้าและกรองข้อมูล
+func GetAllCourses(params models.PaginationParams, filters models.CourseFilters) ([]models.Course, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cursor, err := DB.CourseCollection.Find(ctx, bson.M{})
-	if err != nil {
-		return nil, err
+
+	// สร้าง query filter
+	query := bson.M{}
+
+	// เพิ่มเงื่อนไขการค้นหา
+	if params.Search != "" {
+		query["$or"] = []bson.M{
+			{"name": bson.M{"$regex": primitive.Regex{Pattern: params.Search, Options: "i"}}},
+			{"description": bson.M{"$regex": primitive.Regex{Pattern: params.Search, Options: "i"}}},
+		}
 	}
+
+	// เพิ่มเงื่อนไขการกรอง
+	if filters.Type != "" {
+		query["type"] = filters.Type
+	}
+	if filters.IsHardSkill != nil {
+		query["isHardSkill"] = *filters.IsHardSkill
+	}
+	if filters.IsActive != nil {
+		query["isActive"] = *filters.IsActive
+	}
+
+	// นับจำนวนเอกสารทั้งหมดที่ตรงกับเงื่อนไข
+	total, err := DB.CourseCollection.CountDocuments(ctx, query)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count documents: %v", err)
+	}
+
+	// ตั้งค่าการแบ่งหน้า
+	findOptions := options.Find().
+		SetSkip(params.GetSkip()).
+		SetLimit(int64(params.Limit)).
+		SetSort(params.GetSortOrder())
+
+	// ดึงข้อมูล
+	cursor, err := DB.CourseCollection.Find(ctx, query, findOptions)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to find documents: %v", err)
+	}
+	defer cursor.Close(ctx)
+
 	var courses []models.Course
 	if err = cursor.All(ctx, &courses); err != nil {
-		return nil, err
+		return nil, 0, fmt.Errorf("failed to decode documents: %v", err)
 	}
-	return courses, nil
+
+	return courses, total, nil
 }
 
 // GetCourseByID - ดึงคอร์สตาม ID
@@ -58,7 +97,7 @@ func UpdateCourse(id primitive.ObjectID, update models.Course) (*models.Course, 
 	updateData := bson.M{
 		"name":        update.Name,
 		"description": update.Description,
-		"date":        update.Date,
+		"link":        update.Link,
 		"issuer":      update.Issuer,
 		"type":        update.Type,
 		"hour":        update.Hour,

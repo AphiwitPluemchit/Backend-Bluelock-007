@@ -2,7 +2,6 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
-	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -10,7 +9,7 @@ import (
 // CourseRoutes จัดการเส้นทางสำหรับ Course API
 func courseRoutes(router fiber.Router) {
 	courseRoutes := router.Group("/courses")
-	courseRoutes.Use(middleware.AuthJWT)
+	// courseRoutes.Use(middleware.AuthJWT)
 	courseRoutes.Get("/", controllers.GetAllCourses)
 	courseRoutes.Post("/", controllers.CreateCourse)
 	courseRoutes.Get("/:id", controllers.GetCourseByID)

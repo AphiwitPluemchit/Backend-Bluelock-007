@@ -26,6 +26,7 @@ func init() {
 	DB.SubmissionCollection = DB.GetCollection(collection, "submissions")
 	DB.StudentCollection = DB.GetCollection(collection, "students")
 	DB.UserCollection = DB.GetCollection(collection, "users")
+	DB.CourseCollection = DB.GetCollection(collection, "courses")
 
 	if DB.ActivityCollection == nil || DB.ActivityItemCollection == nil {
 		log.Fatal("Failed to get the required collections")

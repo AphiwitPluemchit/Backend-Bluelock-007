@@ -33,19 +33,37 @@ func CreateCourse(c *fiber.Ctx) error {
 }
 
 // GetAllCourses godoc
-// @Summary      Get all courses
-// @Description  Get all courses
+// @Summary      Get all courses with pagination and filtering
+// @Description  Get all courses with pagination and filtering options
 // @Tags         courses
 // @Produce      json
-// @Success      200  {array}  models.Course
+// @Param        query  query     models.PaginationParams true "Pagination and filtering parameters"
+// @Param        filters query     models.CourseFilters true "Filtering parameters"
+// @Success      200  {object}  models.PaginatedResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /courses [get]
 func GetAllCourses(c *fiber.Ctx) error {
-	coursesList, err := courses.GetAllCourses()
+	// รับค่า pagination parameters
+	params := models.DefaultPagination()
+	if err := c.QueryParser(&params); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid query parameters")
+	}
+
+	// รับค่า filter parameters
+	var filters models.CourseFilters
+	if err := c.QueryParser(&filters); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid filter parameters")
+	}
+
+	// เรียกใช้ service เพื่อดึงข้อมูล
+	result, total, err := courses.GetAllCourses(params, filters)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
 	}
-	return c.JSON(coursesList)
+
+	// สร้าง response
+	response := models.NewPaginatedResponse(result, total, params)
+	return c.JSON(response)
 }
 
 // GetCourseByID godoc

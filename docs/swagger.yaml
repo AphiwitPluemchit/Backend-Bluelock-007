@@ -126,9 +126,6 @@ definitions:
     type: object
   models.Course:
     properties:
-      date:
-        example: "2025-07-19T00:00:00Z"
-        type: string
       description:
         example: Learn the basics of programming with this introductory course
         type: string
@@ -147,6 +144,9 @@ definitions:
         type: boolean
       issuer:
         example: Computer Science Department
+        type: string
+      link:
+        example: https://www.example.com/course
         type: string
       name:
         example: Introduction to Programming
@@ -232,6 +232,22 @@ definitions:
       majorName:
         type: string
     type: object
+  models.PaginatedResponse:
+    properties:
+      data: {}
+      hasNext:
+        type: boolean
+      hasPrevious:
+        type: boolean
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   models.Student:
     properties:
       code:
@@ -249,6 +265,7 @@ definitions:
       softSkill:
         type: integer
       status:
+        description: 0พ้นสภาพ 1ชั่วโมงน้อยมาก 2ชั่วโมงน้อย 3ชั่วโมงครบแล้ว 4ออกผึกแล้ว
         type: integer
     type: object
   models.SuccessResponse:
@@ -775,21 +792,55 @@ paths:
       - admins
   /courses:
     get:
-      description: Get all courses
+      description: Get all courses with pagination and filtering options
+      parameters:
+      - description: จำนวนรายการต่อหน้า
+        example: 10
+        in: query
+        name: limit
+        type: integer
+      - description: ทิศทางการเรียง (asc/desc)
+        example: desc
+        in: query
+        name: order
+        type: string
+      - description: หมายเลขหน้าที่ต้องการ
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: คำค้นหา (Optional)
+        example: ""
+        in: query
+        name: search
+        type: string
+      - description: ฟิลด์ที่ใช้เรียงลำดับ
+        example: _id
+        in: query
+        name: sortBy
+        type: string
+      - in: query
+        name: isActive
+        type: boolean
+      - in: query
+        name: isHardSkill
+        type: boolean
+      - description: lms, buumooc, thaimooc
+        in: query
+        name: type
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/models.Course'
-            type: array
+            $ref: '#/definitions/models.PaginatedResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Get all courses
+      summary: Get all courses with pagination and filtering
       tags:
       - courses
     post:
@@ -1056,9 +1107,10 @@ paths:
       summary: ดึงข้อมูล Enrollment ของ Student ใน Activity
       tags:
       - enrollments
-  /enrollments/student/{studentId}/activityItem/{activityId}:
+  /enrollments/student/{studentId}/activity/{activityId}/check:
     get:
-      description: ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
+      description: ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่ และส่งข้อมูลกิจกรรมที่คล้ายกับ
+        activity getOne
       parameters:
       - description: Student ID
         in: path

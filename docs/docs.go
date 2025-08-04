@@ -782,22 +782,72 @@ const docTemplate = `{
         },
         "/courses": {
             "get": {
-                "description": "Get all courses",
+                "description": "Get all courses with pagination and filtering options",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "courses"
                 ],
-                "summary": "Get all courses",
+                "summary": "Get all courses with pagination and filtering",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "example": 10,
+                        "description": "จำนวนรายการต่อหน้า",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "desc",
+                        "description": "ทิศทางการเรียง (asc/desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "หมายเลขหน้าที่ต้องการ",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "",
+                        "description": "คำค้นหา (Optional)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "_id",
+                        "description": "ฟิลด์ที่ใช้เรียงลำดับ",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "name": "isActive",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "name": "isHardSkill",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "lms, buumooc, thaimooc",
+                        "name": "type",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Course"
-                            }
+                            "$ref": "#/definitions/models.PaginatedResponse"
                         }
                     },
                     "500": {
@@ -1169,9 +1219,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/enrollments/student/{studentId}/activityItem/{activityId}": {
+        "/enrollments/student/{studentId}/activity/{activityId}/check": {
             "get": {
-                "description": "ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่",
+                "description": "ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่ และส่งข้อมูลกิจกรรมที่คล้ายกับ activity getOne",
                 "produces": [
                     "application/json"
                 ],
@@ -1947,10 +1997,6 @@ const docTemplate = `{
         "models.Course": {
             "type": "object",
             "properties": {
-                "date": {
-                    "type": "string",
-                    "example": "2025-07-19T00:00:00Z"
-                },
                 "description": {
                     "type": "string",
                     "example": "Learn the basics of programming with this introductory course"
@@ -1975,6 +2021,10 @@ const docTemplate = `{
                 "issuer": {
                     "type": "string",
                     "example": "Computer Science Department"
+                },
+                "link": {
+                    "type": "string",
+                    "example": "https://www.example.com/course"
                 },
                 "name": {
                     "type": "string",
@@ -2103,6 +2153,30 @@ const docTemplate = `{
                 }
             }
         },
+        "models.PaginatedResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "hasNext": {
+                    "type": "boolean"
+                },
+                "hasPrevious": {
+                    "type": "boolean"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.Student": {
             "type": "object",
             "properties": {
@@ -2128,6 +2202,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "status": {
+                    "description": "0พ้นสภาพ 1ชั่วโมงน้อยมาก 2ชั่วโมงน้อย 3ชั่วโมงครบแล้ว 4ออกผึกแล้ว",
                     "type": "integer"
                 }
             }
