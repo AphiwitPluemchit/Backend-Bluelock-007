@@ -4,6 +4,7 @@ import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/courses"
 	"Backend-Bluelock-007/src/utils"
+	"math"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -43,27 +44,35 @@ func CreateCourse(c *fiber.Ctx) error {
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /courses [get]
 func GetAllCourses(c *fiber.Ctx) error {
-	// รับค่า pagination parameters
 	params := models.DefaultPagination()
 	if err := c.QueryParser(&params); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid query parameters")
 	}
 
-	// รับค่า filter parameters
 	var filters models.CourseFilters
 	if err := c.QueryParser(&filters); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid filter parameters")
 	}
 
-	// เรียกใช้ service เพื่อดึงข้อมูล
 	result, total, err := courses.GetAllCourses(params, filters)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	// สร้าง response
-	response := models.NewPaginatedResponse(result, total, params)
-	return c.JSON(response)
+	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
+
+	response := models.PaginatedResponse[models.Course]{
+		Data: result,
+		Meta: models.PaginationMeta{
+			Page:        params.Page,
+			Limit:       params.Limit,
+			Total:       total,
+			TotalPages:  totalPages,
+			HasNext:     params.Page < totalPages,
+			HasPrevious: params.Page > 1,
+		},
+	}
+	return c.Status(fiber.StatusOK).JSON(response)
 }
 
 // GetCourseByID godoc

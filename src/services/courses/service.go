@@ -29,10 +29,9 @@ func GetAllCourses(params models.PaginationParams, filters models.CourseFilters)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// สร้าง query filter
 	query := bson.M{}
 
-	// เพิ่มเงื่อนไขการค้นหา
+	// ค้นหา
 	if params.Search != "" {
 		query["$or"] = []bson.M{
 			{"name": bson.M{"$regex": primitive.Regex{Pattern: params.Search, Options: "i"}}},
@@ -40,7 +39,7 @@ func GetAllCourses(params models.PaginationParams, filters models.CourseFilters)
 		}
 	}
 
-	// เพิ่มเงื่อนไขการกรอง
+	// ฟิลเตอร์
 	if filters.Type != "" {
 		query["type"] = filters.Type
 	}
@@ -51,19 +50,25 @@ func GetAllCourses(params models.PaginationParams, filters models.CourseFilters)
 		query["isActive"] = *filters.IsActive
 	}
 
-	// นับจำนวนเอกสารทั้งหมดที่ตรงกับเงื่อนไข
+	// นับจำนวนทั้งหมด
 	total, err := DB.CourseCollection.CountDocuments(ctx, query)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count documents: %v", err)
 	}
 
-	// ตั้งค่าการแบ่งหน้า
-	findOptions := options.Find().
-		SetSkip(params.GetSkip()).
-		SetLimit(int64(params.Limit)).
-		SetSort(params.GetSortOrder())
+	// Pagination
+	skip := int64((params.Page - 1) * params.Limit)
+	order := 1
+	if params.Order == "desc" {
+		order = -1
+	}
 
-	// ดึงข้อมูล
+	// Pagination
+	findOptions := options.Find().
+		SetSkip(skip).
+		SetLimit(int64(params.Limit)).
+		SetSort(bson.M{params.SortBy: order})
+
 	cursor, err := DB.CourseCollection.Find(ctx, query, findOptions)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to find documents: %v", err)
@@ -71,7 +76,7 @@ func GetAllCourses(params models.PaginationParams, filters models.CourseFilters)
 	defer cursor.Close(ctx)
 
 	var courses []models.Course
-	if err = cursor.All(ctx, &courses); err != nil {
+	if err := cursor.All(ctx, &courses); err != nil {
 		return nil, 0, fmt.Errorf("failed to decode documents: %v", err)
 	}
 

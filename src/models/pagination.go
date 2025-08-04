@@ -1,7 +1,5 @@
 package models
 
-import "math"
-
 // PaginationParams ใช้เก็บค่าการแบ่งหน้า, ค้นหา และเรียงลำดับ
 type PaginationParams struct {
 	Page   int    `json:"page" query:"page"  example:"1"`      // หมายเลขหน้าที่ต้องการ
@@ -12,14 +10,18 @@ type PaginationParams struct {
 }
 
 // PaginatedResponse โครงสร้างการตอบกลับแบบแบ่งหน้า
-type PaginatedResponse struct {
-	Data        interface{} `json:"data"`
-	Total       int64       `json:"total"`
-	Page        int         `json:"page"`
-	Limit       int         `json:"limit"`
-	TotalPages  int         `json:"totalPages"`
-	HasNext     bool        `json:"hasNext"`
-	HasPrevious bool        `json:"hasPrevious"`
+type PaginationMeta struct {
+	Page        int   `json:"page"`
+	Limit       int   `json:"limit"`
+	Total       int64 `json:"total"`
+	TotalPages  int   `json:"totalPages"`
+	HasNext     bool  `json:"hasNext"`
+	HasPrevious bool  `json:"hasPrevious"`
+}
+
+type PaginatedResponse[T any] struct {
+	Data []T            `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
 // DefaultPagination ค่าตั้งต้นสำหรับ Pagination
@@ -31,33 +33,4 @@ func DefaultPagination() PaginationParams {
 		SortBy: "_id",
 		Order:  "asc",
 	}
-}
-
-// NewPaginatedResponse สร้าง PaginatedResponse ใหม่
-func NewPaginatedResponse(data interface{}, total int64, params PaginationParams) *PaginatedResponse {
-	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
-
-	return &PaginatedResponse{
-		Data:        data,
-		Total:       total,
-		Page:        params.Page,
-		Limit:       params.Limit,
-		TotalPages:  totalPages,
-		HasNext:     params.Page < totalPages,
-		HasPrevious: params.Page > 1,
-	}
-}
-
-// GetSkip คำนวณจำนวนรายการที่ต้องข้าม
-func (p *PaginationParams) GetSkip() int64 {
-	return int64((p.Page - 1) * p.Limit)
-}
-
-// GetSortOrder สร้างตัวแปรสำหรับการเรียงลำดับ
-func (p *PaginationParams) GetSortOrder() map[string]int {
-	order := 1 // 1 = asc, -1 = desc
-	if p.Order == "desc" {
-		order = -1
-	}
-	return map[string]int{p.SortBy: order}
 }
