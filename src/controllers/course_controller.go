@@ -40,7 +40,7 @@ func CreateCourse(c *fiber.Ctx) error {
 // @Produce      json
 // @Param        query  query     models.PaginationParams true "Pagination and filtering parameters"
 // @Param        filters query     models.CourseFilters true "Filtering parameters"
-// @Success      200  {object}  models.PaginatedResponse
+// @Success      200  {object}  models.CoursePaginatedResponse
 // @Failure      500  {object}  models.ErrorResponse
 // @Router       /courses [get]
 func GetAllCourses(c *fiber.Ctx) error {
@@ -61,7 +61,7 @@ func GetAllCourses(c *fiber.Ctx) error {
 
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 
-	response := models.PaginatedResponse[models.Course]{
+	response := models.CoursePaginatedResponse{
 		Data: result,
 		Meta: models.PaginationMeta{
 			Page:        params.Page,

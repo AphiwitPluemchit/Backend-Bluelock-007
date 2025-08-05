@@ -22,3 +22,10 @@ type CourseFilters struct {
 	IsHardSkill *bool  `json:"isHardSkill" query:"isHardSkill"`
 	IsActive    *bool  `json:"isActive" query:"isActive"`
 }
+
+
+// CoursePaginatedResponse is a concrete type for paginated course responses
+type CoursePaginatedResponse struct {
+    Data []Course      `json:"data"`
+    Meta PaginationMeta `json:"meta"`
+}

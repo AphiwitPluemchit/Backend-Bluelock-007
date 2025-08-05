@@ -847,7 +847,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.PaginatedResponse"
+                            "$ref": "#/definitions/models.CoursePaginatedResponse"
                         }
                     },
                     "500": {
@@ -2041,6 +2041,20 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CoursePaginatedResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Course"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/models.PaginationMeta"
+                }
+            }
+        },
         "models.Dates": {
             "type": "object",
             "properties": {
@@ -2153,10 +2167,9 @@ const docTemplate = `{
                 }
             }
         },
-        "models.PaginatedResponse": {
+        "models.PaginationMeta": {
             "type": "object",
             "properties": {
-                "data": {},
                 "hasNext": {
                     "type": "boolean"
                 },

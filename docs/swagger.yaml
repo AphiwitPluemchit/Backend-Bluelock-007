@@ -159,6 +159,15 @@ definitions:
         example: lms
         type: string
     type: object
+  models.CoursePaginatedResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/models.Course'
+        type: array
+      meta:
+        $ref: '#/definitions/models.PaginationMeta'
+    type: object
   models.Dates:
     properties:
       date:
@@ -232,9 +241,8 @@ definitions:
       majorName:
         type: string
     type: object
-  models.PaginatedResponse:
+  models.PaginationMeta:
     properties:
-      data: {}
       hasNext:
         type: boolean
       hasPrevious:
@@ -835,7 +843,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.PaginatedResponse'
+            $ref: '#/definitions/models.CoursePaginatedResponse'
         "500":
           description: Internal Server Error
           schema:

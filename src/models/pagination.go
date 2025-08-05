@@ -19,11 +19,6 @@ type PaginationMeta struct {
 	HasPrevious bool  `json:"hasPrevious"`
 }
 
-type PaginatedResponse[T any] struct {
-	Data []T            `json:"data"`
-	Meta PaginationMeta `json:"meta"`
-}
-
 // DefaultPagination ค่าตั้งต้นสำหรับ Pagination
 func DefaultPagination() PaginationParams {
 	return PaginationParams{
