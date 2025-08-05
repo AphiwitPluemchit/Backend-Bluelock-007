@@ -124,6 +124,48 @@ definitions:
       name:
         type: string
     type: object
+  models.Block:
+    properties:
+      choices:
+        items:
+          $ref: '#/definitions/models.Choice'
+        type: array
+      description:
+        type: string
+      formId:
+        type: string
+      icon:
+        type: string
+      id:
+        type: string
+      isRequired:
+        type: boolean
+      max:
+        type: integer
+      rows:
+        items:
+          $ref: '#/definitions/models.Row'
+        type: array
+      sequence:
+        type: integer
+      session:
+        type: integer
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  models.Choice:
+    properties:
+      blockId:
+        type: string
+      id:
+        type: string
+      sequence:
+        type: integer
+      title:
+        type: string
+    type: object
   models.Course:
     properties:
       description:
@@ -234,6 +276,23 @@ definitions:
       vote:
         type: integer
     type: object
+  models.Form:
+    properties:
+      activityId:
+        type: string
+      blocks:
+        items:
+          $ref: '#/definitions/models.Block'
+        type: array
+      description:
+        type: string
+      id:
+        type: string
+      isOrigin:
+        type: boolean
+      title:
+        type: string
+    type: object
   models.MajorEnrollment:
     properties:
       count:
@@ -255,6 +314,17 @@ definitions:
         type: integer
       totalPages:
         type: integer
+    type: object
+  models.Row:
+    properties:
+      blockId:
+        type: string
+      id:
+        type: string
+      sequence:
+        type: integer
+      title:
+        type: string
     type: object
   models.Student:
     properties:
@@ -1310,6 +1380,41 @@ paths:
       summary: อัปเดตข้อมูลอาหาร
       tags:
       - foods
+  /forms:
+    post:
+      consumes:
+      - application/json
+      description: รับข้อมูลฟอร์มจาก client และบันทึกลงฐานข้อมูล
+      parameters:
+      - description: Form object
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/models.Form'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Form created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Failed to insert form
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new form
+      tags:
+      - forms
   /students:
     get:
       consumes:

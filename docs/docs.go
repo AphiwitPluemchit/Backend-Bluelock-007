@@ -1549,6 +1549,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/forms": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "รับข้อมูลฟอร์มจาก client และบันทึกลงฐานข้อมูล",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "forms"
+                ],
+                "summary": "Create a new form",
+                "parameters": [
+                    {
+                        "description": "Form object",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Form"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Form created successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to insert form",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/students": {
             "get": {
                 "description": "Get all students with optional filters",
@@ -1994,6 +2048,70 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Block": {
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Choice"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "formId": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isRequired": {
+                    "type": "boolean"
+                },
+                "max": {
+                    "type": "integer"
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Row"
+                    }
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "session": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Choice": {
+            "type": "object",
+            "properties": {
+                "blockId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Course": {
             "type": "object",
             "properties": {
@@ -2156,6 +2274,32 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Form": {
+            "type": "object",
+            "properties": {
+                "activityId": {
+                    "type": "string"
+                },
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Block"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isOrigin": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "models.MajorEnrollment": {
             "type": "object",
             "properties": {
@@ -2187,6 +2331,23 @@ const docTemplate = `{
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.Row": {
+            "type": "object",
+            "properties": {
+                "blockId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
