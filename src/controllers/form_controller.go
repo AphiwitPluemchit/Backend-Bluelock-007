@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services/forms"
+ 	forms "Backend-Bluelock-007/src/services/forms"
 )
 // CreateForm godoc
 // @Summary      Create a new form
@@ -56,7 +56,7 @@ func CreateForm(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	insertResult, err := services.InsetForm(ctx, &form)
+	insertResult, err := forms.InsetForm(ctx, &form)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to insert form",
@@ -68,4 +68,23 @@ func CreateForm(c *fiber.Ctx) error {
 		"insertedId": insertResult.InsertedID,
 		"form":       form,
 	})
+}
+
+// GetAllForms godoc
+// @Summary      Get all forms
+// @Description  ดึงข้อมูลฟอร์มทั้งหมด
+// @Tags         forms
+// @Produce      json
+// @Success      200   {array}   models.Form
+// @Failure      500   {object}  map[string]interface{}
+// @Router       /forms [get]
+// @Security     ApiKeyAuth
+func GetAllForms(c *fiber.Ctx) error {
+	allForms, err := forms.GetAllForms(context.Background())
+	if err != nil {
+			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Failed to get forms",
+			})
+	}
+	return c.JSON(allForms)
 }
