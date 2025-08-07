@@ -32,8 +32,26 @@ func CreateForm(c *fiber.Ctx) error {
 		})
 	}
 
-	// ตั้งค่า _id และเวลาสร้าง
+	// สร้าง Form ID
 	form.ID = primitive.NewObjectID()
+
+	// Loop ทุก block → set ID + formId
+	for i := range form.Blocks {
+		form.Blocks[i].ID = primitive.NewObjectID()
+		form.Blocks[i].FormID = form.ID
+
+		// Loop ทุก choice → set ID + blockId
+		for j := range form.Blocks[i].Choices {
+			form.Blocks[i].Choices[j].ID = primitive.NewObjectID()
+			form.Blocks[i].Choices[j].BlockID = form.Blocks[i].ID
+		}
+
+		// Loop ทุก row → set ID + blockId
+		for j := range form.Blocks[i].Rows {
+			form.Blocks[i].Rows[j].ID = primitive.NewObjectID()
+			form.Blocks[i].Rows[j].BlockID = form.Blocks[i].ID
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
