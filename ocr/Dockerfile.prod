@@ -33,4 +33,4 @@ ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata/
 # Run FastAPI app 
 # เพิ่ม EXPOSE เพื่อความชัดเจนว่า app listen ที่ port 8000
 EXPOSE 8000 
-CMD ["uvicorn", "main_ocr:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

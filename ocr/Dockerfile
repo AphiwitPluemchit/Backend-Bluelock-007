@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy traineddata (คุณโหลดมาใน project folder)
-COPY ./tha.traineddata /usr/share/tesseract-ocr/4.00/tessdata/tha.traineddata
-COPY ./eng.traineddata /usr/share/tesseract-ocr/4.00/tessdata/eng.traineddata
+COPY ./dependencies/tha.traineddata /usr/share/tesseract-ocr/4.00/tessdata/tha.traineddata
+COPY ./dependencies/eng.traineddata /usr/share/tesseract-ocr/4.00/tessdata/eng.traineddata
 
 # Set working directory
 WORKDIR /app
