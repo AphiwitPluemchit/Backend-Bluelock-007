@@ -190,6 +190,18 @@ func GetStudentByCode(code string) (bson.M, error) {
 	return results[0], nil
 }
 
+func GetStudentById(id primitive.ObjectID) (*models.Student, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var student models.Student
+	err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&student)
+	if err != nil {
+		return nil, err
+	}
+	return &student, nil
+}
+
 // ✅ ฟังก์ชันเข้ารหัส Password
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
