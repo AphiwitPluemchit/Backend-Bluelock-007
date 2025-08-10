@@ -12,6 +12,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"Backend-Bluelock-007/src/models"
@@ -74,6 +75,15 @@ func UploadHandler(c *fiber.Ctx) error {
 		})
 	}
 
+	if !course.IsThaiFormat {
+		student.Name = student.EngName
+	}
+
+	fmt.Println("Student Name: " + student.Name)
+	fmt.Println("Course Name: " + course.Name)
+	fmt.Println("Course Type: " + course.Type)
+	fmt.Println("Course IsThaiFormat: " + strconv.FormatBool(course.IsThaiFormat))
+
 	// Debug log
 	log.Printf(" [Fiber] ได้รับไฟล์: %s\n", fileHeader.Filename)
 
@@ -91,9 +101,14 @@ func UploadHandler(c *fiber.Ctx) error {
 		})
 	}
 
+	// Debug log
+	log.Printf(" [Fiber] ส่งไฟล์ไปยัง FastAPI OCR: %s\n", fileHeader.Filename)
+	log.Printf(" [Fiber] ได้รับผลลัพธ์จาก FastAPI OCR: %+v\n", responseData)
+
 	// extract data from response with type assertions
 	var isNameMatch bool
 	var isCourseMatch bool
+	var url string
 
 	if dataRaw, ok := responseData["data"]; ok {
 		switch v := dataRaw.(type) {
@@ -103,6 +118,9 @@ func UploadHandler(c *fiber.Ctx) error {
 			}
 			if b, ok := v["isCourseMatch"].(bool); ok {
 				isCourseMatch = b
+			}
+			if s, ok := v["url"].(string); ok {
+				url = s
 			}
 		case string:
 			// Non-JSON response from FastAPI; keep defaults (false) and log for visibility
@@ -115,21 +133,16 @@ func UploadHandler(c *fiber.Ctx) error {
 		log.Printf(" [Fiber] 'data' field missing in FastAPI response: %+v\n", responseData)
 	}
 
-	// Debug log
-	log.Printf(" [Fiber] ส่งไฟล์ไปยัง FastAPI OCR: %s\n", fileHeader.Filename)
-	log.Printf(" [Fiber] ได้รับผลลัพธ์จาก FastAPI OCR: %+v\n", responseData)
-
 	uploadCertificate := models.UploadCertificate{
 		StudentId:     stId,
 		CourseId:      crId,
-		Url:           fileHeader.Filename,
-		FileName:      fileHeader.Filename,
+		Url:           url,
 		IsNameMatch:   isNameMatch,
 		IsCourseMatch: isCourseMatch,
 	}
 
 	// if isNameMatch or isCourseMatch is false
-	if isNameMatch == false || isCourseMatch == false {
+	if !isNameMatch || !isCourseMatch {
 		// create upload certificate
 		result, err := services.CreateUploadCertificate(&uploadCertificate)
 		if err != nil {
