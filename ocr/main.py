@@ -41,9 +41,13 @@ async def ocr_certificate(
         if not validate_file_type(file.content_type):
             raise HTTPException(status_code=400, detail="Invalid file type. Only image and PDF files are allowed.")
         
-        fields = process_ocr_from_file(contents, file.content_type, studentName, courseName,courseType)
+        fields = process_ocr_from_file(contents, file.content_type, studentName, courseName, courseType)
         return {"status": "success", "data": fields}
-    
+
+    except HTTPException as exc:
+        # Propagate known client errors (e.g., 400) without wrapping as 500
+        logger.warning(f"Client error during OCR: {exc.detail}")
+        raise exc
     except Exception as e:
         logger.error(f"Error processing OCR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing OCR: {str(e)}")

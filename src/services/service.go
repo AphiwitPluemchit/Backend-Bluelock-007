@@ -13,13 +13,32 @@ func init() {
 		log.Fatal("MongoDB connection error:", err)
 	}
 
+	// Ensure all collections exist (Mongo will also auto-create on first insert, but this makes it explicit)
+	if err := DB.EnsureCollections(collection, []string{
+		"activitys",
+		"activityItems",
+		"admins",
+		"checkInOuts",
+		"enrollments",
+		"foods",
+		"qrTokens",
+		"forms",
+		"questions",
+		"submissions",
+		"students",
+		"users",
+		"courses",
+		"uploadCertificates",
+	}); err != nil {
+		log.Fatal("Failed ensuring collections:", err)
+	}
+
 	DB.ActivityCollection = DB.GetCollection(collection, "activitys")
 	DB.ActivityItemCollection = DB.GetCollection(collection, "activityItems")
 	DB.AdminCollection = DB.GetCollection(collection, "admins")
 	DB.CheckinCollection = DB.GetCollection(collection, "checkInOuts")
 	DB.EnrollmentCollection = DB.GetCollection(collection, "enrollments")
 	DB.FoodCollection = DB.GetCollection(collection, "foods")
-	DB.QrClaimCollection = DB.GetCollection(collection, "qrClaims")
 	DB.QrTokenCollection = DB.GetCollection(collection, "qrTokens")
 	DB.FormCollection = DB.GetCollection(collection, "forms")
 	DB.QuestionCollection = DB.GetCollection(collection, "questions")
@@ -27,10 +46,7 @@ func init() {
 	DB.StudentCollection = DB.GetCollection(collection, "students")
 	DB.UserCollection = DB.GetCollection(collection, "users")
 	DB.CourseCollection = DB.GetCollection(collection, "courses")
-
-	if DB.ActivityCollection == nil || DB.ActivityItemCollection == nil {
-		log.Fatal("Failed to get the required collections")
-	}
+	DB.UploadCertificateCollection = DB.GetCollection(collection, "uploadCertificates")
 
 	if DB.RedisURI != "" {
 		DB.InitAsynq()

@@ -2,15 +2,22 @@ package controllers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"os"
+	"path/filepath"
+	"strings"
 
+	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/courses"
 	"Backend-Bluelock-007/src/services/students"
+	services "Backend-Bluelock-007/src/services/uploads"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -29,7 +36,7 @@ import (
 // @Failure      500   {object}  map[string]interface{}
 // @Router       /ocr/upload [post]
 func UploadHandler(c *fiber.Ctx) error {
-	fmt.Println("📥 [Fiber] ได้รับการอัปโหลดไฟล์")
+	fmt.Println(" [Fiber] ได้รับการอัปโหลดไฟล์")
 	// รับไฟล์จาก FormData field name: "file"
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -68,7 +75,7 @@ func UploadHandler(c *fiber.Ctx) error {
 	}
 
 	// Debug log
-	log.Printf("📥 [Fiber] ได้รับไฟล์: %s\n", fileHeader.Filename)
+	log.Printf(" [Fiber] ได้รับไฟล์: %s\n", fileHeader.Filename)
 
 	// Prepare to send to FastAPI OCR
 	fastApiURL := os.Getenv("FASTAPI_URL")
@@ -78,18 +85,73 @@ func UploadHandler(c *fiber.Ctx) error {
 	fmt.Println("FastAPI URL: " + fastApiURL)
 	responseData, err := sendFileToFastAPI(fileHeader, student.Name, course.Name, course.Type, fastApiURL)
 	if err != nil {
-		log.Printf("❌ OCR proxy error: %v\n", err)
+		log.Printf(" OCR proxy error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "OCR failed",
 		})
 	}
 
-	// Debug log
-	log.Printf("📤 [Fiber] ส่งไฟล์ไปยัง FastAPI OCR: %s\n", fileHeader.Filename)
-	log.Printf("� [Fiber] ได้รับผลลัพธ์จาก FastAPI OCR: %+v\n", responseData)
+	// extract data from response with type assertions
+	var isNameMatch bool
+	var isCourseMatch bool
 
-	// Success
-	return c.JSON(responseData)
+	if dataRaw, ok := responseData["data"]; ok {
+		switch v := dataRaw.(type) {
+		case map[string]interface{}:
+			if b, ok := v["isNameMatch"].(bool); ok {
+				isNameMatch = b
+			}
+			if b, ok := v["isCourseMatch"].(bool); ok {
+				isCourseMatch = b
+			}
+		case string:
+			// Non-JSON response from FastAPI; keep defaults (false) and log for visibility
+			log.Printf(" [Fiber] FastAPI returned non-JSON data: %s\n", v)
+		default:
+			// Unknown structure; keep defaults
+			log.Printf(" [Fiber] Unexpected data type from FastAPI: %T\n", v)
+		}
+	} else {
+		log.Printf(" [Fiber] 'data' field missing in FastAPI response: %+v\n", responseData)
+	}
+
+	// Debug log
+	log.Printf(" [Fiber] ส่งไฟล์ไปยัง FastAPI OCR: %s\n", fileHeader.Filename)
+	log.Printf(" [Fiber] ได้รับผลลัพธ์จาก FastAPI OCR: %+v\n", responseData)
+
+	uploadCertificate := models.UploadCertificate{
+		StudentId:     stId,
+		CourseId:      crId,
+		Url:           fileHeader.Filename,
+		FileName:      fileHeader.Filename,
+		IsNameMatch:   isNameMatch,
+		IsCourseMatch: isCourseMatch,
+	}
+
+	// if isNameMatch or isCourseMatch is false
+	if isNameMatch == false || isCourseMatch == false {
+		// create upload certificate
+		result, err := services.CreateUploadCertificate(&uploadCertificate)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Error creating upload certificate",
+			})
+		}
+		log.Printf(" [Fiber] Upload certificate created: %+v\n", result)
+
+		// save file to local storage use id for filename
+		err = saveFile(fileHeader, "./uploads/certificates/fail/"+result.InsertedID.(primitive.ObjectID).Hex()+".pdf")
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Error saving file",
+			})
+		}
+	}
+
+	// Upload Success
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Certificate Uploaded, Please wait for 3 days to check the result",
+	})
 }
 
 // Save uploaded file to local storage
@@ -123,7 +185,25 @@ func sendFileToFastAPI(fileHeader *multipart.FileHeader, studentName string, cou
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	part, err := writer.CreateFormFile("file", fileHeader.Filename)
+	// Determine and set accurate Content-Type for the file part
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		ext := filepath.Ext(fileHeader.Filename)
+		contentType = mime.TypeByExtension(ext)
+		if contentType == "" {
+			if strings.EqualFold(ext, ".pdf") {
+				contentType = "application/pdf"
+			} else {
+				contentType = "application/octet-stream"
+			}
+		}
+	}
+
+	// Create a part with explicit headers so FastAPI sees the correct content type
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "file", fileHeader.Filename))
+	h.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(h)
 	if err != nil {
 		return nil, err
 	}
@@ -159,9 +239,19 @@ func sendFileToFastAPI(fileHeader *multipart.FileHeader, studentName string, cou
 		return nil, err
 	}
 
-	// Return
+	// Try to decode JSON response from FastAPI
+	var parsed interface{}
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		// If not JSON, return raw text under "data"
+		result := make(map[string]interface{})
+		result["status_code"] = resp.StatusCode
+		result["data"] = string(respBody)
+		return result, nil
+	}
+
+	// If JSON, forward it and include status_code
 	result := make(map[string]interface{})
 	result["status_code"] = resp.StatusCode
-	result["data"] = string(respBody)
+	result["data"] = parsed
 	return result, nil
 }

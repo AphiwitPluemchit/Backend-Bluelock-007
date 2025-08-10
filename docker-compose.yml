@@ -99,7 +99,7 @@ services:
       dockerfile: Dockerfile
     container_name: bluelock-ocr
     environment:
-      - MODE=development
+      - MODE=production
     ports:
       - "8000:8000"
     volumes:

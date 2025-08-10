@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -19,20 +20,21 @@ var (
 	once       sync.Once // ✅ ป้องกันการรัน ConnectMongoDB() ซ้ำ
 	connectErr error
 
-	ActivityCollection     *mongo.Collection // Renamed: exported
-	ActivityItemCollection *mongo.Collection // Renamed: exported
-	EnrollmentCollection   *mongo.Collection
-	StudentCollection      *mongo.Collection // Renamed: exported
-	CourseCollection       *mongo.Collection // ✅ เพิ่มตัวแปรนี้
-	FormCollection         *mongo.Collection
-	QuestionCollection     *mongo.Collection
-	SubmissionCollection   *mongo.Collection
-	AdminCollection        *mongo.Collection
-	CheckinCollection      *mongo.Collection
-	FoodCollection         *mongo.Collection
-	QrTokenCollection      *mongo.Collection
-	QrClaimCollection      *mongo.Collection
-	UserCollection         *mongo.Collection
+	ActivityCollection          *mongo.Collection // Renamed: exported
+	ActivityItemCollection      *mongo.Collection // Renamed: exported
+	EnrollmentCollection        *mongo.Collection
+	StudentCollection           *mongo.Collection // Renamed: exported
+	CourseCollection            *mongo.Collection // ✅ เพิ่มตัวแปรนี้
+	FormCollection              *mongo.Collection
+	QuestionCollection          *mongo.Collection
+	SubmissionCollection        *mongo.Collection
+	AdminCollection             *mongo.Collection
+	CheckinCollection           *mongo.Collection
+	FoodCollection              *mongo.Collection
+	QrTokenCollection           *mongo.Collection
+	QrClaimCollection           *mongo.Collection
+	UserCollection              *mongo.Collection
+	UploadCertificateCollection *mongo.Collection
 )
 
 // ConnectMongoDB เชื่อมต่อกับ MongoDB แค่ครั้งเดียว
@@ -96,4 +98,37 @@ func GetCollection(dbName, collectionName string) *mongo.Collection {
 		log.Fatal("❌ MongoDB client is nil")
 	}
 	return client.Database(dbName).Collection(collectionName)
+}
+
+// EnsureCollections creates collections if they do not exist yet.
+func EnsureCollections(dbName string, names []string) error {
+	if client == nil {
+		log.Fatal("❌ MongoDB client is nil")
+	}
+	ctx := context.TODO()
+	db := client.Database(dbName)
+
+	existing, err := db.ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		return err
+	}
+	exists := make(map[string]struct{}, len(existing))
+	for _, n := range existing {
+		exists[n] = struct{}{}
+	}
+
+	for _, name := range names {
+		if _, ok := exists[name]; ok {
+			continue
+		}
+		if err := db.CreateCollection(ctx, name); err != nil {
+			var cmdErr mongo.CommandError
+			if errors.As(err, &cmdErr) && cmdErr.Code == 48 { // NamespaceExists
+				continue
+			}
+			return err
+		}
+		log.Printf("✅ Created collection: %s.%s", dbName, name)
+	}
+	return nil
 }

@@ -33,12 +33,18 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
 
     logger.info(f"🧠 OCR Full Text:\n{full_text}")
 
+    # Initialize defaults to avoid UnboundLocalError
+    url = ""
+    isNameMatch = False
+    isCourseMatch = False
+
     if courseType == "buumooc":
         # Extract URL
-        url = extract_url_from_cropped_image(preprocessed_image,courseType)
+        url = extract_url_from_cropped_image(preprocessed_image, courseType)
 
-        # Check if URL matches name and course name
-        isNameMatch, isCourseMatch = url_matching(url, studentName, courseName)
+        # Check if URL matches name and course name only if URL was found
+        if url:
+            isNameMatch, isCourseMatch = url_matching(url, studentName, courseName)
 
     elif courseType == "thaimooc":
         # Remove all \n in full_text

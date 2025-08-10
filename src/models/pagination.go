@@ -11,12 +11,10 @@ type PaginationParams struct {
 
 // PaginatedResponse โครงสร้างการตอบกลับแบบแบ่งหน้า
 type PaginationMeta struct {
-	Page        int   `json:"page"`
-	Limit       int   `json:"limit"`
-	Total       int64 `json:"total"`
-	TotalPages  int   `json:"totalPages"`
-	HasNext     bool  `json:"hasNext"`
-	HasPrevious bool  `json:"hasPrevious"`
+	Page       int   `json:"page"`
+	Limit      int   `json:"limit"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"totalPages"`
 }
 
 // DefaultPagination ค่าตั้งต้นสำหรับ Pagination

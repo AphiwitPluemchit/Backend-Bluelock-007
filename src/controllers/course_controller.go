@@ -64,12 +64,10 @@ func GetAllCourses(c *fiber.Ctx) error {
 	response := models.CoursePaginatedResponse{
 		Data: result,
 		Meta: models.PaginationMeta{
-			Page:        params.Page,
-			Limit:       params.Limit,
-			Total:       total,
-			TotalPages:  totalPages,
-			HasNext:     params.Page < totalPages,
-			HasPrevious: params.Page > 1,
+			Page:       params.Page,
+			Limit:      params.Limit,
+			Total:      total,
+			TotalPages: totalPages,
 		},
 	}
 	return c.Status(fiber.StatusOK).JSON(response)
