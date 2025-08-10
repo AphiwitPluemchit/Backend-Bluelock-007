@@ -8,14 +8,20 @@ import logging
 import re
 import requests
 from fuzzywuzzy import fuzz
-
+import numpy as np
+load_dotenv()
 
 
 
 # ตั้งค่าพาธของ Tesseract
+path = os.getenv('TESSERACT_PATH')
+
+if path:
+    pytesseract.pytesseract.tesseract_cmd = path
+
 # pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_PATH')  # Windows path ปิดไว้เพราะใช้ docker ติดตั้งบน Ubuntu
 
-load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 def extract_fields_from_image(image: Image.Image, studentName: str, courseName: str, courseType: str) -> dict:
@@ -30,10 +36,12 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
 
     # Preprocess the image
     preprocessed_image = preprocess_image(image)
+
+    image_np = np.array(preprocessed_image)
     
     # Perform OCR to get the text
-    full_text = pytesseract.image_to_string(preprocessed_image, lang='eng+tha')
-    
+    full_text = pytesseract.image_to_string(image_np, lang='eng+tha')
+
     # Normalize Thai text
     full_text = normalize(full_text)
 
@@ -49,7 +57,7 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
         url = extract_url_from_cropped_image(preprocessed_image, courseType)
 
         # Check if URL matches name and course name only if URL was found
-        if url:
+        if url is not None:
             isNameMatch, isCourseMatch = url_matching(url, studentName, courseName)
 
     elif courseType == "thaimooc":
@@ -66,6 +74,12 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
         logger.info(f"🧠 Fuzzy Matching Course Score: {course_match_score}")
         isCourseMatch = course_match_score >= 90  # ตั้งค่า threshold ไว้ที่ 90% สำหรับการจับคู่ชื่อหลักสูตร
  
+    print("url: ", url)
+    print("isNameMatch: ", isNameMatch)
+    print("isCourseMatch: ", isCourseMatch)
+    print("full_text: ", full_text)
+
+
     if os.getenv('MODE') == 'production':
         return {
             "url": url,
@@ -90,16 +104,17 @@ def extract_url_from_cropped_image(image: Image.Image,courseType: str) -> str:
     """
     # Crop the image to focus on the bottom-left portion
     cropped_image = crop_image(image)
-
+    image_np = np.array(cropped_image)
     # Perform OCR to get the text
-    full_text = pytesseract.image_to_string(cropped_image, lang='tha+eng')
+    full_text = pytesseract.image_to_string(image_np, lang='eng+tha')
 
 
-    # Regular expression to match certificate id from Certificate ID: 
-    url_match = re.search(r'Certificate ID Number : \d{10}', full_text)
+
+   # ดึง Certificate ID Number จาก full_text โดยดึงข้อความหลัง Certificate ID Number :
+    url_match = re.search(r'Certificate ID Number\s*:\s*([^\n\r]+)', full_text)
 
     if url_match:
-        url = url_match.group(0)
+        url = url_match.group(1).strip()
         # Clean the URL by removing any unnecessary spaces
         url = re.sub(r'\s+', '', url)
         # check url is id or http
@@ -109,8 +124,9 @@ def extract_url_from_cropped_image(image: Image.Image,courseType: str) -> str:
         return url
 
     else:
-        # Regular expression to match URLs (http:// or https://)
-        return re.search(r'https?://[^\n]+', full_text)
+        # Fallback: find a plain URL in the text
+        fallback = re.search(r'https?://[^\s]+', full_text)
+        return fallback.group(0) if fallback else None
 
  
 

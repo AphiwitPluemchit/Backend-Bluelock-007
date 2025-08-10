@@ -2,3 +2,5 @@ tmp/main.exe
 build-errors.log
 tmp/build-errors.log
 .env
+.venv
+__pycache__

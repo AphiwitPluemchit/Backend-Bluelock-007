@@ -10,3 +10,4 @@ fuzzywuzzy
 python-dotenv
 python-multipart
 python-Levenshtein
+numpy

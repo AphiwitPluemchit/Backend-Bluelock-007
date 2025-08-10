@@ -31,10 +31,13 @@ def preprocess_image(image: Image.Image, upscale: int = 5, contrast: float = 1.2
     
     return image
 
-def crop_image(image: Image.Image, crop_percentage: float = 0.2) -> Image.Image:
+def crop_image(image: Image.Image, crop_percentage: float = 0.2, upscale: int = 2) -> Image.Image:
     """
     Crop the bottom-left part of the image. The crop_percentage determines how much of the bottom is kept.
     """
+    if upscale > 1:
+        image = image.resize((image.width * upscale, image.height * upscale), Image.LANCZOS)
+    
     width, height = image.size
     crop_box = (0, int(height * (1 - crop_percentage)), int(width/1.5), height)
     cropped_image = image.crop(crop_box)
