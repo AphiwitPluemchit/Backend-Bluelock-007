@@ -22,6 +22,12 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
     """
     Extract relevant fields from the certificate image
     """
+
+    # Debug log
+    logger.info(f"🧠 Student Name: {studentName}")
+    logger.info(f"🧠 Course Name: {courseName}")
+    logger.info(f"🧠 Course Type: {courseType}")
+
     # Preprocess the image
     preprocessed_image = preprocess_image(image)
     
@@ -39,7 +45,7 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
     isCourseMatch = False
 
     if courseType == "buumooc":
-        # Extract URL
+        # Extract URL 
         url = extract_url_from_cropped_image(preprocessed_image, courseType)
 
         # Check if URL matches name and course name only if URL was found
@@ -88,25 +94,25 @@ def extract_url_from_cropped_image(image: Image.Image,courseType: str) -> str:
     # Perform OCR to get the text
     full_text = pytesseract.image_to_string(cropped_image, lang='tha+eng')
 
-    # Regular expression to match URLs (http:// or https://)
-    url_match = re.search(r'https?://[^\n]+', full_text)
+
+    # Regular expression to match certificate id from Certificate ID: 
+    url_match = re.search(r'Certificate ID Number : \d{10}', full_text)
+
     if url_match:
         url = url_match.group(0)
-        
         # Clean the URL by removing any unnecessary spaces
         url = re.sub(r'\s+', '', url)
-
         # check url is id or http
         if not url.startswith('http'):
             if courseType == "buumooc":
                 url = 'https://mooc.buu.ac.th/certificates/' + url
-            elif courseType == "thaimooc":
-                url = 'https://mooc.thai.ac.th/certificates/' + url
-
         return url
 
-    # Return empty string if no URL is found
-    return ""
+    else:
+        # Regular expression to match URLs (http:// or https://)
+        return re.search(r'https?://[^\n]+', full_text)
+
+ 
 
     # Match URL to name and course name
 def url_matching(url: str, studentName: str, courseName: str) -> bool:
