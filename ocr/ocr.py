@@ -13,13 +13,12 @@ from fuzzywuzzy import fuzz
 
 
 # ตั้งค่าพาธของ Tesseract
+# pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_PATH')  # Windows path ปิดไว้เพราะใช้ docker ติดตั้งบน Ubuntu
+
 load_dotenv()
-pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_PATH')  # Windows path
-
-
 logger = logging.getLogger(__name__)
 
-def extract_fields_from_image(image: Image.Image, studentName: str, courseName: str, cer_type: str) -> dict:
+def extract_fields_from_image(image: Image.Image, studentName: str, courseName: str, courseType: str) -> dict:
     """
     Extract relevant fields from the certificate image
     """
@@ -34,14 +33,14 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
 
     logger.info(f"🧠 OCR Full Text:\n{full_text}")
 
-    if cer_type == "buumooc":
+    if courseType == "buumooc":
         # Extract URL
-        url = extract_url_from_cropped_image(preprocessed_image,cer_type)
+        url = extract_url_from_cropped_image(preprocessed_image,courseType)
 
         # Check if URL matches name and course name
         isNameMatch, isCourseMatch = url_matching(url, studentName, courseName)
 
-    elif cer_type == "thaimooc":
+    elif courseType == "thaimooc":
         # Remove all \n in full_text
         full_text = full_text.replace("\n", " ")  # ใช้ space แทน \n เพื่อไม่ให้ข้อความติดกันมากเกินไป
 
@@ -66,14 +65,14 @@ def extract_fields_from_image(image: Image.Image, studentName: str, courseName: 
         return {
             "student_name": studentName,
             "course_name": courseName,
-            "cer_type": cer_type,
+            "courseType": courseType,
             "url": url,
             "isNameMatch": isNameMatch,
             "isCourseMatch": isCourseMatch,
             "full_text": full_text,
         }
 
-def extract_url_from_cropped_image(image: Image.Image,cer_type: str) -> str:
+def extract_url_from_cropped_image(image: Image.Image,courseType: str) -> str:
     """
     Perform OCR on the cropped image to extract the URL
     """
@@ -93,9 +92,9 @@ def extract_url_from_cropped_image(image: Image.Image,cer_type: str) -> str:
 
         # check url is id or http
         if not url.startswith('http'):
-            if cer_type == "buumooc":
+            if courseType == "buumooc":
                 url = 'https://mooc.buu.ac.th/certificates/' + url
-            elif cer_type == "thaimooc":
+            elif courseType == "thaimooc":
                 url = 'https://mooc.thai.ac.th/certificates/' + url
 
         return url

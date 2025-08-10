@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 from utils import validate_file_type, process_ocr_from_file
@@ -22,7 +22,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 @app.post("/ocr", summary="Extract information from Thai certificate image")
-async def ocr_certificate(file: UploadFile = File(...), studentName: str = "", courseName: str = "",cer_type: str = ""):
+async def ocr_certificate(
+    file: UploadFile = File(...),
+    studentName: str = Form(""),
+    courseName: str = Form(""),
+    courseType: str = Form("")
+):
     """
     Process a certificate image or PDF and extract relevant information
     """
@@ -36,7 +41,7 @@ async def ocr_certificate(file: UploadFile = File(...), studentName: str = "", c
         if not validate_file_type(file.content_type):
             raise HTTPException(status_code=400, detail="Invalid file type. Only image and PDF files are allowed.")
         
-        fields = process_ocr_from_file(contents, file.content_type, studentName, courseName,cer_type)
+        fields = process_ocr_from_file(contents, file.content_type, studentName, courseName,courseType)
         return {"status": "success", "data": fields}
     
     except Exception as e:

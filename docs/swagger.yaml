@@ -1381,6 +1381,27 @@ paths:
       tags:
       - foods
   /forms:
+    get:
+      description: ดึงข้อมูลฟอร์มทั้งหมด
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Form'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get all forms
+      tags:
+      - forms
     post:
       consumes:
       - application/json
@@ -1415,6 +1436,46 @@ paths:
       summary: Create a new form
       tags:
       - forms
+  /ocr/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a file
+      parameters:
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Student ID
+        in: query
+        name: studentId
+        type: string
+      - description: Course ID
+        in: query
+        name: courseId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Upload a file
+      tags:
+      - ocr
   /students:
     get:
       consumes:

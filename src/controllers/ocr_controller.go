@@ -16,15 +16,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// uploadHandler จัดการการอัปโหลดไฟล์
 // @Summary      Upload a file
 // @Description  Upload a file
 // @Tags         ocr
 // @Accept       multipart/form-data
 // @Produce      json
-// @Param        file  file  true  "File to upload"
-// @Param        studentId query string false "Student ID"
-// @Param        courseId query string false "Course ID"
+// @Param        file        formData  file    true   "File to upload"
+// @Param        studentId   query     string  false  "Student ID"
+// @Param        courseId    query     string  false  "Course ID"
 // @Success      200   {object}  map[string]interface{}
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      500   {object}  map[string]interface{}
@@ -72,7 +71,11 @@ func UploadHandler(c *fiber.Ctx) error {
 	log.Printf("📥 [Fiber] ได้รับไฟล์: %s\n", fileHeader.Filename)
 
 	// Prepare to send to FastAPI OCR
-	fastApiURL := "http://fastapi-ocr:8000/ocr"
+	fastApiURL := os.Getenv("FASTAPI_URL")
+	if fastApiURL == "" {
+		fastApiURL = "http://fastapi-ocr:8000/ocr"
+	}
+	fmt.Println("FastAPI URL: " + fastApiURL)
 	responseData, err := sendFileToFastAPI(fileHeader, student.Name, course.Name, course.Type, fastApiURL)
 	if err != nil {
 		log.Printf("❌ OCR proxy error: %v\n", err)
@@ -83,22 +86,7 @@ func UploadHandler(c *fiber.Ctx) error {
 
 	// Debug log
 	log.Printf("📤 [Fiber] ส่งไฟล์ไปยัง FastAPI OCR: %s\n", fileHeader.Filename)
-	log.Printf("📤 [Fiber] ส่งไฟล์ไปยัง FastAPI OCR: %s\n", responseData)
-
-	// // Create directory if it does not exist
-	// if err := os.MkdirAll("./uploads/certificates", 0755); err != nil {
-	// 	log.Println("Failed to create directory:", err)
-	// 	// You may want to return an error here instead of continuing
-	// }
-
-	// // Save temp file
-	// filePath := fmt.Sprintf("./uploads/certificates/%s", fileHeader.Filename)
-	// if err := saveFile(fileHeader, filePath); err != nil {
-	// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-	// 		"error": "Failed to save file",
-	// 	})
-	// }
-	// log.Printf("🛠 เซฟไฟล์ไปที่: %s\n", filePath)
+	log.Printf("� [Fiber] ได้รับผลลัพธ์จาก FastAPI OCR: %+v\n", responseData)
 
 	// Success
 	return c.JSON(responseData)
@@ -124,11 +112,12 @@ func saveFile(fileHeader *multipart.FileHeader, savePath string) error {
 
 // Send file to FastAPI OCR
 func sendFileToFastAPI(fileHeader *multipart.FileHeader, studentName string, courseName string, courseType string, url string) (map[string]interface{}, error) {
-	file, err := os.Open(fileHeader.Filename)
+	// เปิดไฟล์จาก Multipart โดยตรง แทนการเปิดจากพาธบนดิสก์
+	src, err := fileHeader.Open()
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer src.Close()
 
 	// ใช้ bytes.Buffer แทน fiber.Buffer
 	body := &bytes.Buffer{}
@@ -139,7 +128,7 @@ func sendFileToFastAPI(fileHeader *multipart.FileHeader, studentName string, cou
 		return nil, err
 	}
 
-	if _, err := io.Copy(part, file); err != nil {
+	if _, err := io.Copy(part, src); err != nil {
 		return nil, err
 	}
 

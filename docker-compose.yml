@@ -98,6 +98,8 @@ services:
       context: ./ocr
       dockerfile: Dockerfile
     container_name: bluelock-ocr
+    environment:
+      - MODE=development
     ports:
       - "8000:8000"
     volumes:
@@ -109,8 +111,10 @@ services:
     <<: *common
     build:
       context: ./ocr
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     container_name: bluelock-ocr-prod
+    environment:
+      - MODE=production
     volumes:
       - ./uploads:/app/uploads
     profiles: ["production"]

@@ -7,5 +7,6 @@ pdf2image
 PyMuPDF
 requests
 fuzzywuzzy
-os
 python-dotenv
+python-multipart
+python-Levenshtein
