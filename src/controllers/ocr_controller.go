@@ -12,8 +12,8 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"time"
 
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/courses"
@@ -75,25 +75,16 @@ func UploadHandler(c *fiber.Ctx) error {
 		})
 	}
 
+	// choose display name based on course format without mutating original struct
+	displayName := student.Name
 	if !course.IsThaiFormat {
-		student.Name = student.EngName
+		displayName = student.EngName
 	}
-
-	fmt.Println("Student Name: " + student.Name)
-	fmt.Println("Course Name: " + course.Name)
-	fmt.Println("Course Type: " + course.Type)
-	fmt.Println("Course IsThaiFormat: " + strconv.FormatBool(course.IsThaiFormat))
-
-	// Debug log
-	log.Printf(" [Fiber] ได้รับไฟล์: %s\n", fileHeader.Filename)
 
 	// Prepare to send to FastAPI OCR
-	fastApiURL := os.Getenv("FASTAPI_URL")
-	if fastApiURL == "" {
-		fastApiURL = "http://fastapi-ocr:8000/ocr"
-	}
-	fmt.Println("FastAPI URL: " + fastApiURL)
-	responseData, err := sendFileToFastAPI(fileHeader, student.Name, course.Name, course.Type, fastApiURL)
+	fastApiURL := fastAPIURL()
+
+	responseData, err := sendFileToFastAPI(fileHeader, displayName, course.Name, course.Type, fastApiURL)
 	if err != nil {
 		log.Printf(" OCR proxy error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -101,11 +92,71 @@ func UploadHandler(c *fiber.Ctx) error {
 		})
 	}
 
-	// Debug log
-	log.Printf(" [Fiber] ส่งไฟล์ไปยัง FastAPI OCR: %s\n", fileHeader.Filename)
-	log.Printf(" [Fiber] ได้รับผลลัพธ์จาก FastAPI OCR: %+v\n", responseData)
-
 	// extract data from response with type assertions
+	isNameMatch, isCourseMatch, url := extractOCRFlags(responseData)
+
+	uploadCertificate := models.UploadCertificate{
+		StudentId:     stId,
+		CourseId:      crId,
+		Url:           url,
+		Status:        models.Pending,
+		IsNameMatch:   isNameMatch,
+		IsCourseMatch: isCourseMatch,
+		UploadAt:      time.Now(),
+	}
+
+	// check if url is duplicate
+	isDuplicate, err := services.IsVerifiedDuplicate(c.Context(), url)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error checking duplicate",
+		})
+	}
+	if isDuplicate {
+		fmt.Println("Duplicate URL")
+		uploadCertificate.IsDuplicate = true
+		uploadCertificate.Remark = "Upload ไปแล้ว หรือ URL ซ้ำ"
+	}
+
+	// create upload certificate
+	result, err := services.CreateUploadCertificate(&uploadCertificate)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error creating upload certificate",
+		})
+	}
+
+	// if isNameMatch or isCourseMatch is false
+	if isNameMatch && isCourseMatch {
+
+	} else {
+
+		// save file to local storage use id for filename
+		err = saveFile(fileHeader, "./uploads/certificates/fail/"+result.InsertedID.(primitive.ObjectID).Hex()+".pdf")
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Error saving file",
+			})
+		}
+
+	}
+
+	// Upload Success
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Certificate Uploaded, Please wait for 2 days to check the result",
+	})
+}
+
+// Resolve FastAPI OCR URL with env override
+func fastAPIURL() string {
+	if v := os.Getenv("FASTAPI_URL"); v != "" {
+		return v
+	}
+	return "http://fastapi-ocr:8000/ocr"
+}
+
+// Extract OCR flags from FastAPI response map
+func extractOCRFlags(responseData map[string]interface{}) (bool, bool, string) {
 	var isNameMatch bool
 	var isCourseMatch bool
 	var url string
@@ -130,41 +181,27 @@ func UploadHandler(c *fiber.Ctx) error {
 			log.Printf(" [Fiber] Unexpected data type from FastAPI: %T\n", v)
 		}
 	} else {
-		log.Printf(" [Fiber] 'data' field missing in FastAPI response: %+v\n", responseData)
-	}
-
-	uploadCertificate := models.UploadCertificate{
-		StudentId:     stId,
-		CourseId:      crId,
-		Url:           url,
-		IsNameMatch:   isNameMatch,
-		IsCourseMatch: isCourseMatch,
-	}
-
-	// if isNameMatch or isCourseMatch is false
-	if !isNameMatch || !isCourseMatch {
-		// create upload certificate
-		result, err := services.CreateUploadCertificate(&uploadCertificate)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Error creating upload certificate",
-			})
+		// Fallback: FastAPI may return fields at the top-level instead of under "data"
+		if b, ok := responseData["isNameMatch"].(bool); ok {
+			isNameMatch = b
 		}
-		log.Printf(" [Fiber] Upload certificate created: %+v\n", result)
+		if b, ok := responseData["isCourseMatch"].(bool); ok {
+			isCourseMatch = b
+		}
+		if s, ok := responseData["url"].(string); ok {
+			url = s
+		}
 
-		// save file to local storage use id for filename
-		err = saveFile(fileHeader, "./uploads/certificates/fail/"+result.InsertedID.(primitive.ObjectID).Hex()+".pdf")
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Error saving file",
-			})
+		if url == "" && !isNameMatch && !isCourseMatch {
+			log.Printf(" [Fiber] 'data' field missing and no top-level keys present in FastAPI response: %+v\n", responseData)
 		}
 	}
 
-	// Upload Success
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Certificate Uploaded, Please wait for 3 days to check the result",
-	})
+	fmt.Println("isNameMatch: ", isNameMatch)
+	fmt.Println("isCourseMatch: ", isCourseMatch)
+	fmt.Println("url: ", url)
+
+	return isNameMatch, isCourseMatch, url
 }
 
 // Save uploaded file to local storage
@@ -262,9 +299,22 @@ func sendFileToFastAPI(fileHeader *multipart.FileHeader, studentName string, cou
 		return result, nil
 	}
 
-	// If JSON, forward it and include status_code
+	// ✅ คลี่ "data" ออกมาตั้งแต่ตรงนี้
 	result := make(map[string]interface{})
 	result["status_code"] = resp.StatusCode
-	result["data"] = parsed
+
+	if m, ok := parsed.(map[string]interface{}); ok {
+		// FastAPI: { "status": "success", "data": {...} }
+		if inner, ok := m["data"]; ok {
+			result["data"] = inner // << ใส่เฉพาะ data ด้านใน
+		} else {
+			// กันเผื่อ API เปลี่ยนโครง: เอาทั้งก้อน
+			result["data"] = m
+		}
+	} else {
+		// กันพลาด: ไม่ใช่ object
+		result["data"] = parsed
+	}
+
 	return result, nil
 }
