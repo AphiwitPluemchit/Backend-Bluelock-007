@@ -304,3 +304,57 @@ func GetSammaryAll(c *fiber.Ctx) error {
 	}
 	return c.JSON(summary)
 }
+
+// graph
+// "total":{
+// 	"total": 195,
+// 	"completed": 114,
+// 	"notCompleted": 81,
+// 	"completionRate": 58,
+// 	"softSkill":
+// 	{
+//     "completed": 143,
+//     "notCompleted": 52,
+//     "progress": 73
+//     },
+// 	"hardSkill":
+
+//     "completed": 141,
+//     "notCompleted": 54,
+//     "progress": 72
+// 	}}
+// "CS":{
+// 	"total": 195,
+// 	"completed": 114,
+// 	"notCompleted": 81,
+// 	"completionRate": 58,
+// 	"softSkill":
+// 	{
+//     "completed": 143,
+//     "notCompleted": 52,
+//     "progress": 73
+// 	},
+// 	"hardSkill":
+// 	{
+//     "completed": 141,
+//     "notCompleted": 54,
+//     "progress": 72
+// 	}}
+// "AAI":{}
+// "SE":{}
+// "ITDI":{
+// 	"total": 195,
+// 	"completed": 114,
+// 	"notCompleted": 81,
+// 	"completionRate": 58,
+// 	"softSkill":
+// 	{
+//     "completed": 143,
+//     "notCompleted": 52,
+//     "progress": 73
+// 	},
+// 	"hardSkill": {
+//     "completed": 141,
+//     "notCompleted": 54,
+//     "progress": 72
+// }}
