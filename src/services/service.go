@@ -22,6 +22,7 @@ func init() {
 		"enrollments",
 		"foods",
 		"qrTokens",
+		"qrClaims",
 		"forms",
 		"questions",
 		"submissions",
@@ -40,6 +41,7 @@ func init() {
 	DB.EnrollmentCollection = DB.GetCollection(collection, "enrollments")
 	DB.FoodCollection = DB.GetCollection(collection, "foods")
 	DB.QrTokenCollection = DB.GetCollection(collection, "qrTokens")
+	DB.QrClaimCollection = DB.GetCollection(collection, "qrClaims")
 	DB.FormCollection = DB.GetCollection(collection, "forms")
 	DB.QuestionCollection = DB.GetCollection(collection, "questions")
 	DB.SubmissionCollection = DB.GetCollection(collection, "submissions")
