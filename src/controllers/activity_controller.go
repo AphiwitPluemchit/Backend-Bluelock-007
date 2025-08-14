@@ -356,67 +356,6 @@ func GetEnrollmentByActivityItemID(c *fiber.Ctx) error {
 	})
 }
 
-// GET /enrollments/by-activity/:id
-func GetEnrollmentsByActivityID(c *fiber.Ctx) error {
-	activityID := c.Params("id")
-	aID, err := primitive.ObjectIDFromHex(activityID)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
-	}
-
-	// อ่าน pagination
-	pagination := models.DefaultPagination()
-	if err := c.QueryParser(&pagination); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
-	}
-
-	// ฟิลเตอร์
-	studentMajors := c.Query("majors")
-	studentStatus := c.Query("studentStatus")
-	studentYears := c.Query("studentYear")
-
-	var majorFilter []string
-	if studentMajors != "" {
-		majorFilter = strings.Split(studentMajors, ",")
-	}
-
-	var statusFilter []int
-	if studentStatus != "" {
-		for _, v := range strings.Split(studentStatus, ",") {
-			if num, err := strconv.Atoi(v); err == nil {
-				statusFilter = append(statusFilter, num)
-			}
-		}
-	}
-
-	var studentYearsFilter []int
-	if studentYears != "" {
-		for _, v := range strings.Split(studentYears, ",") {
-			if num, err := strconv.Atoi(v); err == nil {
-				studentYearsFilter = append(studentYearsFilter, num)
-			}
-		}
-	}
-
-	students, total, err := activities.GetEnrollmentsByActivityID(aID, pagination, majorFilter, statusFilter, studentYearsFilter)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error":   "Activity not found or no activity items",
-			"message": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": students,
-		"meta": fiber.Map{
-			"currentPage": pagination.Page,
-			"perPage":     pagination.Limit,
-			"total":       total,
-			"totalPages":  (total + int64(pagination.Limit) - 1) / int64(pagination.Limit),
-		},
-	})
-}
-
 // UpdateActivity - อัพเดตข้อมูลกิจกรรม พร้อม ActivityItems
 // UpdateActivity - godoc
 // @Summary      Update an activity

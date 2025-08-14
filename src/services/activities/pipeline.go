@@ -264,6 +264,140 @@ func GetActivityItemIDsByActivityID(ctx context.Context, activityID primitive.Ob
 
 	return activityItemIDs, nil
 }
+func GetEnrollmentByActivityItemID(
+	activityItemID primitive.ObjectID,
+	pagination models.PaginationParams,
+	majors []string,
+	status []int,
+	studentYears []int,
+) ([]bson.M, int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Base aggregation pipeline
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"activityItemId": activityItemID}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "students",
+			"localField":   "studentId",
+			"foreignField": "_id",
+			"as":           "student",
+		}}},
+		{{Key: "$unwind", Value: "$student"}},
+		{{Key: "$lookup", Value: bson.M{
+			"from": "checkInOuts",
+			"let":  bson.M{"studentId": "$student._id", "activityItemId": "$activityItemId"},
+			"pipeline": mongo.Pipeline{
+				{{Key: "$match", Value: bson.M{
+					"$expr": bson.M{
+						"$and": bson.A{
+							bson.M{"$eq": bson.A{"$userId", "$$studentId"}},
+							bson.M{"$eq": bson.A{"$activityItemId", "$$activityItemId"}},
+						},
+					},
+				}}},
+			},
+			"as": "checkInOuts",
+		}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from": "enrollments",
+			"let":  bson.M{"studentId": "$student._id"},
+			"pipeline": mongo.Pipeline{
+				{{Key: "$match", Value: bson.M{
+					"$expr": bson.M{
+						"$and": bson.A{
+							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
+							bson.M{"$eq": bson.A{"$activityItemId", activityItemID}},
+						},
+					},
+				}}},
+			},
+			"as": "enrollment",
+		}}},
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$enrollment",
+			"preserveNullAndEmptyArrays": true,
+		}}},
+	}
+
+	// Filters
+	filter := bson.D{}
+	if len(majors) > 0 {
+		filter = append(filter, bson.E{Key: "student.major", Value: bson.M{"$in": majors}})
+	}
+	if len(status) > 0 {
+		filter = append(filter, bson.E{Key: "student.status", Value: bson.M{"$in": status}})
+	}
+	if len(studentYears) > 0 {
+		var regexFilters []bson.M
+		for _, year := range GenerateStudentCodeFilter(studentYears) {
+			regexFilters = append(regexFilters, bson.M{"student.code": bson.M{"$regex": "^" + year, "$options": "i"}})
+		}
+		filter = append(filter, bson.E{Key: "$or", Value: regexFilters})
+	}
+	if pagination.Search != "" {
+		regex := bson.M{"$regex": pagination.Search, "$options": "i"}
+		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
+			bson.M{"student.code": regex},
+		}})
+	}
+	if len(filter) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: filter}})
+	}
+
+	// Project student fields + checkInOuts
+	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
+		"_id":              0,
+		"id":               "$student._id",
+		"code":             "$student.code",
+		"name":             "$student.name",
+		"engName":          "$student.engName",
+		"status":           "$student.status",
+		"softSkill":        "$student.softSkill",
+		"hardSkill":        "$student.hardSkill",
+		"major":            "$student.major",
+		"food":             "$enrollment.food",
+		"registrationDate": "$enrollment.registrationDate",
+		"checkInOut":       "$checkInOuts",
+	}}})
+
+	// Count total before skip/limit
+	countPipeline := append(pipeline, bson.D{{Key: "$count", Value: "total"}})
+	countCursor, err := DB.EnrollmentCollection.Aggregate(ctx, countPipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer countCursor.Close(ctx)
+
+	var total int64
+	if countCursor.Next(ctx) {
+		var countResult struct {
+			Total int64 `bson:"total"`
+		}
+		if err := countCursor.Decode(&countResult); err == nil {
+			total = countResult.Total
+		}
+	}
+
+	// Add pagination
+	pipeline = append(pipeline,
+		bson.D{{Key: "$skip", Value: (pagination.Page - 1) * pagination.Limit}},
+		bson.D{{Key: "$limit", Value: pagination.Limit}},
+	)
+
+	cursor, err := DB.EnrollmentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+
+	return results, total, nil
+}
 
 func GetActivitiesPipeline(filter bson.M, sortField string, sortOrder int, skip int64, limit int64, majors []string, studentYears []int) mongo.Pipeline {
 	pipeline := mongo.Pipeline{

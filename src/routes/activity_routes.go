@@ -19,7 +19,6 @@ func activityRoutes(router fiber.Router) {
 	activityRoutes.Put("/:id", controllers.UpdateActivity)    // อัปเดตข้อมูลผู้ใช้
 	activityRoutes.Delete("/:id", controllers.DeleteActivity) // ลบผู้ใช้
 	activityRoutes.Get("/:id/enrollment-summary", controllers.GetEnrollmentSummaryByActivityID)
-	activityRoutes.Get("/activityItems/:id/enrollments", controllers.GetEnrollmentByActivityItemID)
-	activityRoutes.Get("/:id/enrollments", controllers.GetEnrollmentsByActivityID)
+	activityRoutes.Get("/:id/enrollments", controllers.GetEnrollmentByActivityItemID)
 	activityRoutes.Get("/calendar/:month/:year", controllers.GetAllActivityCalendar)
 }
