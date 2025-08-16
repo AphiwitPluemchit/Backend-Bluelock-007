@@ -2,15 +2,18 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	"Backend-Bluelock-007/src/models"
- 	forms "Backend-Bluelock-007/src/services/forms"
+	forms "Backend-Bluelock-007/src/services/forms"
 )
+
 // CreateForm godoc
 // @Summary      Create a new form
 // @Description  รับข้อมูลฟอร์มจาก client และบันทึกลงฐานข้อมูล
@@ -82,9 +85,141 @@ func CreateForm(c *fiber.Ctx) error {
 func GetAllForms(c *fiber.Ctx) error {
 	allForms, err := forms.GetAllForms(context.Background())
 	if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Failed to get forms",
-			})
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get forms",
+		})
 	}
 	return c.JSON(allForms)
+}
+
+// GetFormByid godoc
+// @Summary      Get form by ID
+// @Description  ดึงข้อมูลฟอร์มตามรหัส
+// @Tags         forms
+// @Produce      json
+// @Param        id   path      string  true  "Form ID"
+// @Success      200  {object}  models.Form
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Router       /forms/{id} [get]
+// @Security     ApiKeyAuth
+func GetFormByID(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "ID is required",
+		})
+	}
+
+	// ตั้ง timeout ให้คำขอครั้งนี้
+	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
+	defer cancel()
+
+	form, err := forms.GetFormByID(ctx, id)
+	if err != nil {
+		// ไม่พบเอกสาร
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Form not found",
+			})
+		}
+		// id ไม่ถูกต้อง (บริการจะส่ง error นี้กลับมา)
+		if errors.Is(err, forms.ErrInvalidObjectID) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid form id",
+			})
+		}
+		// ข้อผิดพลาดอื่น ๆ
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get form",
+		})
+	}
+
+	return c.JSON(form)
+}
+
+// UpdateForm godoc
+// @Summary      Update a form
+// @Description  อัปเดตข้อมูลฟอร์มตามรหัส
+// @Tags         forms
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string      true  "Form ID"
+// @Param        form  body      models.Form true  "Form object"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]interface{}
+// @Failure      404   {object}  map[string]interface{}
+// @Failure      500   {object}  map[string]interface{}
+// @Router       /forms/{id} [patch]
+// @Security     ApiKeyAuth
+func UpdateForm(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID is required"})
+	}
+
+	var form models.Form
+	if err := c.BodyParser(&form); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
+	}
+
+	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
+	defer cancel()
+
+	result, err := forms.UpdateForm(ctx, id, &form)
+	if errors.Is(err, forms.ErrInvalidObjectID) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form id"})
+	}
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update form"})
+	}
+
+	if result.MatchedCount == 0 { // ✅ ไม่พบเอกสาร
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Form not found"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":    "Form updated successfully",
+		"matched":    result.MatchedCount,
+		"modified":   result.ModifiedCount,
+	})
+}
+
+
+
+// DeleteFormByid godoc
+// @Summary      Delete a form by ID
+// @Description  ลบฟอร์มตาม ObjectID
+// @Tags         forms
+// @Param        id   path      string  true  "Form ID"
+// @Success      200  {object}  map[string]interface{}  "Form deleted successfully"
+// @Failure      400  {object}  map[string]interface{}  "Invalid ID"
+// @Failure      404  {object}  map[string]interface{}  "Form not found"
+// @Failure      500  {object}  map[string]interface{}  "Failed to delete form"
+// @Router       /forms/{id} [delete]
+// @Security     ApiKeyAuth
+func DeleteFormByid(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "ID is required",
+		})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := forms.DeleteFormByID(ctx, id)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete form",
+		})
+	}
+	if result.DeletedCount == 0 {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{
+			"error": "Form not found",
+		})
+	}
+	return c.JSON(fiber.Map{
+		"message":      "Form deleted successfully",
+		"deletedCount": result.DeletedCount,
+	})
 }

@@ -13,4 +13,8 @@ func formRoutes(router fiber.Router) {
 
 	forms.Post("/", controllers.CreateForm)      
 	forms.Get("/", controllers.GetAllForms)
+	forms.Get("/:id", controllers.GetFormByID)
+	forms.Delete("/:id", controllers.DeleteFormByid)
+	forms.Put("/:id", controllers.UpdateForm)
+	forms.Patch("/:id", controllers.UpdateForm)
 }
