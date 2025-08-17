@@ -95,9 +95,9 @@ func LoginUser(c *fiber.Ctx) error {
 
 // LogoutUser - สำหรับ logout user
 func LogoutUser(c *fiber.Ctx) error {
-	// 1. Get user from context
-	userID := c.Locals("userId")
-	if userID == nil {
+	// 1. Get user from JWT middleware context
+	userID := c.Locals("userId").(string)
+	if userID == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "User not authenticated",
 			"code":  "NOT_AUTHENTICATED",
@@ -109,14 +109,14 @@ func LogoutUser(c *fiber.Ctx) error {
 	if token != "" {
 		token = strings.TrimPrefix(token, "Bearer ")
 		// 3. Add to blacklist
-		services.AddToBlacklist(token, userID.(string))
+		services.AddToBlacklist(token, userID)
 	}
 
 	// 4. Update user session
-	services.UpdateLastLogout(userID.(string))
+	services.UpdateLastLogout(userID)
 
 	// 5. Log logout
-	services.LogLogout(userID.(string), c.IP(), time.Now())
+	services.LogLogout(userID, c.IP(), time.Now())
 
 	// 6. Return response
 	return c.JSON(fiber.Map{
