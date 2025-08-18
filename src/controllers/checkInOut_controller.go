@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"Backend-Bluelock-007/src/services"
+	services "Backend-Bluelock-007/src/services/check-in-out"
 	"Backend-Bluelock-007/src/services/enrollments"
 
 	"github.com/gofiber/fiber/v2"

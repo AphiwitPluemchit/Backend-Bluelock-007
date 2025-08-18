@@ -248,3 +248,43 @@ func GetStudentEnrollmentInActivity(c *fiber.Ctx) error {
 
 	return c.JSON(enrollment)
 }
+
+// ✅ 6. Student ดูกิจกรรมที่ลงทะเบียนไปแล้ว (History)
+func GetEnrollmentsHistoryByStudent(c *fiber.Ctx) error {
+	// 🔍 แปลง studentId จาก path param
+	studentID, err := primitive.ObjectIDFromHex(c.Params("studentId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid studentId format"})
+	}
+
+	// ✅ 1. ตั้งค่าพารามิเตอร์แบ่งหน้า
+	params := models.DefaultPagination()
+	params.Page, _ = strconv.Atoi(c.Query("page", strconv.Itoa(params.Page)))
+	params.Limit, _ = strconv.Atoi(c.Query("limit", strconv.Itoa(params.Limit)))
+	params.Search = c.Query("search", "")
+	params.SortBy = c.Query("sortBy", "name")
+	params.Order = c.Query("order", "asc")
+
+	// ✅ 2. แปลง Query skill เป็น array
+	skillFilter := strings.Split(c.Query("skills"), ",")
+	if len(skillFilter) == 1 && skillFilter[0] == "" {
+		skillFilter = []string{}
+	}
+
+	// ✅ 3. เรียก service (service จะ filter ให้เหลือเฉพาะ activityItems ที่นิสิตลง + format checkin/checkout เป็นเวลาไทย)
+	activities, total, totalPages, err := enrollments.GetEnrollmentsHistoryByStudent(studentID, params, skillFilter)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// ✅ 4. ส่ง response
+	return c.JSON(fiber.Map{
+		"data": activities,
+		"meta": fiber.Map{
+			"page":       params.Page,
+			"limit":      params.Limit,
+			"total":      total,
+			"totalPages": totalPages,
+		},
+	})
+}

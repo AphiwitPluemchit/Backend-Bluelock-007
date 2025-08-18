@@ -85,3 +85,26 @@ type MajorEnrollment struct {
 	MajorName string `json:"majorName" `
 	Count     int    `json:"count"`
 }
+
+type ActivityHistory struct {
+	ID            primitive.ObjectID    `json:"id,omitempty" bson:"_id,omitempty"`
+	Name          *string               `json:"name" bson:"name" example:"Football Tournament"`
+	Skill         string                `json:"skill" bson:"skill" example:"hard"`
+	File          string                `json:"file" bson:"file"  example:"image.jpg"`
+	ActivityItems []ActivityItemHistory `json:"activityItems" `
+}
+type ActivityItemHistory struct {
+	ID               primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	ActivityID       primitive.ObjectID `json:"activityId,omitempty" bson:"activityId,omitempty"`
+	Name             *string            `json:"name" bson:"name" example:"Quarter Final"`
+	Description      *string            `json:"description" bson:"description" example:"Quarter Final"`
+	StudentYears     []int              `json:"studentYears" bson:"studentYears" example:"1,2,3,4"`
+	MaxParticipants  *int               `json:"maxParticipants" bson:"maxParticipants" example:"22"`
+	Majors           []string           `json:"majors" bson:"majors" example:"CS,SE,ITDI,AAI"`
+	Rooms            *[]string          `json:"rooms" bson:"rooms" example:"Room 1,Room 2"`
+	Operator         *string            `json:"operator" bson:"operator" example:"Operator 1"`
+	Dates            []Dates            `json:"dates" bson:"dates" `
+	Hour             *int               `json:"hour" bson:"hour"  example:"4"`
+	EnrollmentCount  int                `json:"enrollmentCount"  `
+	CheckinoutRecord []CheckinoutRecord `json:"checkinoutRecord" `
+}
