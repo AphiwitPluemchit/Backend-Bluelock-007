@@ -42,11 +42,11 @@ func AdminCreateQRToken(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	url := "/student/qr/" + token
+	url := "/Student/qr/" + token
 	return c.JSON(fiber.Map{"token": token, "expiresAt": expiresAt, "url": url, "type": body.Type})
 }
 
-// GET /student/qr/:token
+// GET /Student/qr/:token
 func StudentClaimQRToken(c *fiber.Ctx) error {
 	userIdRaw := c.Locals("userId")
 	studentId, ok := userIdRaw.(string)
@@ -61,7 +61,7 @@ func StudentClaimQRToken(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"activityId": qrToken.ActivityID.Hex(), "token": qrToken.Token, "type": qrToken.Type})
 }
 
-// GET /student/validate/:token
+// GET /Student/validate/:token
 func StudentValidateQRToken(c *fiber.Ctx) error {
 	userIdRaw := c.Locals("userId")
 	studentId, ok := userIdRaw.(string)
@@ -80,7 +80,7 @@ func StudentValidateQRToken(c *fiber.Ctx) error {
 	})
 }
 
-// POST /student/checkin
+// POST /Student/checkin
 func StudentCheckin(c *fiber.Ctx) error {
 	var body struct {
 		Token string `json:"token"`
@@ -104,7 +104,7 @@ func StudentCheckin(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "checkin success"})
 }
 
-// POST /student/checkout
+// POST /Student/checkout
 func StudentCheckout(c *fiber.Ctx) error {
 	var body struct {
 		Token string `json:"token"`
