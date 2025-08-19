@@ -18,12 +18,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// ✅ 1. Student ลงทะเบียนกิจกรรม (ลงซ้ำไม่ได้)
+// ✅ 1. Student ลงทะเบียนกิจกรรม (ลงซ้ำไม่ได้ + เช็ค major + กันเวลาทับซ้อน)
 func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// ✅ ตรวจสอบว่า ActivityItem และ Student มีอยู่จริงไหม
+	// 1) ตรวจว่า ActivityItem มีจริงไหม
 	var activityItem models.ActivityItem
 	if err := DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": activityItemID}).Decode(&activityItem); err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -32,10 +32,10 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		return err
 	}
 
+	// 2) ถ้ามีการเลือกอาหาร: +1 vote ให้ foodName ที่ตรงกันใน Activity
 	if food != nil {
 		activityID := activityItem.ActivityID
 
-		// ✅ Update +1 vote ของ foodName ที่ตรงกับชื่ออาหาร
 		filter := bson.M{"_id": activityID}
 		update := bson.M{
 			"$inc": bson.M{"foodVotes.$[elem].vote": 1},
@@ -46,16 +46,13 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 			},
 		})
 
-		// ✅ Run update
-		_, err := DB.ActivityCollection.UpdateOne(ctx, filter, update, arrayFilter)
-		if err != nil {
-			return err
+		if _, err := DB.ActivityCollection.UpdateOne(ctx, filter, update, arrayFilter); err != nil {
+			return fmt.Errorf("update food vote failed: %w", err)
 		}
-
-		fmt.Println("Updated food vote for:", *food)
+		// fmt.Println("Updated food vote for:", *food)
 	}
 
-	// ✅ ตรวจสอบเวลาทับซ้อนก่อนลงทะเบียน
+	// 3) กันเวลาทับซ้อนกับ enrollment ที่เคยลงไว้แล้ว
 	existingEnrollmentsCursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
 	if err != nil {
 		return err
@@ -74,11 +71,10 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 			continue
 		}
 
-		// เปรียบเทียบวัน
+		// เปรียบเทียบวันเวลา
 		for _, dOld := range existingItem.Dates {
 			for _, dNew := range activityItem.Dates {
-				if dOld.Date == dNew.Date {
-					// ✅ ถ้าวันตรงกัน ให้เช็คเวลาทับซ้อน
+				if dOld.Date == dNew.Date { // วันเดียวกัน
 					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
 						return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว")
 					}
@@ -87,6 +83,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		}
 	}
 
+	// 4) โหลด student และเช็ค major ให้ตรงกับ activityItem.Majors (ถ้ามีจำกัด)
 	var student models.Student
 	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -95,26 +92,42 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		return err
 	}
 
-	// ✅ ตรวจสอบว่าลงทะเบียนไปแล้วหรือยัง
+	// ✅ เช็คสาขา: กิจกรรมอนุญาตเฉพาะบาง major
+	if len(activityItem.Majors) > 0 {
+		allowed := false
+		for _, m := range activityItem.Majors {
+			log.Println(activityItem.Majors)
+			log.Println(student.Major)
+			if strings.EqualFold(m, student.Major) { // ปลอดภัยต่อเคสตัวพิมพ์เล็ก/ใหญ่
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return errors.New("ไม่สามารถลงทะเบียนได้: สาขาไม่ตรงกับเงื่อนไขของกิจกรรม")
+		}
+	}
+
+	// (ถ้าต้องการเช็คชั้นปีด้วย ให้เพิ่มเงื่อนไขจาก activityItem.StudentYears ที่นี่ได้)
+
+	// 5) กันเต็มโควต้า
+	if activityItem.MaxParticipants != nil && activityItem.EnrollmentCount >= *activityItem.MaxParticipants {
+		return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากจำนวนผู้เข้าร่วมเต็มแล้ว")
+	}
+
+	// 6) กันลงซ้ำ
 	count, err := DB.EnrollmentCollection.CountDocuments(ctx, bson.M{
 		"activityItemId": activityItemID,
 		"studentId":      studentID,
 	})
-
-	// ✅ ตรวจสอบว่าลงทะเบียนไปแล้วหรือยัง
-	if activityItem.EnrollmentCount >= *activityItem.MaxParticipants {
-		return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากจำนวนผู้เข้าร่วมเต็มแล้ว")
-	}
-
 	if err != nil {
 		return err
 	}
 	if count > 0 {
 		return errors.New("already enrolled in this activity")
 	}
-	fmt.Println("studentID:", studentID)
-	fmt.Println("activityItemID:", activityItemID)
-	// ✅ สร้าง Enrollment ใหม่ พร้อม food ถ้ามี
+
+	// 7) Insert enrollment
 	newEnrollment := models.Enrollment{
 		ID:               primitive.NewObjectID(),
 		StudentID:        studentID,
@@ -122,18 +135,16 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		RegistrationDate: time.Now(),
 		Food:             food,
 	}
-
-	_, err = DB.EnrollmentCollection.InsertOne(ctx, newEnrollment)
-	if err != nil {
+	if _, err := DB.EnrollmentCollection.InsertOne(ctx, newEnrollment); err != nil {
 		return err
 	}
 
-	// ✅ เพิ่ม enrollmentcount +1 ใน activityItems
-	_, err = DB.ActivityItemCollection.UpdateOne(ctx,
+	// 8) เพิ่ม enrollmentcount +1 ใน activityItems
+	if _, err := DB.ActivityItemCollection.UpdateOne(
+		ctx,
 		bson.M{"_id": activityItemID},
 		bson.M{"$inc": bson.M{"enrollmentcount": 1}},
-	)
-	if err != nil {
+	); err != nil {
 		return fmt.Errorf("เพิ่ม enrollmentcount ไม่สำเร็จ: %w", err)
 	}
 
