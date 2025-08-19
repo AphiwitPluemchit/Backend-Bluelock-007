@@ -3,6 +3,7 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/enrollments"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -204,11 +205,22 @@ func CheckEnrollmentByStudentAndActivity(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-
+	log.Println(studentID, activityDetails.ActivityItems[0].ID)
+	enrollmentId, err := enrollments.GetEnrollmentId(studentID, activityDetails.ActivityItems[0].ID)
+	if err != nil {
+		if err.Error() == "Student not enrolled in this activity" {
+			return c.JSON(fiber.Map{
+				"isEnrolled": false,
+				"message":    "Student not enrolled in this activity",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
 	return c.JSON(fiber.Map{
-		"isEnrolled": true,
-		"activity":   activityDetails,
-		"message":    "Student is enrolled in this activity",
+		"isEnrolled":   true,
+		"enrollmentId": enrollmentId.Hex(),
+		"activity":     activityDetails,
+		"message":      "Student is enrolled in this activity",
 	})
 }
 

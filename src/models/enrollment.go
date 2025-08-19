@@ -12,7 +12,7 @@ type Enrollment struct {
 	RegistrationDate time.Time          `json:"registrationDate" bson:"registrationDate"`
 	ActivityItemID   primitive.ObjectID `json:"activityItemId" bson:"activityItemId"`
 	StudentID        primitive.ObjectID `json:"studentId" bson:"studentId"`
-	Student          Student            `json:"student" bson:"student"` // เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
+	Student          *Student           `json:"student" bson:"student"` // เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
 	Food             *string            `json:"food" bson:"food"`
 }
 

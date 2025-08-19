@@ -910,3 +910,31 @@ func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID, params models.
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 	return activitiesOut, total, totalPages, nil
 }
+func GetEnrollmentId(studentID, activityItemID primitive.ObjectID) (primitive.ObjectID, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var res struct {
+		ID primitive.ObjectID `bson:"_id"`
+	}
+
+	err := DB.EnrollmentCollection.FindOne(
+		ctx,
+		bson.M{
+			"studentId":      studentID,
+			"activityItemId": activityItemID,
+		},
+		options.FindOne().
+			SetProjection(bson.M{"_id": 1}).
+			SetSort(bson.D{{Key: "registrationDate", Value: -1}}), // เผื่อมีซ้ำ (ปกติห้ามซ้ำ)
+	).Decode(&res)
+
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return primitive.NilObjectID, errors.New("enrollment not found")
+		}
+		return primitive.NilObjectID, err
+	}
+
+	return res.ID, nil
+}
