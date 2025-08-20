@@ -306,7 +306,7 @@ func GetEnrollmentByActivityItemID(c *fiber.Ctx) error {
 	}
 	log.Println(pagination)
 	// รับค่า query param
-	studentMajors := c.Query("majors")
+	studentMajors := c.Query("major")
 	studentStatus := c.Query("studentStatus")
 	studentYears := c.Query("studentYear")
 
@@ -371,7 +371,7 @@ func GetEnrollmentsByActivityID(c *fiber.Ctx) error {
 	}
 
 	// ฟิลเตอร์
-	studentMajors := c.Query("majors")
+	studentMajors := c.Query("major")
 	studentStatus := c.Query("studentStatus")
 	studentYears := c.Query("studentYear")
 
