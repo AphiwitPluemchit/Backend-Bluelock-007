@@ -101,7 +101,7 @@ func StudentCheckin(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(fiber.Map{"message": "checkin success"})
+	return c.JSON(fiber.Map{"message": "ลงทะเบียนเข้าสำเร็จ"})
 }
 
 // POST /Student/checkout
@@ -125,5 +125,5 @@ func StudentCheckout(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(fiber.Map{"message": "checkout success"})
+	return c.JSON(fiber.Map{"message": "ลงทะเบียนออกสำเร็จ"})
 }

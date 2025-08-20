@@ -223,7 +223,7 @@ func RecordCheckin(studentId, activityId, checkType string) error {
 	// ดึง activityItemIds ทั้งหมดที่นิสิตลงทะเบียนใน activity นี้
 	itemIDs, found := enrollments.FindEnrolledItems(studentId, activityId)
 	if !found || len(itemIDs) == 0 {
-		return fmt.Errorf("not enrolled in this activity")
+		return fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
 	}
 	for _, itemID := range itemIDs {
 		err := SaveCheckInOut(studentId, itemID, checkType)
