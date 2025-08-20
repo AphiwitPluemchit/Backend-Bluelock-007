@@ -30,7 +30,6 @@ func CreateStudent(c *fiber.Ctx) error {
 		EngName   string `json:"engName"`
 		Code      string `json:"code"`
 		Major     string `json:"major"`
-		Password  string `json:"password"`
 		SoftSkill int    `json:"softSkill"`
 		HardSkill int    `json:"hardSkill"`
 	}
