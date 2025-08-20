@@ -5,6 +5,7 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 // Activity กิจกรรมหลัก
 type Activity struct {
 	ID            primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	FormID        primitive.ObjectID `json:"formId,omitempty" bson:"formId,omitempty"`
 	Name          *string            `json:"name" bson:"name" example:"Football Tournament"`
 	Type          string             `json:"type" bson:"type" example:"one"`
 	ActivityState string             `json:"activityState" bson:"activityState" example:"planning"`
@@ -16,6 +17,7 @@ type Activity struct {
 
 type ActivityDto struct {
 	ID            primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	FormID        primitive.ObjectID `json:"formId,omitempty" bson:"formId,omitempty"`
 	Name          *string            `json:"name" bson:"name" example:"Football Tournament"`
 	Type          string             `json:"type" bson:"type" example:"one"`
 	ActivityState string             `json:"activityState" bson:"activityState" example:"planning"`

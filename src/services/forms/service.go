@@ -75,7 +75,6 @@ func UpdateForm(ctx context.Context, id string, form *models.Form) (*mongo.Updat
 	set := bson.M{
 		"title":       form.Title,
 		"description": form.Description,
-		"activityId":  form.ActivityID,
 		"isOrigin":    form.IsOrigin,
 		"blocks":      form.Blocks,
 	}
