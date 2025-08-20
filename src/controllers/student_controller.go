@@ -23,6 +23,7 @@ import (
 // @Failure 409 {object} map[string]interface{}
 // @Router /students [post]
 // ✅ CreateStudent - เพิ่ม Student หลายคน
+// ✅ CreateStudent - เพิ่ม Student หลายคน (แบบ validate ทั้งก้อนก่อน)
 func CreateStudent(c *fiber.Ctx) error {
 	var req []struct {
 		Name      string `json:"name"`
@@ -33,36 +34,76 @@ func CreateStudent(c *fiber.Ctx) error {
 		SoftSkill int    `json:"softSkill"`
 		HardSkill int    `json:"hardSkill"`
 	}
-
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
 	}
+	if len(req) == 0 {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Empty payload"})
+	}
 
+	// ---------- Normalize/Validate ----------
+	clean := func(s string) string { return strings.TrimSpace(s) }
+	var codes []string
+	payloadDupMap := make(map[string]int)
+	var invalid []string
+
+	for i := range req {
+		req[i].Code = clean(req[i].Code)
+		req[i].Name = strings.TrimSpace(req[i].Name)
+		req[i].EngName = strings.TrimSpace(req[i].EngName)
+
+		// ตัวอย่าง validate code (เช่นต้องเป็นตัวเลขยาว >= 5)
+		if req[i].Code == "" || len(req[i].Code) < 5 {
+			invalid = append(invalid, req[i].Code)
+			continue
+		}
+		codes = append(codes, req[i].Code)
+		payloadDupMap[req[i].Code]++
+	}
+
+	// ---------- ตรวจซ้ำใน payload ----------
+	var payloadDup []string
+	for code, cnt := range payloadDupMap {
+		if cnt > 1 {
+			payloadDup = append(payloadDup, code)
+		}
+	}
+
+	// ---------- ตรวจซ้ำใน DB ----------
+	existCodes, err := students.FindExistingCodes(codes)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to check duplicates"})
+	}
+
+	// ถ้ามีซ้ำ (ใน payload หรือใน DB) หรือมี invalid → ไม่บันทึกใครเลย
+	if len(payloadDup) > 0 || len(existCodes) > 0 || len(invalid) > 0 {
+		return c.Status(http.StatusConflict).JSON(fiber.Map{
+			"error":              "Duplicate or invalid codes found",
+			"duplicateInPayload": payloadDup,
+			"duplicateInDB":      existCodes,
+			"invalid":            invalid,
+		})
+	}
+
+	// ---------- เริ่มบันทึก (ผ่าน service ทีละคน หรือใช้ Transaction ก็ได้) ----------
 	var failed []string
-
-	for _, studentData := range req {
-		// 👉 1. เตรียม Student profile
-		student := models.Student{
-			Code:      studentData.Code,
-			Name:      studentData.Name,
-			EngName:   studentData.EngName,
-			Status:    calculateStatus(studentData.SoftSkill, studentData.HardSkill),
-			SoftSkill: studentData.SoftSkill,
-			HardSkill: studentData.HardSkill,
-			Major:     studentData.Major,
+	for _, s := range req {
+		stu := models.Student{
+			Code:      s.Code,
+			Name:      s.Name,
+			EngName:   cleanName(s.EngName), // ✅ ใช้ EngName ที่มาจากฟอร์ม ไม่ใช่ Name
+			Status:    calculateStatus(s.SoftSkill, s.HardSkill),
+			SoftSkill: s.SoftSkill,
+			HardSkill: s.HardSkill,
+			Major:     mapMajor(s.Major),
 		}
-
-		// 👉 2. เตรียม User auth
-		user := models.User{
-			Email:    strings.ToLower(studentData.Code + "@go.buu.ac.th"),
-			Password: studentData.Password,
+		usr := models.User{
+			Email:    strings.ToLower(s.Code + "@go.buu.ac.th"),
+			Password: generatePassword(s.Code, stu.EngName),
 		}
-
-		// 👉 3. สร้างผ่าน service (จะเชื่อม refId ให้ภายใน)
-		err := students.CreateStudent(&user, &student)
-		if err != nil {
-			log.Println("❌ Failed to create student:", student.Code, err)
-			failed = append(failed, student.Code)
+		if err := students.CreateStudent(&usr, &stu); err != nil {
+			log.Println("❌ Failed to create student:", s.Code, err)
+			failed = append(failed, s.Code)
 		}
 	}
 
@@ -283,6 +324,15 @@ func GetSammaryByCode(c *fiber.Ctx) error {
 	}
 	return c.JSON(student)
 }
+func GetSammaryAll(c *fiber.Ctx) error {
+	majors := cleanList(strings.Split(c.Query("major"), ","))
+	studentYears := cleanList(strings.Split(c.Query("studentYear"), ","))
+	summary, err := students.GetStudentSummary(majors, studentYears)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error generating summary"})
+	}
+	return c.JSON(summary)
+}
 func calculateStatus(softSkill, hardSkill int) int {
 	total := softSkill + hardSkill
 
@@ -295,14 +345,40 @@ func calculateStatus(softSkill, hardSkill int) int {
 		return 1 // น้อยมาก
 	}
 }
-func GetSammaryAll(c *fiber.Ctx) error {
-	majors := cleanList(strings.Split(c.Query("major"), ","))
-	studentYears := cleanList(strings.Split(c.Query("studentYear"), ","))
-	summary, err := students.GetStudentSummary(majors, studentYears)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error generating summary"})
+func mapMajor(fullName string) string {
+	switch fullName {
+	case "ปัญญาประดิษฐ์ประยุกต์และเทคโนโลยีอัจฉริยะ":
+		return "AAI"
+	case "วิศวกรรมซอฟต์แวร์":
+		return "SE"
+	case "วิทยาการคอมพิวเตอร์":
+		return "CS"
+	case "เทคโนโลยีสารสนเทศเพื่ออุตสาหกรรมดิจิทัล":
+		return "ITDI"
+	default:
+		return "ไม่พบสาขา" // ถ้าไม่ตรง จะเก็บค่าที่ส่งมาเดิม
 	}
-	return c.JSON(summary)
+}
+func cleanName(name string) string {
+	upper := strings.ToUpper(strings.TrimSpace(name))
+
+	// ตัด MR. / MISS ออก
+	upper = strings.TrimPrefix(upper, "MR. ")
+	upper = strings.TrimPrefix(upper, "MISS ")
+
+	return strings.TrimSpace(upper)
+}
+func generatePassword(code, engName string) string {
+	engName = strings.ToUpper(strings.TrimSpace(engName))
+	// ดึงมา 3 ตัวแรก
+	prefix := ""
+	if len(engName) >= 3 {
+		prefix = engName[:3]
+	} else {
+		prefix = engName // ถ้าชื่อสั้นกว่า 3 ตัว
+	}
+
+	return code + prefix
 }
 
 // graph

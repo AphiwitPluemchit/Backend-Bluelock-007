@@ -209,14 +209,13 @@ func hashPassword(password string) (string, error) {
 }
 
 // ✅ ตรวจสอบว่ามี Student ที่ `code` หรือ `email` ซ้ำกันหรือไม่
-func isStudentExists(code, email string) (bool, error) {
+func isStudentExists(code string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	count, err := DB.StudentCollection.CountDocuments(ctx, bson.M{
 		"$or": []bson.M{
 			{"code": code},
-			{"email": email},
 		},
 	})
 
@@ -233,7 +232,7 @@ func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	defer cancel()
 
 	// 🔍 ตรวจว่าซ้ำหรือไม่
-	exists, err := isStudentExists(studentInput.Code, userInput.Email)
+	exists, err := isStudentExists(studentInput.Code)
 	if err != nil {
 		return err
 	}
@@ -262,8 +261,7 @@ func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	userInput.Email = strings.ToLower(strings.TrimSpace(userInput.Email))
 	userInput.IsActive = true
 
-	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.InsertOne(ctx, userInput)
+	_, err = DB.UserCollection.InsertOne(ctx, userInput)
 	if err != nil {
 		// rollback
 		DB.StudentCollection.DeleteOne(ctx, bson.M{"_id": studentInput.ID})
@@ -288,8 +286,8 @@ func UpdateStudent(id string, student *models.Student, email string) error {
 	}
 
 	// ✅ Sync ทั้ง name และ email ไปยัง user
-	userCollection := database.GetCollection("BluelockDB", "users")
-	_, err = userCollection.UpdateOne(context.Background(),
+
+	_, err = DB.UserCollection.UpdateOne(context.Background(),
 		bson.M{"refId": objID, "role": "student"},
 		bson.M{"$set": bson.M{
 			"name":  student.Name,
@@ -305,10 +303,8 @@ func DeleteStudent(id string) error {
 		return errors.New("invalid student ID")
 	}
 
-	userCollection := database.GetCollection("BluelockDB", "users")
-
 	// ลบ user ที่ refId เป็น student.id และ role เป็น "student"
-	_, err = userCollection.DeleteOne(context.Background(), bson.M{
+	_, err = DB.UserCollection.DeleteOne(context.Background(), bson.M{
 		"refId": objID,
 		"role":  "student",
 	})
@@ -325,9 +321,6 @@ func DeleteStudent(id string) error {
 func UpdateStudentStatusByIDs(studentIDs []string, status int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	// Using centralized DB.StudentCollection instead of local initialization
-	userCollection := database.GetCollection("BluelockDB", "users")
 
 	// แปลง string IDs เป็น ObjectIDs
 	var objectIDs []primitive.ObjectID
@@ -368,7 +361,7 @@ func UpdateStudentStatusByIDs(studentIDs []string, status int) error {
 		userFilter := bson.M{"refId": student.ID}
 		userUpdate := bson.M{"$set": bson.M{"isActive": false}}
 
-		_, err := userCollection.UpdateOne(ctx, userFilter, userUpdate)
+		_, err := DB.UserCollection.UpdateOne(ctx, userFilter, userUpdate)
 		if err != nil {
 			log.Printf("Failed to update user isActive for student %s: %v", student.ID.Hex(), err)
 		}
@@ -558,4 +551,31 @@ func percent(part, total int) int {
 		return 0
 	}
 	return int(float64(part) / float64(total) * 100)
+}
+func FindExistingCodes(codes []string) ([]string, error) {
+	if len(codes) == 0 {
+		return []string{}, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	cur, err := DB.StudentCollection.Find(ctx, bson.M{"code": bson.M{"$in": codes}}, 
+		/* options.Find() */)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	existsSet := make(map[string]struct{})
+	for cur.Next(ctx) {
+		var row struct{ Code string `bson:"code"` }
+		if err := cur.Decode(&row); err == nil && row.Code != "" {
+			existsSet[row.Code] = struct{}{}
+		}
+	}
+	exists := make([]string, 0, len(existsSet))
+	for code := range existsSet {
+		exists = append(exists, code)
+	}
+	return exists, nil
 }
