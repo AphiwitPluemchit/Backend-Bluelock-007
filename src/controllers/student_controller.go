@@ -336,9 +336,9 @@ func calculateStatus(softSkill, hardSkill int) int {
 	total := softSkill + hardSkill
 
 	switch {
-	case total >= 20:
+	case softSkill >= 30 && hardSkill >= 12:
 		return 3 // ครบ
-	case total >= 10:
+	case total >= 20:
 		return 2 // น้อย
 	default:
 		return 1 // น้อยมาก

@@ -46,6 +46,52 @@ func CreateEnrollment(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Enrollment successful"})
 }
 
+type bulkEnrollItem struct {
+	StudentCode string  `json:"studentCode"`
+	Food        *string `json:"food"` // ต่อคนเลือกได้
+}
+
+type bulkEnrollReq struct {
+	ActivityItemID string           `json:"activityItemId"`
+	Students       []bulkEnrollItem `json:"students"`
+}
+
+// ✅ 1.b Student ลงทะเบียนกิจกรรมแบบ bulk: { studentCode, food } ต่อคน
+func CreateBulkEnrollment(c *fiber.Ctx) error {
+	var req bulkEnrollReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
+	}
+	if req.ActivityItemID == "" || len(req.Students) == 0 {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "activityItemId and students are required"})
+	}
+
+	activityItemID, err := primitive.ObjectIDFromHex(req.ActivityItemID)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid activityItemId"})
+	}
+
+	// Convert []bulkEnrollItem to []enrollments.BulkEnrollItem
+	students := make([]enrollments.BulkEnrollItem, len(req.Students))
+	for i, s := range req.Students {
+		students[i] = enrollments.BulkEnrollItem{
+			StudentCode: s.StudentCode,
+			Food:        s.Food,
+		}
+	}
+
+	result, err := enrollments.RegisterStudentsByCodes(c.Context(), activityItemID, students)
+	if err != nil {
+		// error ระดับระบบ — ส่ง payload ผลลัพธ์บางส่วนกลับไปด้วย
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  err.Error(),
+			"result": result,
+		})
+	}
+
+	return c.Status(http.StatusOK).JSON(result)
+}
+
 // GetEnrollmentsByStudent godoc
 // @Summary      ดึงรายการกิจกรรมที่นักศึกษาลงทะเบียนไว้
 // @Description  ให้นักศึกษาดูรายการกิจกรรมที่ลงทะเบียนไว้ทั้งหมด
