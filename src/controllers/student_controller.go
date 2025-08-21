@@ -98,7 +98,7 @@ func CreateStudent(c *fiber.Ctx) error {
 		}
 		usr := models.User{
 			Email:    strings.ToLower(s.Code + "@go.buu.ac.th"),
-			Password: generatePassword(s.Code, stu.EngName),
+			Password: s.Code + "ABC",
 		}
 		if err := students.CreateStudent(&usr, &stu); err != nil {
 			log.Println("❌ Failed to create student:", s.Code, err)
