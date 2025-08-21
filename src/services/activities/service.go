@@ -79,6 +79,7 @@ func CreateActivity(activity *models.ActivityDto) (*models.ActivityDto, error) {
 	// ✅ สร้าง Activity ที่ต้องบันทึกลง MongoDB
 	activityToInsert := models.Activity{
 		ID:            activity.ID,
+		FormID:        activity.FormID,
 		Name:          activity.Name,
 		Type:          activity.Type,
 		ActivityState: activity.ActivityState,
@@ -391,6 +392,7 @@ func UpdateActivity(id primitive.ObjectID, activity models.ActivityDto) (*models
 	update := bson.M{
 		"$set": bson.M{
 			"name":          activity.Name,
+			"formId":        activity.FormID,
 			"type":          activity.Type,
 			"activityState": activity.ActivityState,
 			"skill":         activity.Skill,

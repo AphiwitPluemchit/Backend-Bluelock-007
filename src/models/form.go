@@ -7,7 +7,6 @@ import (
 // --- Form ---
 type Form struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	ActivityID primitive.ObjectID `bson:"activityId" json:"activityId"`
 	Title      string             `bson:"title" json:"title"`
 	Description string             `bson:"description" json:"description"`
 	IsOrigin   bool               `bson:"isOrigin" json:"isOrigin"`
