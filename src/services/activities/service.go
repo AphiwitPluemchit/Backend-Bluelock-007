@@ -251,11 +251,11 @@ func GetAllActivityCalendar(month int, year int) ([]models.ActivityDto, error) {
 }
 
 func GetActivityByID(activityID string) (*models.ActivityDto, error) {
-	cacheKey := "activity:" + activityID
-	var cached models.ActivityDto
-	if getCache(cacheKey, &cached) {
-		return &cached, nil
-	}
+	// cacheKey := "activity:" + activityID
+	// var cached models.ActivityDto
+	// if getCache(cacheKey, &cached) {
+	// 	return &cached, nil
+	// }
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -281,7 +281,7 @@ func GetActivityByID(activityID string) (*models.ActivityDto, error) {
 			return nil, err
 		}
 
-		setCache(cacheKey, result, 5*time.Minute)
+		// setCache(cacheKey, result, 5*time.Minute)
 		return &result, nil
 	}
 
