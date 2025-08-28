@@ -1,6 +1,7 @@
 package submission
 
 import (
+	DB "Backend-Bluelock-007/src/database"
 	"context"
 	"errors"
 	"log"
@@ -13,18 +14,8 @@ import (
 	"Backend-Bluelock-007/src/models"
 )
 
-type SubmissionService struct {
-	collection *mongo.Collection
-}
-
-func NewSubmissionService(db *mongo.Database) *SubmissionService {
-	return &SubmissionService{
-		collection: db.Collection("submissions"),
-	}
-}
-
 // CreateSubmission creates a new form submission
-func (s *SubmissionService) CreateSubmission(ctx context.Context, submission *models.Submission) (*models.Submission, error) {
+func CreateSubmission(ctx context.Context, submission *models.Submission) (*models.Submission, error) {
 	// Validate required fields
 	if submission.FormID.IsZero() {
 		return nil, errors.New("form ID is required")
@@ -46,7 +37,7 @@ func (s *SubmissionService) CreateSubmission(ctx context.Context, submission *mo
 	}
 
 	// Insert into database
-	res, err := s.collection.InsertOne(ctx, submission)
+	res, err := DB.SubmissionCollection.InsertOne(ctx, submission)
 	if err != nil {
 		return nil, err
 	}
@@ -57,15 +48,15 @@ func (s *SubmissionService) CreateSubmission(ctx context.Context, submission *mo
 	}
 
 	log.Printf("[submission] inserted id=%s db=%s coll=%s responses=%d",
-		submission.ID.Hex(), s.collection.Database().Name(), s.collection.Name(), len(submission.Responses))
+		submission.ID.Hex(), DB.SubmissionCollection.Database().Name(), DB.SubmissionCollection.Name(), len(submission.Responses))
 
 	return submission, nil
 }
 
 // GetSubmissionByID retrieves a submission by its ID
-func (s *SubmissionService) GetSubmissionByID(ctx context.Context, id primitive.ObjectID) (*models.Submission, error) {
+func GetSubmissionByID(ctx context.Context, id primitive.ObjectID) (*models.Submission, error) {
 	var submission models.Submission
-	err := s.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&submission)
+	err := DB.SubmissionCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&submission)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, errors.New("submission not found")
@@ -77,8 +68,8 @@ func (s *SubmissionService) GetSubmissionByID(ctx context.Context, id primitive.
 }
 
 // GetSubmissionsByFormID retrieves all submissions for a specific form
-func (s *SubmissionService) GetSubmissionsByFormID(ctx context.Context, formID primitive.ObjectID) ([]models.Submission, error) {
-	cursor, err := s.collection.Find(ctx, bson.M{"formId": formID})
+func GetSubmissionsByFormID(ctx context.Context, formID primitive.ObjectID) ([]models.Submission, error) {
+	cursor, err := DB.SubmissionCollection.Find(ctx, bson.M{"formId": formID})
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +84,8 @@ func (s *SubmissionService) GetSubmissionsByFormID(ctx context.Context, formID p
 }
 
 // GetSubmissionsByUserID retrieves all submissions made by a specific user
-func (s *SubmissionService) GetSubmissionsByUserID(ctx context.Context, userID primitive.ObjectID) ([]models.Submission, error) {
-	cursor, err := s.collection.Find(ctx, bson.M{"userId": userID})
+func GetSubmissionsByUserID(ctx context.Context, userID primitive.ObjectID) ([]models.Submission, error) {
+	cursor, err := DB.SubmissionCollection.Find(ctx, bson.M{"userId": userID})
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +100,8 @@ func (s *SubmissionService) GetSubmissionsByUserID(ctx context.Context, userID p
 }
 
 // DeleteSubmission deletes a submission by its ID
-func (s *SubmissionService) DeleteSubmission(ctx context.Context, id primitive.ObjectID) error {
-	result, err := s.collection.DeleteOne(ctx, bson.M{"_id": id})
+func DeleteSubmission(ctx context.Context, id primitive.ObjectID) error {
+	result, err := DB.SubmissionCollection.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
 		return err
 	}

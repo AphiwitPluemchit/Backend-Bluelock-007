@@ -7,16 +7,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"Backend-Bluelock-007/src/models"
-	submissionService "Backend-Bluelock-007/src/services/submission"
+	"Backend-Bluelock-007/src/services/submission"
 )
-
-type SubmissionController struct {
-	service *submissionService.SubmissionService
-}
-
-func NewSubmissionController(service *submissionService.SubmissionService) *SubmissionController {
-	return &SubmissionController{service: service}
-}
 
 // ===== DTO ที่รับจาก Frontend เป็น string IDs =====
 type responseIn struct {
@@ -32,8 +24,9 @@ type submissionIn struct {
 	UserID    string       `json:"userId"`
 	Responses []responseIn `json:"responses"`
 }
-//createSubmission
-func (sc *SubmissionController) CreateSubmission(c *fiber.Ctx) error {
+
+// createSubmission
+func CreateSubmission(c *fiber.Ctx) error {
 	var in submissionIn
 	if err := c.BodyParser(&in); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input: " + err.Error()})
@@ -83,15 +76,15 @@ func (sc *SubmissionController) CreateSubmission(c *fiber.Ctx) error {
 		})
 	}
 
-	submission := models.Submission{
+	submissions := models.Submission{
 		FormID:    formOID,
 		UserID:    userOID,
 		Responses: resps,
 	}
 
-	log.Printf("[submission] IN form=%s user=%s responses=%d", submission.FormID.Hex(), submission.UserID.Hex(), len(submission.Responses))
+	log.Printf("[submission] IN form=%s user=%s responses=%d", submissions.FormID.Hex(), submissions.UserID.Hex(), len(submissions.Responses))
 
-	created, err := sc.service.CreateSubmission(c.Context(), &submission)
+	created, err := submission.CreateSubmission(c.Context(), &submissions)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -100,13 +93,13 @@ func (sc *SubmissionController) CreateSubmission(c *fiber.Ctx) error {
 }
 
 // GetSubmission handles getting a submission by ID
-func (sc *SubmissionController) GetSubmission(c *fiber.Ctx) error {
+func GetSubmission(c *fiber.Ctx) error {
 	id, err := primitive.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	submission, err := sc.service.GetSubmissionByID(c.Context(), id)
+	submission, err := submission.GetSubmissionByID(c.Context(), id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Submission not found"})
 	}
@@ -115,13 +108,13 @@ func (sc *SubmissionController) GetSubmission(c *fiber.Ctx) error {
 }
 
 // GetSubmissionsByForm handles getting submissions by form ID
-func (sc *SubmissionController) GetSubmissionsByForm(c *fiber.Ctx) error {
+func GetSubmissionsByForm(c *fiber.Ctx) error {
 	formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
 	}
 
-	submissions, err := sc.service.GetSubmissionsByFormID(c.Context(), formID)
+	submissions, err := submission.GetSubmissionsByFormID(c.Context(), formID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -130,13 +123,13 @@ func (sc *SubmissionController) GetSubmissionsByForm(c *fiber.Ctx) error {
 }
 
 // DeleteSubmission handles submission deletion
-func (sc *SubmissionController) DeleteSubmission(c *fiber.Ctx) error {
+func DeleteSubmission(c *fiber.Ctx) error {
 	id, err := primitive.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	if err := sc.service.DeleteSubmission(c.Context(), id); err != nil {
+	if err := submission.DeleteSubmission(c.Context(), id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
