@@ -43,7 +43,6 @@ func init() {
 	DB.QrTokenCollection = DB.GetCollection(collection, "qrTokens")
 	DB.QrClaimCollection = DB.GetCollection(collection, "qrClaims")
 	DB.FormCollection = DB.GetCollection(collection, "forms")
-	DB.QuestionCollection = DB.GetCollection(collection, "questions")
 	DB.SubmissionCollection = DB.GetCollection(collection, "submissions")
 	DB.StudentCollection = DB.GetCollection(collection, "students")
 	DB.UserCollection = DB.GetCollection(collection, "users")
