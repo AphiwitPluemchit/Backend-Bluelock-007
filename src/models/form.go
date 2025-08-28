@@ -48,13 +48,3 @@ type Row struct {
 	Sequence int                `bson:"sequence" json:"sequence"`
 	BlockID  primitive.ObjectID `bson:"blockId" json:"blockId"`
 }
-
-// --- Response ---
-type Response struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"` 
-	AnswerText *string            `bson:"answerText,omitempty" json:"answerText,omitempty"`
-	BlockID    primitive.ObjectID `bson:"blockId" json:"blockId"`
-	ChoiceID   *primitive.ObjectID `bson:"choiceId,omitempty" json:"choiceId,omitempty"`
-	RowID      *primitive.ObjectID `bson:"rowId,omitempty" json:"rowId,omitempty"`
-	UserID     primitive.ObjectID `bson:"userId" json:"userId"`
-}
