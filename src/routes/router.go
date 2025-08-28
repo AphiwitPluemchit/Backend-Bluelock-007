@@ -1,10 +1,20 @@
 package routes
 
 import (
+	"Backend-Bluelock-007/src/database"
+
 	"github.com/gofiber/fiber/v2"
 )
 
 func InitRoutes(app fiber.Router) {
+	// Ensure database is connected
+	if err := database.ConnectMongoDB(); err != nil {
+		panic("Failed to connect to MongoDB: " + err.Error())
+	}
+
+	// Get database instance
+	db := database.GetDB()
+
 	// Group API routes under /api
 	// เรียกใช้ฟังก์ชัน InitUserRoutes และ InitOrderRoutes
 	authRoutes(app)
@@ -13,10 +23,11 @@ func InitRoutes(app fiber.Router) {
 	checkInOutRoutes(app)
 	enrollmentRoutes(app)
 	foodRoutes(app)
-	formRoutes(app) // 👈 เพิ่ม form routes
+	formRoutes(app) //
 	studentRoutes(app)
 	ocrRoutes(app)
-	courseRoutes(app) // 👈 เพิ่มตรงนี้
+	courseRoutes(app) //
+	SubmissionRoutes(app, db)
 
 	// Route เช็คว่า API ทำงานอยู่
 	app.Get("/", func(c *fiber.Ctx) error {
@@ -38,7 +49,7 @@ func InitRoutes(app fiber.Router) {
 // 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
 // 		}
 
-// 		// ⏩ บันทึกไว้ใช้ใน route ถัดไป
+// 		// บันทึกไว้ใช้ใน route ถัดไป
 // 		c.Locals("userId", claims.UserID)
 // 		c.Locals("role", claims.Role)
 // 		c.Locals("email", claims.Email)

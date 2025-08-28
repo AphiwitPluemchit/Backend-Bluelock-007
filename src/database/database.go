@@ -100,6 +100,15 @@ func GetCollection(dbName, collectionName string) *mongo.Collection {
 	return client.Database(dbName).Collection(collectionName)
 }
 
+// GetDB returns the MongoDB database instance
+func GetDB() *mongo.Database {
+	if client == nil {
+		log.Fatal("❌ MongoDB client is not initialized")
+	}
+	// Return the default database (you can modify this to return a specific database if needed)
+	return client.Database("bluelock") // Replace "bluelock" with your database name if different
+}
+
 // EnsureCollections creates collections if they do not exist yet.
 func EnsureCollections(dbName string, names []string) error {
 	if client == nil {
