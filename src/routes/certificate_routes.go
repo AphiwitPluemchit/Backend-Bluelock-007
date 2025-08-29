@@ -1,0 +1,13 @@
+package routes
+
+import (
+	"Backend-Bluelock-007/src/controllers"
+
+	"github.com/gofiber/fiber/v2"
+)
+
+func certificateRoutes(router fiber.Router) {
+	certificate := router.Group("/certificate")
+	certificate.Post("/upload", controllers.UploadHandler)
+	certificate.Get("/url-verify", controllers.VerifyURL)
+}

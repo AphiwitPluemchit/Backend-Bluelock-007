@@ -25,7 +25,7 @@ func InitRoutes(app fiber.Router) {
 	foodRoutes(app)
 	formRoutes(app) //
 	studentRoutes(app)
-	ocrRoutes(app)
+	certificateRoutes(app)
 	courseRoutes(app) //
 	SubmissionRoutes(app, db)
 

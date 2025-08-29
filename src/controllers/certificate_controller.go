@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"Backend-Bluelock-007/src/models"
+	services "Backend-Bluelock-007/src/services/certificates"
 	"Backend-Bluelock-007/src/services/courses"
 	"Backend-Bluelock-007/src/services/students"
-	services "Backend-Bluelock-007/src/services/uploads"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -26,7 +26,7 @@ import (
 
 // @Summary      Upload a file
 // @Description  Upload a file
-// @Tags         ocr
+// @Tags         certificate
 // @Accept       multipart/form-data
 // @Produce      json
 // @Param        file        formData  file    true   "File to upload"
@@ -35,7 +35,7 @@ import (
 // @Success      200   {object}  map[string]interface{}
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      500   {object}  map[string]interface{}
-// @Router       /ocr/upload [post]
+// @Router       /certificate/upload [post]
 func UploadHandler(c *fiber.Ctx) error {
 	fmt.Println(" [Fiber] ได้รับการอัปโหลดไฟล์")
 	// รับไฟล์จาก FormData field name: "file"
@@ -317,4 +317,51 @@ func sendFileToFastAPI(fileHeader *multipart.FileHeader, studentName string, cou
 	}
 
 	return result, nil
+}
+
+
+// @Summary      Verify a URL
+// @Description  Verify a URL
+// @Tags         certificate
+// @Accept       json
+// @Produce      json
+// @Param        url        query     string  true  "URL to verify"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]interface{}
+// @Failure      500   {object}  map[string]interface{}
+// @Router       /certificate/url-verify [get]
+func VerifyURL(c *fiber.Ctx) error {
+	url := c.Query("url")
+	// studentId := c.Query("studentId")
+	// courseId := c.Query("courseId")
+
+	// stId, err := primitive.ObjectIDFromHex(studentId)
+	// if err != nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"error": "Invalid student ID",
+	// 	})
+	// }
+	// crId, err := primitive.ObjectIDFromHex(courseId)
+	// if err != nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"error": "Invalid course ID",
+	// 	})
+	// }
+
+	isVerified, err := services.VerifyURL(url)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error verifying URL",
+		})
+	}
+
+	if isVerified == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "URL is not verified",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Certificate Verified",
+	})
 }
