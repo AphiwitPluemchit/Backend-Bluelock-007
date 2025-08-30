@@ -571,7 +571,7 @@ func GetEnrollmentByActivityItemID(
 				{{Key: "$match", Value: bson.M{
 					"$expr": bson.M{
 						"$and": bson.A{
-							bson.M{"$eq": bson.A{"$userId", "$$studentId"}},
+							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
 							bson.M{"$eq": bson.A{"$activityItemId", "$$activityItemId"}},
 						},
 					},
@@ -730,7 +730,7 @@ func GetEnrollmentsByActivityID(
 				{{Key: "$match", Value: bson.M{
 					"$expr": bson.M{
 						"$and": bson.A{
-							bson.M{"$eq": bson.A{"$userId", "$$studentId"}},
+							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
 							bson.M{"$eq": bson.A{"$activityItemId", "$$activityItemId"}},
 						},
 					},

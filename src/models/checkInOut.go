@@ -31,10 +31,10 @@ type QRToken struct {
 // CheckinRecord สำหรับเก็บข้อมูลการเช็คชื่อ
 // { studentId, activityId, type: 'checkin' | 'checkout', timestamp }
 type CheckinRecord struct {
-	StudentID  primitive.ObjectID `bson:"studentId" json:"studentId"`
-	ActivityID primitive.ObjectID `bson:"activityId" json:"activityId"`
-	Type       string             `bson:"type" json:"type"`
-	Timestamp  int64              `bson:"timestamp" json:"timestamp"`
+	StudentID      primitive.ObjectID `bson:"studentId" json:"studentId"`
+	ActivityItemID primitive.ObjectID `json:"activityItemId" bson:"activityItemId"`
+	Type           string             `bson:"type" json:"type"`
+	Timestamp      time.Time          `bson:"timestamp" json:"timestamp"`
 }
 
 // QRClaim สำหรับเก็บข้อมูลการ claim QR ใน MongoDB

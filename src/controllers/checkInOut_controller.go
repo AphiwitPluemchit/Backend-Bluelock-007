@@ -127,3 +127,18 @@ func StudentCheckout(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"message": "ลงทะเบียนออกสำเร็จ"})
 }
+
+// GET /Student/activity/:activityId/form
+func GetActivityForm(c *fiber.Ctx) error {
+	activityId := c.Params("activityId")
+	if activityId == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityId"})
+	}
+
+	formId, err := services.GetActivityFormId(activityId)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"formId": formId})
+}

@@ -23,7 +23,7 @@ func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{
 	}
 
 	filter := bson.M{
-		"userId":         uID,
+		"studentId":      uID,
 		"activityItemId": aID,
 	}
 
@@ -38,7 +38,7 @@ func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{
 	// แยก checkin/checkout ตามวัน
 	type rec struct {
 		Type      string    `bson:"type"`
-		CheckedAt time.Time `bson:"checkedAt"`
+		Timestamp time.Time `bson:"timestamp"`
 	}
 	var checkins, checkouts []time.Time
 	for cursor.Next(context.TODO()) {
@@ -46,7 +46,7 @@ func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{
 		if err := cursor.Decode(&r); err != nil {
 			continue
 		}
-		t := r.CheckedAt.In(loc)
+		t := r.Timestamp.In(loc)
 		switch r.Type {
 		case "checkin":
 			checkins = append(checkins, t)
@@ -133,7 +133,14 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("QR token expired or invalid")
 	}
-	// upsert ลง qr_claims (หมดอายุใน 1 ชม. หลัง claim)
+
+	// 3. ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
+	itemIDs, found := enrollments.FindEnrolledItems(studentId, qrToken.ActivityID.Hex())
+	if !found || len(itemIDs) == 0 {
+		return nil, fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
+	}
+
+	// 4. upsert ลง qr_claims (หมดอายุใน 1 ชม. หลัง claim)
 	expireAt := time.Now().Add(1 * time.Hour)
 	claimDoc := bson.M{
 		"token":      token,
@@ -170,6 +177,13 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("QR token not claimed or expired")
 	}
+
+	// ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
+	itemIDs, found := enrollments.FindEnrolledItems(studentId, claim.ActivityID.Hex())
+	if !found || len(itemIDs) == 0 {
+		return nil, fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
+	}
+
 	return &models.QRToken{
 		Token:              claim.Token,
 		ActivityID:         claim.ActivityID,
@@ -193,10 +207,10 @@ func SaveCheckInOut(userId, activityItemId, checkType string) error {
 	endOfDay := startOfDay.Add(24 * time.Hour)
 	// เช็คว่ามี record ซ้ำในวันเดียวกันหรือยัง
 	filter := bson.M{
-		"userId":         uID,
+		"studentId":      uID,
 		"activityItemId": aID,
 		"type":           checkType,
-		"checkedAt": bson.M{
+		"timestamp": bson.M{
 			"$gte": startOfDay,
 			"$lt":  endOfDay,
 		},
@@ -209,19 +223,21 @@ func SaveCheckInOut(userId, activityItemId, checkType string) error {
 		return fmt.Errorf("คุณได้เช็คชื่อ %s แล้วในวันนี้", checkType)
 	}
 	// Insert ใหม่
-	_, err = DB.CheckinCollection.InsertOne(context.TODO(), bson.M{
-		"userId":         uID,
-		"activityItemId": aID,
-		"type":           checkType,
-		"checkedAt":      now,
-	})
+	checkinRecord := models.CheckinRecord{
+		StudentID:      uID,
+		ActivityItemID: aID,
+		Type:           checkType,
+		Timestamp:      now,
+	}
+
+	_, err = DB.CheckinCollection.InsertOne(context.TODO(), checkinRecord)
 	return err
 }
 
 // RecordCheckin records a check-in or check-out for a student for all enrolled items in an activity
-func RecordCheckin(studentId, activityId, checkType string) error {
+func RecordCheckin(studentId, activityItemId, checkType string) error {
 	// ดึง activityItemIds ทั้งหมดที่นิสิตลงทะเบียนใน activity นี้
-	itemIDs, found := enrollments.FindEnrolledItems(studentId, activityId)
+	itemIDs, found := enrollments.FindEnrolledItems(studentId, activityItemId)
 	if !found || len(itemIDs) == 0 {
 		return fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
 	}
@@ -232,4 +248,29 @@ func RecordCheckin(studentId, activityId, checkType string) error {
 		}
 	}
 	return nil
+}
+
+// GetActivityFormId ดึง formId จาก activityId
+func GetActivityFormId(activityId string) (string, error) {
+	ctx := context.TODO()
+	activityObjID, err := primitive.ObjectIDFromHex(activityId)
+	if err != nil {
+		return "", fmt.Errorf("invalid activity ID format")
+	}
+
+	var activity struct {
+		FormID primitive.ObjectID `bson:"formId"`
+	}
+
+	err = DB.ActivityCollection.FindOne(ctx, bson.M{"_id": activityObjID}).Decode(&activity)
+	if err != nil {
+		return "", fmt.Errorf("activity not found")
+	}
+
+	// ตรวจสอบว่า formId เป็น zero value หรือไม่
+	if activity.FormID.IsZero() {
+		return "", fmt.Errorf("activity does not have a form")
+	}
+
+	return activity.FormID.Hex(), nil
 }

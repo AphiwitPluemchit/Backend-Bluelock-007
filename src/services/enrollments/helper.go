@@ -5,6 +5,7 @@ import (
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -19,47 +20,64 @@ func GetCheckinStatus(studentId, activityItemId string) ([]models.CheckinoutReco
 		return nil, fmt.Errorf("รหัสไม่ถูกต้อง")
 	}
 
-	filter := bson.M{"userId": uID, "activityItemId": aID}
+	filter := bson.M{"studentId": uID, "activityItemId": aID}
 
-	cursor, err := DB.CheckinCollection.Find(context.TODO(), filter)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cur, err := DB.CheckinCollection.Find(ctx, filter)
+	log.Println("decode cur:", cur)
+
 	if err != nil {
 		return nil, fmt.Errorf("ไม่สามารถค้นหาข้อมูลเช็คชื่อได้")
 	}
-	defer cursor.Close(context.TODO())
+	defer cur.Close(ctx)
 
 	loc, _ := time.LoadLocation("Asia/Bangkok")
 
 	type rec struct {
 		Type      string    `bson:"type"`
-		CheckedAt time.Time `bson:"checkedAt"`
+		Timestamp time.Time `bson:"timestamp"`
 	}
 
 	var checkins, checkouts []time.Time
-	for cursor.Next(context.TODO()) {
+	var total int
+	for cur.Next(ctx) {
+		total++
 		var r rec
-		if err := cursor.Decode(&r); err != nil {
+		if err := cur.Decode(&r); err != nil {
+			// ถ้า decode พัง จะรู้ทันทีว่า field/tag ไม่ตรง
+			log.Printf("decode err: %v", err)
 			continue
 		}
-		t := r.CheckedAt.In(loc)
+		t := r.Timestamp.In(loc)
 		switch r.Type {
 		case "checkin":
 			checkins = append(checkins, t)
 		case "checkout":
 			checkouts = append(checkouts, t)
+		default:
+			log.Printf("unknown type: %q", r.Type)
 		}
 	}
+	if err := cur.Err(); err != nil {
+		// error ระหว่าง iterate
+		return nil, fmt.Errorf("cursor error: %w", err)
+	}
+	// ถ้า total == 0 แปลว่า filter ไม่ตรง/คอลัมน์สะกดผิด
+	log.Printf("[GetCheckinStatus] docs=%d, checkins=%d, checkouts=%d", total, len(checkins), len(checkouts))
 
 	sort.Slice(checkins, func(i, j int) bool { return checkins[i].Before(checkins[j]) })
 	sort.Slice(checkouts, func(i, j int) bool { return checkouts[i].Before(checkouts[j]) })
 
 	used := make([]bool, len(checkouts))
-	var results []models.CheckinoutRecord
+	results := make([]models.CheckinoutRecord, 0, len(checkins))
 
 	for _, ci := range checkins {
-		ciCopy := ci // ต้อง copy เพื่ออ้าง pointer ได้ถูก
+		ciCopy := ci
 		var coPtr *time.Time
 		for i, c := range checkouts {
-			if !used[i] && c.After(ci) {
+			if !used[i] && (c.After(ci) || c.Equal(ci)) {
 				cCopy := c
 				coPtr = &cCopy
 				used[i] = true
@@ -68,9 +86,13 @@ func GetCheckinStatus(studentId, activityItemId string) ([]models.CheckinoutReco
 		}
 		results = append(results, models.CheckinoutRecord{
 			Checkin:  &ciCopy,
-			Checkout: coPtr,
+			Checkout: coPtr, // อาจเป็น nil ได้
 		})
 	}
 
+	// ถ้าอยากให้กรณีมีแต่ checkout (ผิดลำดับ) ก็ยังได้ record ไว้ตรวจ
+	// for i, c := range checkouts { if !used[i] { results = append(results, models.CheckinoutRecord{ Checkout: &c }) } }
+
+	log.Printf("[GetCheckinStatus] results=%d", len(results))
 	return results, nil
 }

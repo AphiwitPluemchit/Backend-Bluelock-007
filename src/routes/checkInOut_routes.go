@@ -19,7 +19,9 @@ func checkInOutRoutes(router fiber.Router) {
 	// --- QR Check-in System ---
 	checkInOutRoutes.Post("/admin/qr-token", controllers.AdminCreateQRToken)
 	checkInOutRoutes.Get("/student/qr/:token" /*middleware.AuthJWT,*/, controllers.StudentClaimQRToken) // add JWT middleware in main router
+	checkInOutRoutes.Get("/student/validate/:token", controllers.StudentValidateQRToken)
+
 	checkInOutRoutes.Post("/student/checkin" /*middleware.AuthJWT,*/, controllers.StudentCheckin)
 	checkInOutRoutes.Post("/student/checkout" /*middleware.AuthJWT,*/, controllers.StudentCheckout)
-	checkInOutRoutes.Get("/student/validate/:token", controllers.StudentValidateQRToken)
+	checkInOutRoutes.Get("/student/activity/:activityId/form", controllers.GetActivityForm)
 }
