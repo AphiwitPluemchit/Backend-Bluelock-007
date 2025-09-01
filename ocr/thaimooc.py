@@ -1,55 +1,65 @@
 import fitz
 from text_norm import normalize_min, strip_prefix 
 from fuzzy_match import best_score
-
+from ocr import pdf_to_images_with_fitz, ocr_images_tesseract
 
 # --------- main verify (ไม่ใช้ OCR) ---------
 def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_name: str):
-    raw_text = _extract_textlayer(pdf_data)
-    # ถ้า text layer ว่างมาก ให้ถือว่าไม่ผ่าน (ภายหลังค่อย fallback เป็น OCR)
-    if len(raw_text.strip()) < 10:
-        return {
-            "isVerified": False,
-            "isNameMatch": False,
-            "isCourseMatch": False,
-            # "reason": "No selectable text in PDF (likely scanned)."
-        }
- 
-    print("raw_text", raw_text)
+    # Step A: text layer (เร็ว/แม่นกว่า)
+    raw_text = extract_textlayer(pdf_data)
+    hay_text = ''
 
+    # ถ้า text layer ว่างมาก ให้ถือว่าไม่ผ่าน (ภายหลังค่อย fallback เป็น OCR)
+    used_ocr = False
+    if len(hay_text) < 10:
+        # Step B: ไม่มี/น้อยมาก → OCR fallback
+        used_ocr = True
+        imgs = pdf_to_images_with_fitz(pdf_data, dpi=300, max_pages=2)  # ส่วนใหญ่ 1 หน้า
+        if not imgs:
+            return {"isVerified": False, "isNameMatch": False, "isCourseMatch": False}
+        hay_text = ocr_images_tesseract(imgs, psm=6)
+ 
     # normalize ข้อความรวมทั้ง expected
-    hay = normalize_min(raw_text.replace("\n", " "))
+    hay = normalize_min(hay_text, remove_thai_internal_spaces=True,  remove_all_spaces=False)
+    print(hay)
     stu_th = normalize_min(strip_prefix(student_th))
+    print(stu_th)
     stu_en = normalize_min(strip_prefix(student_en))
+    print(stu_en)
     crs    = normalize_min(course_name)
+    print(crs)
 
     # ชื่อ: ใช้คะแนนที่ดีที่สุดระหว่าง TH/EN
-    name_score = max(best_score(stu_th, hay), best_score(stu_en, hay))
+    name_score_th = best_score(stu_th, hay)
+    name_score_en = best_score(stu_en, hay)
     course_score = best_score(crs, hay)
 
     # เกณฑ์เบื้องต้น (ปรับได้ตามจริง)
-    isNameMatch   = name_score   >= 85
-    isCourseMatch = course_score >= 80
+    isNameMatch   = name_score_th >= 95 or name_score_en >= 95
+    isCourseMatch = course_score >= 95
     isVerified    = isNameMatch and isCourseMatch
 
     print("isVerified", isVerified)
     print("isNameMatch", isNameMatch)
     print("isCourseMatch", isCourseMatch)
-    print("name_score", name_score)
+    print("nameThai_score", name_score_th)
+    print("nameEng_score", name_score_en)
     print("course_score", course_score)
 
     return {
         "isVerified": isVerified,
         "isNameMatch": isNameMatch,
         "isCourseMatch": isCourseMatch,
-        "nameScore": name_score,
+        "nameScoreTh": name_score_th,
+        "nameScoreEn": name_score_en,
         "courseScore": course_score,
+        "usedOcr": used_ocr,
         # ถ้าต้องการ debug ระหว่างทดสอบ ค่อยปลดคอมเมนต์:
         # "scores": {"name": name_score, "course": course_score, "textLen": len(hay)},
     }
 
 
-def _extract_textlayer(pdf_data: bytes, max_pages: int = 5) -> str:
+def extract_textlayer(pdf_data: bytes, max_pages: int = 5) -> str:
     doc = fitz.open(stream=pdf_data, filetype="pdf")
     parts = []
     total = 0
@@ -60,3 +70,5 @@ def _extract_textlayer(pdf_data: bytes, max_pages: int = 5) -> str:
         if i + 1 >= max_pages or total > 8000:
             break
     return "\n".join(parts)
+
+

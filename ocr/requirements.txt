@@ -7,3 +7,5 @@ pdf2image
 python-multipart
 fuzzywuzzy 
 python-Levenshtein
+dotenv
+numpy
