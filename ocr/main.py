@@ -1,7 +1,8 @@
 # app.py
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from buumooc import buumooc_verify
+from models import BuuInput
 
 app = FastAPI(title="Cert Verify (minimal)")
 
@@ -16,28 +17,10 @@ async def health():
     return {"status": "ok"}
 
 # ---------- 1) BUU MOOC: รับ HTML + ชื่อ นศ. (TH/EN) + ชื่อคอร์ส ----------
-class BuuInput(BaseModel):
-    html: str
-    student_th: str
-    student_en: str
-    course_name: str
-
 @app.post("/buumooc")
 async def buumooc_receive(payload: BuuInput):
     # แค่ยืนยันว่ารับครบ และส่งสรุปกลับ
-    print("payload", payload.html != None)
-    print("student_th", payload.student_th)
-    print("student_en", payload.student_en)
-    print("course_name", payload.course_name)
-    return {
-        "ok": True,
-        "received": {
-            "student_th": payload.student_th,
-            "student_en": payload.student_en,
-            "course_name": payload.course_name,
-            "html_len": len(payload.html),
-        }
-    }
+    return buumooc_verify(payload)
 
 # ---------- 2) ThaiMOOC: รับ PDF (multipart) + ชื่อ นศ. (TH/EN) + ชื่อคอร์ส ----------
 @app.post("/thaimooc")
