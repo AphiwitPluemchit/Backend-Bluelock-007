@@ -1,13 +1,7 @@
+uvicorn 
 fastapi
-uvicorn
+rapidfuzz
+pymupdf
 pytesseract
-pillow
-pythainlp
 pdf2image
-PyMuPDF
-requests
-fuzzywuzzy
-python-dotenv
 python-multipart
-python-Levenshtein
-numpy

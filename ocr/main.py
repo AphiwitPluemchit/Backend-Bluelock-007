@@ -1,53 +1,70 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+# app.py
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import logging
-from utils import validate_file_type, process_ocr_from_file
+from pydantic import BaseModel
 
-app = FastAPI(
-    title="Thai Certificate OCR API",
-    description="API for extracting information from Thai certificates using Tesseract OCR with Thai language support",
-    version="1.0.0"
-)
+app = FastAPI(title="Cert Verify (minimal)")
 
-# Configure CORS
+# CORS แบบง่าย
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
-@app.post("/ocr", summary="Extract information from Thai certificate image")
-async def ocr_certificate(
-    file: UploadFile = File(...),
-    studentName: str = Form(""),
-    courseName: str = Form(""),
-    courseType: str = Form("")
+# ---------- 1) BUU MOOC: รับ HTML + ชื่อ นศ. (TH/EN) + ชื่อคอร์ส ----------
+class BuuInput(BaseModel):
+    html: str
+    student_th: str
+    student_en: str
+    course_name: str
+
+@app.post("/buumooc")
+async def buumooc_receive(payload: BuuInput):
+    # แค่ยืนยันว่ารับครบ และส่งสรุปกลับ
+    print("payload", payload.html != None)
+    print("student_th", payload.student_th)
+    print("student_en", payload.student_en)
+    print("course_name", payload.course_name)
+    return {
+        "ok": True,
+        "received": {
+            "student_th": payload.student_th,
+            "student_en": payload.student_en,
+            "course_name": payload.course_name,
+            "html_len": len(payload.html),
+        }
+    }
+
+# ---------- 2) ThaiMOOC: รับ PDF (multipart) + ชื่อ นศ. (TH/EN) + ชื่อคอร์ส ----------
+@app.post("/thaimooc")
+async def thaimooc_receive(
+    pdf: UploadFile = File(...),
+    student_th: str = Form(...),
+    student_en: str = Form(...),
+    course_name: str = Form(...),
 ):
-    """
-    Process a certificate image or PDF and extract relevant information
-    """
-    logger.info(f"🚀 Processing OCR request for file: {file.filename}")
+    # ตรวจ content-type แบบหลวม ๆ พอทดสอบ
+    if pdf.content_type not in {"application/pdf", "application/octet-stream", "binary/octet-stream"}:
+        raise HTTPException(status_code=415, detail=f"Unsupported file type: {pdf.content_type}")
 
-    if not studentName or not courseName:
-        raise HTTPException(status_code=400, detail="Student name and course name are required.")
+    data = await pdf.read()
+    print("data", data != None)
+    print("student_th", student_th)
+    print("student_en", student_en)
+    print("course_name", course_name)
+    return {
+        "ok": True,
+        "received": {
+            "student_th": student_th,
+            "student_en": student_en,
+            "course_name": course_name,
+            "pdf_filename": pdf.filename,
+            "pdf_bytes": len(data),
+        }
+    }
 
-    try:
-        contents = await file.read()
-        if not validate_file_type(file.content_type):
-            raise HTTPException(status_code=400, detail="Invalid file type. Only image and PDF files are allowed.")
-        
-        fields = process_ocr_from_file(contents, file.content_type, studentName, courseName, courseType)
-        return {"status": "success", "data": fields}
-
-    except HTTPException as exc:
-        # Propagate known client errors (e.g., 400) without wrapping as 500
-        logger.warning(f"Client error during OCR: {exc.detail}")
-        raise exc
-    except Exception as e:
-        logger.error(f"Error processing OCR: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing OCR: {str(e)}")
+# รันทดสอบ: uvicorn app:app --reload --host 0.0.0.0 --port 8000

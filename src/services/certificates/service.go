@@ -74,15 +74,15 @@ func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, e
 		return BuuMooc(publicPageURL, student, course)
 	}
 
-	// if course.Type == "thaimooc" {
-	// 	return ThaiMooc(publicPageURL)
-	// }
+	if course.Type == "thaimooc" {
+		return ThaiMooc(publicPageURL, student, course)
+	}
 
 	return false, errors.New("invalid course type")
 
 }
 
-func ThaiMooc(publicPageURL string) (bool, error) {
+func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (bool, error) {
 	ctx := context.Background()
 	// สร้าง browser context (headless)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -129,7 +129,17 @@ func ThaiMooc(publicPageURL string) (bool, error) {
 
 	fmt.Println("Downloaded PDF to:", filePath)
 
-	return true, nil
+	ok, err := callThaiMoocFastAPI(
+		FastAPIURL(),
+		filePath,        // path ของ PDF ที่ดาวน์โหลดมา
+		student.Name,    // student_th (ปรับตามฟิลด์จริง)
+		student.EngName, // student_en
+		course.Name,     // course_name (หรือ NameTH/NameEN ที่คุณต้องการ)
+	)
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
 }
 
 func BuuMooc(publicPageURL string, student models.Student, course models.Course) (bool, error) {
@@ -165,10 +175,20 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 		return false, errors.New("course name : " + course.Name + " not found")
 	}
 
-	return true, nil
+	ok, err := callBUUMoocFastAPI(
+		FastAPIURL(),
+		string(body),   // html ที่ดึงมา
+		studentNameTh,  // student_th
+		studentNameEng, // student_en
+		course.Name,    // course_name (ปรับตามฟิลด์จริง)
+	)
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
 }
 
-func DownloadPDF(pdfSrc string) (bool, error) {
+func DownloadPDF(pdfSrc string) (string, error) {
 	// Create a new HTTP client with timeout
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -177,7 +197,7 @@ func DownloadPDF(pdfSrc string) (bool, error) {
 	// Create a new request
 	req, err := http.NewRequest("GET", pdfSrc, nil)
 	if err != nil {
-		return false, fmt.Errorf("error creating request: %v", err)
+		return "", fmt.Errorf("error creating request: %v", err)
 	}
 
 	// Set headers to mimic a browser request
@@ -186,19 +206,19 @@ func DownloadPDF(pdfSrc string) (bool, error) {
 	// Send the request
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("error downloading PDF: %v", err)
+		return "", fmt.Errorf("error downloading PDF: %v", err)
 	}
 	defer resp.Body.Close()
 
 	// Check if the response status code is OK
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	// Create the uploads directory if it doesn't exist
 	uploadDir := "uploads/certificates"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		return false, fmt.Errorf("error creating upload directory: %v", err)
+		return "", fmt.Errorf("error creating upload directory: %v", err)
 	}
 
 	// Create a unique filename for the downloaded PDF
@@ -207,17 +227,17 @@ func DownloadPDF(pdfSrc string) (bool, error) {
 	// Create the file
 	file, err := os.Create(fileName)
 	if err != nil {
-		return false, fmt.Errorf("error creating file: %v", err)
+		return "", fmt.Errorf("error creating file: %v", err)
 	}
 	defer file.Close()
 
 	// Write the response body to the file
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		return false, fmt.Errorf("error saving PDF: %v", err)
+		return "", fmt.Errorf("error saving PDF: %v", err)
 	}
 
-	return true, nil
+	return fileName, nil
 }
 
 func CheckStudentCourse(studentId string, courseId string) (models.Student, models.Course, error) {
@@ -245,4 +265,11 @@ func CheckStudentCourse(studentId string, courseId string) (models.Student, mode
 	}
 
 	return *student, *course, nil
+}
+
+func FastAPIURL() string {
+	if v := os.Getenv("FASTAPI_URL"); v != "" {
+		return v
+	}
+	return "http://fastapi-ocr:8000"
 }
