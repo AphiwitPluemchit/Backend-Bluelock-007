@@ -3,6 +3,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from buumooc import buumooc_verify
 from models import BuuInput
+from thaimooc import thaimooc_verify
 
 app = FastAPI(title="Cert Verify (minimal)")
 
@@ -34,20 +35,8 @@ async def thaimooc_receive(
     if pdf.content_type not in {"application/pdf", "application/octet-stream", "binary/octet-stream"}:
         raise HTTPException(status_code=415, detail=f"Unsupported file type: {pdf.content_type}")
 
-    data = await pdf.read()
-    print("data", data != None)
-    print("student_th", student_th)
-    print("student_en", student_en)
-    print("course_name", course_name)
-    return {
-        "ok": True,
-        "received": {
-            "student_th": student_th,
-            "student_en": student_en,
-            "course_name": course_name,
-            "pdf_filename": pdf.filename,
-            "pdf_bytes": len(data),
-        }
-    }
+    pdf_data = await pdf.read()
+
+    return thaimooc_verify(pdf_data, student_th, student_en, course_name)
 
 # รันทดสอบ: uvicorn app:app --reload --host 0.0.0.0 --port 8000

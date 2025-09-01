@@ -5,6 +5,13 @@ PostInstall => poppler
 1. Create virtual environment with python -m venv .venv
 2. Activate virtual environment with .venv\Scripts\activate
 3. Install dependencies with pip install -r requirements.txt
+
+python -m playwright install
+
+# จากนั้นติดตั้ง Chromium และ dependencies ของ Playwright:
+python -m playwright install --with-deps
+
+
 4. Run the app with uvicorn main:app --reload
 
 How to use

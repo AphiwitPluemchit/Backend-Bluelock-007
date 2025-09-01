@@ -1,6 +1,7 @@
 import re, unicodedata
 from rapidfuzz import fuzz
 
+
 PREFIXES = ["นาย","นางสาว","นาง","mr.","miss","mrs.","mr"]
 
 def _map_thai_digits(s: str) -> str:
