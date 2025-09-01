@@ -319,49 +319,32 @@ func sendFileToFastAPI(fileHeader *multipart.FileHeader, studentName string, cou
 	return result, nil
 }
 
-
 // @Summary      Verify a URL
 // @Description  Verify a URL
 // @Tags         certificate
 // @Accept       json
 // @Produce      json
-// @Param        url        query     string  true  "URL to verify"
+// @Param        url        query     string  true  "URL to verify example: https://learner.thaimooc.ac.th/credential-wallet/10793bb5-6e4f-4873-9309-f25f216a46c7/sahaphap.rit/public"
+// @Param        studentId  query     string  true  "Student ID example: 685abc586c4acf57c7e2f104 (สหภาพ)"
+// @Param        courseId   query     string  true  "Course ID example: ThaiMooc: 6890a889ebc423e6aeb5605a or BuuMooc: 68b5c6b7e30cd42f34959a5e (การออกแบบและนำเสนอ)"
 // @Success      200   {object}  map[string]interface{}
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      500   {object}  map[string]interface{}
 // @Router       /certificate/url-verify [get]
 func VerifyURL(c *fiber.Ctx) error {
 	url := c.Query("url")
-	// studentId := c.Query("studentId")
-	// courseId := c.Query("courseId")
+	studentId := c.Query("studentId")
+	courseId := c.Query("courseId")
 
-	// stId, err := primitive.ObjectIDFromHex(studentId)
-	// if err != nil {
-	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-	// 		"error": "Invalid student ID",
-	// 	})
-	// }
-	// crId, err := primitive.ObjectIDFromHex(courseId)
-	// if err != nil {
-	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-	// 		"error": "Invalid course ID",
-	// 	})
-	// }
-
-	isVerified, err := services.VerifyURL(url)
+	isVerified, err := services.VerifyURL(url, studentId, courseId)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error verifying URL",
-		})
-	}
-
-	if isVerified == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "URL is not verified",
+			"error": err.Error(),
 		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Certificate Verified",
+		"isVerified": isVerified,
 	})
+
 }

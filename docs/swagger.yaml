@@ -13,6 +13,8 @@ definitions:
         items:
           $ref: '#/definitions/models.FoodVote'
         type: array
+      formId:
+        type: string
       id:
         type: string
       name:
@@ -43,6 +45,8 @@ definitions:
         items:
           $ref: '#/definitions/models.FoodVote'
         type: array
+      formId:
+        type: string
       id:
         type: string
       name:
@@ -184,6 +188,9 @@ definitions:
         description: true = hard skill, false = soft skill
         example: true
         type: boolean
+      isThaiFormat:
+        example: true
+        type: boolean
       issuer:
         example: Computer Science Department
         type: string
@@ -278,8 +285,6 @@ definitions:
     type: object
   models.Form:
     properties:
-      activityId:
-        type: string
       blocks:
         items:
           $ref: '#/definitions/models.Block'
@@ -302,10 +307,6 @@ definitions:
     type: object
   models.PaginationMeta:
     properties:
-      hasNext:
-        type: boolean
-      hasPrevious:
-        type: boolean
       limit:
         type: integer
       page:
@@ -868,6 +869,89 @@ paths:
       summary: Update an admin
       tags:
       - admins
+  /certificate/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a file
+      parameters:
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Student ID
+        in: query
+        name: studentId
+        type: string
+      - description: Course ID
+        in: query
+        name: courseId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Upload a file
+      tags:
+      - certificate
+  /certificate/url-verify:
+    get:
+      consumes:
+      - application/json
+      description: Verify a URL
+      parameters:
+      - description: 'URL to verify example: https://learner.thaimooc.ac.th/credential-wallet/10793bb5-6e4f-4873-9309-f25f216a46c7/sahaphap.rit/public'
+        in: query
+        name: url
+        required: true
+        type: string
+      - description: 'Student ID example: 685abc586c4acf57c7e2f104 (สหภาพ)'
+        in: query
+        name: studentId
+        required: true
+        type: string
+      - description: 'Course ID example: ThaiMooc: 6890a889ebc423e6aeb5605a or BuuMooc:
+          68b5c6b7e30cd42f34959a5e (การออกแบบและนำเสนอ)'
+        in: query
+        name: courseId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Verify a URL
+      tags:
+      - certificate
   /courses:
     get:
       description: Get all courses with pagination and filtering options
@@ -1436,25 +1520,87 @@ paths:
       summary: Create a new form
       tags:
       - forms
-  /ocr/upload:
-    post:
-      consumes:
-      - multipart/form-data
-      description: Upload a file
+  /forms/{id}:
+    delete:
+      description: ลบฟอร์มตาม ObjectID
       parameters:
-      - description: File to upload
-        in: formData
-        name: file
+      - description: Form ID
+        in: path
+        name: id
         required: true
-        type: file
-      - description: Student ID
-        in: query
-        name: studentId
         type: string
-      - description: Course ID
-        in: query
-        name: courseId
+      responses:
+        "200":
+          description: Form deleted successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Form not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Failed to delete form
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Delete a form by ID
+      tags:
+      - forms
+    get:
+      description: ดึงข้อมูลฟอร์มตามรหัส
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
         type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Form'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get form by ID
+      tags:
+      - forms
+    patch:
+      consumes:
+      - application/json
+      description: อัปเดตข้อมูลฟอร์มตามรหัส
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Form object
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/models.Form'
       produces:
       - application/json
       responses:
@@ -1468,14 +1614,21 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:
             additionalProperties: true
             type: object
-      summary: Upload a file
+      security:
+      - ApiKeyAuth: []
+      summary: Update a form
       tags:
-      - ocr
+      - forms
   /students:
     get:
       consumes:

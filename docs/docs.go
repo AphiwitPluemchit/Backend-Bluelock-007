@@ -780,6 +780,126 @@ const docTemplate = `{
                 }
             }
         },
+        "/certificate/upload": {
+            "post": {
+                "description": "Upload a file",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "certificate"
+                ],
+                "summary": "Upload a file",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "File to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Student ID",
+                        "name": "studentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Course ID",
+                        "name": "courseId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/certificate/url-verify": {
+            "get": {
+                "description": "Verify a URL",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "certificate"
+                ],
+                "summary": "Verify a URL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "URL to verify example: https://learner.thaimooc.ac.th/credential-wallet/10793bb5-6e4f-4873-9309-f25f216a46c7/sahaphap.rit/public",
+                        "name": "url",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Student ID example: 685abc586c4acf57c7e2f104 (สหภาพ)",
+                        "name": "studentId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Course ID example: ThaiMooc: 6890a889ebc423e6aeb5605a or BuuMooc: 68b5c6b7e30cd42f34959a5e (การออกแบบและนำเสนอ)",
+                        "name": "courseId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/courses": {
             "get": {
                 "description": "Get all courses with pagination and filtering options",
@@ -1636,38 +1756,137 @@ const docTemplate = `{
                 }
             }
         },
-        "/ocr/upload": {
-            "post": {
-                "description": "Upload a file",
+        "/forms/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "ดึงข้อมูลฟอร์มตามรหัส",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "forms"
+                ],
+                "summary": "Get form by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Form ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Form"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "ลบฟอร์มตาม ObjectID",
+                "tags": [
+                    "forms"
+                ],
+                "summary": "Delete a form by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Form ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Form deleted successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Form not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to delete form",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "อัปเดตข้อมูลฟอร์มตามรหัส",
                 "consumes": [
-                    "multipart/form-data"
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "ocr"
+                    "forms"
                 ],
-                "summary": "Upload a file",
+                "summary": "Update a form",
                 "parameters": [
                     {
-                        "type": "file",
-                        "description": "File to upload",
-                        "name": "file",
-                        "in": "formData",
+                        "type": "string",
+                        "description": "Form ID",
+                        "name": "id",
+                        "in": "path",
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "Student ID",
-                        "name": "studentId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Course ID",
-                        "name": "courseId",
-                        "in": "query"
+                        "description": "Form object",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Form"
+                        }
                     }
                 ],
                 "responses": {
@@ -1680,6 +1899,13 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1981,6 +2207,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/models.FoodVote"
                     }
                 },
+                "formId": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -2023,6 +2252,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/models.FoodVote"
                     }
+                },
+                "formId": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string"
@@ -2228,6 +2460,10 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "isThaiFormat": {
+                    "type": "boolean",
+                    "example": true
+                },
                 "issuer": {
                     "type": "string",
                     "example": "Computer Science Department"
@@ -2369,9 +2605,6 @@ const docTemplate = `{
         "models.Form": {
             "type": "object",
             "properties": {
-                "activityId": {
-                    "type": "string"
-                },
                 "blocks": {
                     "type": "array",
                     "items": {
@@ -2406,12 +2639,6 @@ const docTemplate = `{
         "models.PaginationMeta": {
             "type": "object",
             "properties": {
-                "hasNext": {
-                    "type": "boolean"
-                },
-                "hasPrevious": {
-                    "type": "boolean"
-                },
                 "limit": {
                     "type": "integer"
                 },
