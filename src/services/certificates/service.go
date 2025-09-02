@@ -62,19 +62,90 @@ func GetUploadCertificate(id string) (*models.UploadCertificate, error) {
 	}
 	return &result, nil
 }
-
-func GetUploadCertificates(params models.UploadCertificateQuery) ([]models.UploadCertificate, int64, error) {
+func GetUploadCertificates(params models.UploadCertificateQuery, pagination models.PaginationParams) ([]models.UploadCertificate, models.PaginationMeta, error) {
 	ctx := context.Background()
-	var results []models.UploadCertificate
-	cursor, err := DB.UploadCertificateCollection.Find(ctx, bson.M{})
+
+	// 1) Build base filter
+	filter := bson.M{}
+	if params.StudentID != "" {
+		studentID, err := primitive.ObjectIDFromHex(params.StudentID)
+		if err != nil {
+			return nil, models.PaginationMeta{}, errors.New("invalid student ID format")
+		}
+		filter["studentId"] = studentID
+	}
+	if params.CourseID != "" {
+		courseID, err := primitive.ObjectIDFromHex(params.CourseID)
+		if err != nil {
+			return nil, models.PaginationMeta{}, errors.New("invalid course ID format")
+		}
+		filter["courseId"] = courseID
+	}
+	if params.Status != "" {
+		// เก็บใน DB เป็น string ("pending/approved/rejected") ใช่หรือไม่ ตรวจด้วย mongosh อีกที
+		filter["status"] = params.Status
+	}
+
+	// 2) Clean pagination
+	pagination = models.CleanPagination(pagination)
+
+	// 3) Build pipeline
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: filter}},
+	}
+
+	// ควร join เฉพาะตอน "ต้องใช้" (ค้นหาด้วยชื่อ หรือ sort ด้วย studentName)
+	needJoin := pagination.Search != "" || strings.EqualFold(pagination.SortBy, "studentname")
+	if needJoin {
+		pipeline = append(pipeline,
+			bson.D{{Key: "$lookup", Value: bson.M{
+				"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
+				"localField":   "studentId",
+				"foreignField": "_id",
+				"as":           "studentData",
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.M{
+				"path":                       "$studentData",
+				"preserveNullAndEmptyArrays": true, // สำคัญมาก กันเอกสารถูกทิ้งหมด
+			}}},
+			// ทำ field ชื่อให้แบนและมีค่า default เพื่อใช้ sort/search ง่าย
+			bson.D{{Key: "$addFields", Value: bson.M{
+				"studentName": bson.M{"$ifNull": []interface{}{"$studentData.name", ""}},
+			}}},
+		)
+
+		if pagination.Search != "" {
+			pipeline = append(pipeline,
+				bson.D{{Key: "$match", Value: bson.M{
+					"studentName": bson.M{
+						"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
+					},
+				}}},
+			)
+		}
+	}
+
+	// 4) Sorting
+	sortByField := pagination.SortBy
+	if strings.EqualFold(pagination.SortBy, "studentname") {
+		sortByField = "studentName"
+	}
+	sortOrder := 1
+	if strings.ToLower(pagination.Order) == "desc" {
+		sortOrder = -1
+	}
+	// ใส่ tie-breaker ด้วย _id กัน sort ไม่เสถียร
+	pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{
+		{Key: sortByField, Value: sortOrder},
+	}}})
+
+	rows, meta, err := models.AggregatePaginateGlobal[models.UploadCertificate](
+		ctx, DB.UploadCertificateCollection, pipeline, pagination.Page, pagination.Limit,
+	)
 	if err != nil {
-		return nil, 0, err
+		return nil, models.PaginationMeta{}, err
 	}
-	defer cursor.Close(ctx)
-	if err := cursor.All(ctx, &results); err != nil {
-		return nil, 0, err
-	}
-	return results, 0, nil
+	return rows, meta, nil
 }
 
 func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, bool, error) {

@@ -35,7 +35,7 @@ type VerifyURLRequest struct {
 }
 
 type UploadCertificateQuery struct {
-	PaginationParams
 	StudentID string `query:"studentId" example:"685abb936c4acf57c7e2e6ee"`
 	CourseID  string `query:"courseId" example:"6890a82eebc423e6aeb56057"`
+	Status    string `query:"status" example:"pending"`
 }

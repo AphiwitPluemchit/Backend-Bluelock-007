@@ -869,6 +869,61 @@ paths:
       summary: Update an admin
       tags:
       - admins
+  /certificates:
+    get:
+      consumes:
+      - application/json
+      description: Get Certificates
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      - description: Sort by field
+        in: query
+        name: sortBy
+        type: string
+      - description: Sort order
+        in: query
+        name: order
+        type: string
+      - description: Student ID
+        in: query
+        name: studentId
+        type: string
+      - description: Course ID
+        in: query
+        name: courseId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Certificates
+      tags:
+      - certificates
   /certificates/url-verify:
     get:
       consumes:
@@ -916,6 +971,9 @@ paths:
     get:
       description: Get all courses with pagination and filtering options
       parameters:
+      - in: query
+        name: lastId
+        type: string
       - description: จำนวนรายการต่อหน้า
         example: 10
         in: query
