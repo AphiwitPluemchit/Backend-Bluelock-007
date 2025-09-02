@@ -3,7 +3,6 @@ package controllers
 import (
 	models "Backend-Bluelock-007/src/models"
 	services "Backend-Bluelock-007/src/services/certificates"
-	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -51,6 +50,7 @@ func VerifyURL(c *fiber.Ctx) error {
 // @Param        order    query     string  false  "Sort order"
 // @Param        studentId query     string  false  "Student ID"
 // @Param        courseId  query     string  false  "Course ID"
+// @Param        status   query     string  false  "Status"
 // @Success      200   {object}  map[string]interface{}
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      500   {object}  map[string]interface{}
@@ -64,14 +64,6 @@ func GetCertificates(c *fiber.Ctx) error {
 	studentId := c.Query("studentId", "")
 	courseId := c.Query("courseId", "")
 	status := c.Query("status", "")
-
-	fmt.Println(studentId)
-	fmt.Println(courseId)
-	fmt.Println(page)
-	fmt.Println(limit)
-	fmt.Println(search)
-	fmt.Println(sortBy)
-	fmt.Println(order)
 
 	pagination := models.PaginationParams{
 		Page:   page,

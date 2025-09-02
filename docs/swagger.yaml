@@ -903,6 +903,10 @@ paths:
         in: query
         name: courseId
         type: string
+      - description: Status
+        in: query
+        name: status
+        type: string
       produces:
       - application/json
       responses:

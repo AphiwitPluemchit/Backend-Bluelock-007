@@ -835,6 +835,12 @@ const docTemplate = `{
                         "description": "Course ID",
                         "name": "courseId",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Status",
+                        "name": "status",
+                        "in": "query"
                     }
                 ],
                 "responses": {
