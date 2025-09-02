@@ -8,7 +8,7 @@ import (
 
 // @Summary      Verify a URL
 // @Description  Verify a URL
-// @Tags         certificate
+// @Tags         certificates
 // @Accept       json
 // @Produce      json
 // @Param        url        query     string  true  "URL to verify example: https://learner.thaimooc.ac.th/credential-wallet/10793bb5-6e4f-4873-9309-f25f216a46c7/sahaphap.rit/public"
@@ -17,13 +17,13 @@ import (
 // @Success      200   {object}  map[string]interface{}
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      500   {object}  map[string]interface{}
-// @Router       /certificate/url-verify [get]
+// @Router       /certificates/url-verify [get]
 func VerifyURL(c *fiber.Ctx) error {
 	url := c.Query("url")
 	studentId := c.Query("studentId")
 	courseId := c.Query("courseId")
 
-	isVerified, err := services.VerifyURL(url, studentId, courseId)
+	isVerified, isDuplicate, err := services.VerifyURL(url, studentId, courseId)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -31,7 +31,8 @@ func VerifyURL(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"isVerified": isVerified,
+		"isVerified":  isVerified,
+		"isDuplicate": isDuplicate,
 	})
 
 }

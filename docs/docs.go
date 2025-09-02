@@ -780,66 +780,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/certificate/upload": {
-            "post": {
-                "description": "Upload a file",
-                "consumes": [
-                    "multipart/form-data"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "certificate"
-                ],
-                "summary": "Upload a file",
-                "parameters": [
-                    {
-                        "type": "file",
-                        "description": "File to upload",
-                        "name": "file",
-                        "in": "formData",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Student ID",
-                        "name": "studentId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Course ID",
-                        "name": "courseId",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
-        "/certificate/url-verify": {
+        "/certificates/url-verify": {
             "get": {
                 "description": "Verify a URL",
                 "consumes": [
@@ -849,7 +790,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "certificate"
+                    "certificates"
                 ],
                 "summary": "Verify a URL",
                 "parameters": [

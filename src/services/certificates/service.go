@@ -49,46 +49,79 @@ func UpdateUploadCertificate(id string, uploadCertificate *models.UploadCertific
 	return DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": uploadCertificate})
 }
 
-func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, error) {
+func GetUploadCertificate(id string) (*models.UploadCertificate, error) {
+	ctx := context.Background()
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, errors.New("invalid upload certificate ID")
+	}
+	var result models.UploadCertificate
+	err = DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func GetUploadCertificates(params models.UploadCertificateQuery) ([]models.UploadCertificate, int64, error) {
+	ctx := context.Background()
+	var results []models.UploadCertificate
+	cursor, err := DB.UploadCertificateCollection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+	return results, 0, nil
+}
+
+func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, bool, error) {
 	student, course, err := CheckStudentCourse(studentId, courseId)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	isDuplicate, duplicateUpload, err := checkDuplicateURL(publicPageURL, student.ID, course.ID)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	if isDuplicate {
 		fmt.Println("Duplicate URL found", duplicateUpload)
-		return false, nil
+		return false, true, nil
 	}
 
 	var res *FastAPIResp
 	switch course.Type {
 	case "buumooc":
+		fmt.Println("Verify URL for BuuMooc")
 		res, err = BuuMooc(publicPageURL, student, course)
 	case "thaimooc":
+		fmt.Println("Verify URL for ThaiMooc")
 		res, err = ThaiMooc(publicPageURL, student, course)
 	default:
-		return false, fmt.Errorf("invalid course type: %s", course.Type)
+		return false, false, fmt.Errorf("invalid course type: %s", course.Type)
 	}
 	if err != nil {
-		return false, err
+		fmt.Println("Error verifying URL", err)
+		return false, false, err
 	}
 	if res == nil {
-		return false, fmt.Errorf("nil response from %s", course.Type)
+		fmt.Println("nil response from", course.Type)
+		return false, false, fmt.Errorf("nil response from %s", course.Type)
 	}
 
 	uploadCertificate, err := saveUploadCertificate(publicPageURL, student.ID, course.ID, res)
 	if err != nil {
-		return false, err
+		fmt.Println("Error saving upload certificate", err)
+		return false, false, err
 	}
 
 	fmt.Println(uploadCertificate)
 
-	return res.IsVerified, nil
+	return res.IsVerified, false, nil
 }
 
 func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
@@ -162,22 +195,22 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 		return nil, err
 	}
 
-	// remove "นาย" "นาง" "นางสาว" and "Miss" "Mr."
-	studentNameTh = strings.ReplaceAll(studentNameTh, "นาย", "")
-	studentNameTh = strings.ReplaceAll(studentNameTh, "นางสาว", "")
-	studentNameTh = strings.ReplaceAll(studentNameTh, "นาง", "")
-	studentNameEng = strings.ReplaceAll(studentNameEng, "Miss", "")
-	studentNameEng = strings.ReplaceAll(studentNameEng, "Mr.", "")
+	// // remove "นาย" "นาง" "นางสาว" and "Miss" "Mr."
+	// studentNameTh = strings.ReplaceAll(studentNameTh, "นาย", "")
+	// studentNameTh = strings.ReplaceAll(studentNameTh, "นางสาว", "")
+	// studentNameTh = strings.ReplaceAll(studentNameTh, "นาง", "")
+	// studentNameEng = strings.ReplaceAll(studentNameEng, "Miss", "")
+	// studentNameEng = strings.ReplaceAll(studentNameEng, "Mr.", "")
 
-	// match student name th  and eng or both
-	if !strings.Contains(string(body), studentNameTh) && !strings.Contains(string(body), studentNameEng) {
-		return nil, errors.New("student name : " + studentNameTh + " or " + studentNameEng + " not found")
-	}
+	// // match student name th  and eng or both
+	// if !strings.Contains(string(body), studentNameTh) && !strings.Contains(string(body), studentNameEng) {
+	// 	return nil, errors.New("This Certificate is not for student name : " + studentNameTh + " | " + studentNameEng)
+	// }
 
-	// match course name
-	if !strings.Contains(string(body), course.Name) {
-		return nil, errors.New("course name : " + course.Name + " not found")
-	}
+	// // match course name
+	// if !strings.Contains(string(body), course.Name) {
+	// 	return nil, errors.New("This Certificate is not for course name : " + course.Name)
+	// }
 
 	response, err := callBUUMoocFastAPI(
 		FastAPIURL(),
@@ -282,7 +315,7 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 	ctx := context.Background()
 
 	var result models.UploadCertificate
-	err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"url": publicPageURL}).Decode(&result)
+	err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"url": publicPageURL, "status": models.StatusApproved}).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return false, nil, nil // URL is unique (no document found)
