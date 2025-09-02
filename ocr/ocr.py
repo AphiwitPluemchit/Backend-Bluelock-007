@@ -7,7 +7,6 @@ import fitz
 import os
 import pytesseract
 load_dotenv()
-from text_norm import normalize_min
 
 path = os.getenv('TESSERACT_PATH')
 

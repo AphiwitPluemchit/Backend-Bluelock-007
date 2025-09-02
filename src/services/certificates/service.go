@@ -20,9 +20,24 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func CreateUploadCertificate(uploadCertificate *models.UploadCertificate) (*mongo.InsertOneResult, error) {
+func CreateUploadCertificate(uploadCertificate *models.UploadCertificate) (*models.UploadCertificate, error) {
 	ctx := context.Background()
-	return DB.UploadCertificateCollection.InsertOne(ctx, uploadCertificate)
+	result, err := DB.UploadCertificateCollection.InsertOne(ctx, uploadCertificate)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a filter to find the inserted document
+	filter := bson.M{"_id": result.InsertedID}
+
+	// Find and return the inserted document
+	var insertedDoc models.UploadCertificate
+	err = DB.UploadCertificateCollection.FindOne(ctx, filter).Decode(&insertedDoc)
+	if err != nil {
+		return nil, err
+	}
+
+	return &insertedDoc, nil
 }
 
 func UpdateUploadCertificate(id string, uploadCertificate *models.UploadCertificate) (*mongo.UpdateResult, error) {
@@ -34,55 +49,49 @@ func UpdateUploadCertificate(id string, uploadCertificate *models.UploadCertific
 	return DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": uploadCertificate})
 }
 
-func IsVerifiedDuplicate(ctx context.Context, url string) (bool, error) {
-	if url == "" {
-		return false, nil
-	}
-
-	filter := bson.M{
-		"url":           url,
-		"isNameMatch":   true,
-		"isCourseMatch": true,
-	}
-
-	err := DB.UploadCertificateCollection.FindOne(ctx, filter).Err()
-	switch err {
-	case nil:
-		// พบแล้ว → เป็นซ้ำ
-		return true, nil
-	case mongo.ErrNoDocuments:
-		// ไม่พบ → ไม่ซ้ำ
-		return false, nil
-	default:
-		// error อื่นจาก DB
-		return false, err
-	}
-}
-
 func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, error) {
-
 	student, course, err := CheckStudentCourse(studentId, courseId)
 	if err != nil {
 		return false, err
 	}
 
-	fmt.Println("student name: ", student.Name)
-	fmt.Println("course name: ", course.Name)
-	fmt.Println("course type: ", course.Type)
-
-	if course.Type == "buumooc" {
-		return BuuMooc(publicPageURL, student, course)
+	isDuplicate, duplicateUpload, err := checkDuplicateURL(publicPageURL, student.ID, course.ID)
+	if err != nil {
+		return false, err
 	}
 
-	if course.Type == "thaimooc" {
-		return ThaiMooc(publicPageURL, student, course)
+	if isDuplicate {
+		fmt.Println("Duplicate URL found", duplicateUpload)
+		return false, nil
 	}
 
-	return false, errors.New("invalid course type")
+	var res *FastAPIResp
+	switch course.Type {
+	case "buumooc":
+		res, err = BuuMooc(publicPageURL, student, course)
+	case "thaimooc":
+		res, err = ThaiMooc(publicPageURL, student, course)
+	default:
+		return false, fmt.Errorf("invalid course type: %s", course.Type)
+	}
+	if err != nil {
+		return false, err
+	}
+	if res == nil {
+		return false, fmt.Errorf("nil response from %s", course.Type)
+	}
 
+	uploadCertificate, err := saveUploadCertificate(publicPageURL, student.ID, course.ID, res)
+	if err != nil {
+		return false, err
+	}
+
+	fmt.Println(uploadCertificate)
+
+	return res.IsVerified, nil
 }
 
-func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (bool, error) {
+func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
 	ctx := context.Background()
 	// สร้าง browser context (headless)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -110,26 +119,22 @@ func ThaiMooc(publicPageURL string, student models.Student, course models.Course
 		chromedp.AttributeValue(`embed[type="application/pdf"]`, "src", &pdfSrc, nil, chromedp.ByQuery),
 	)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	if pdfSrc == "" {
-		return false, errors.New("pdf <embed> not found or empty src")
+		return nil, errors.New("pdf <embed> not found or empty src")
 	}
 	// ตัดพารามิเตอร์ viewer ออก (#toolbar/navpanes/scrollbar)
 	if i := strings.IndexByte(pdfSrc, '#'); i >= 0 {
 		pdfSrc = pdfSrc[:i]
 	}
 
-	fmt.Println("pdfSrc: ", pdfSrc)
-
 	filePath, err := DownloadPDF(pdfSrc)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	fmt.Println("Downloaded PDF to:", filePath)
-
-	ok, err := callThaiMoocFastAPI(
+	response, err := callThaiMoocFastAPI(
 		FastAPIURL(),
 		filePath,        // path ของ PDF ที่ดาวน์โหลดมา
 		student.Name,    // student_th (ปรับตามฟิลด์จริง)
@@ -137,26 +142,25 @@ func ThaiMooc(publicPageURL string, student models.Student, course models.Course
 		course.Name,     // course_name (หรือ NameTH/NameEN ที่คุณต้องการ)
 	)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return ok, nil
+	return response, nil
 }
 
-func BuuMooc(publicPageURL string, student models.Student, course models.Course) (bool, error) {
+func BuuMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
 	studentNameTh := student.Name
 	studentNameEng := student.EngName
 
 	// get html from publicPageURL and log
 	resp, err := http.Get(publicPageURL)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	// fmt.Println(string(body))
 
 	// remove "นาย" "นาง" "นางสาว" and "Miss" "Mr."
 	studentNameTh = strings.ReplaceAll(studentNameTh, "นาย", "")
@@ -167,15 +171,15 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 
 	// match student name th  and eng or both
 	if !strings.Contains(string(body), studentNameTh) && !strings.Contains(string(body), studentNameEng) {
-		return false, errors.New("student name : " + studentNameTh + " or " + studentNameEng + " not found")
+		return nil, errors.New("student name : " + studentNameTh + " or " + studentNameEng + " not found")
 	}
 
 	// match course name
 	if !strings.Contains(string(body), course.Name) {
-		return false, errors.New("course name : " + course.Name + " not found")
+		return nil, errors.New("course name : " + course.Name + " not found")
 	}
 
-	ok, err := callBUUMoocFastAPI(
+	response, err := callBUUMoocFastAPI(
 		FastAPIURL(),
 		string(body),   // html ที่ดึงมา
 		studentNameTh,  // student_th
@@ -183,9 +187,9 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 		course.Name,    // course_name (ปรับตามฟิลด์จริง)
 	)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return ok, nil
+	return response, nil
 }
 
 func DownloadPDF(pdfSrc string) (string, error) {
@@ -272,4 +276,68 @@ func FastAPIURL() string {
 		return v
 	}
 	return "http://fastapi-ocr:8000"
+}
+
+func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID) (bool, *models.UploadCertificate, error) {
+	ctx := context.Background()
+
+	var result models.UploadCertificate
+	err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"url": publicPageURL}).Decode(&result)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return false, nil, nil // URL is unique (no document found)
+		}
+		return false, nil, err // Some other error occurred
+	}
+
+	// copy result to new object remove _id
+	newResult := models.UploadCertificate{}
+	newResult.IsDuplicate = true
+	newResult.StudentId = studentId
+	newResult.CourseId = courseId
+	newResult.UploadAt = time.Now()
+	newResult.NameMatch = 0
+	newResult.CourseMatch = 0
+	newResult.Status = models.StatusRejected
+	newResult.Remark = "Certificate URL already exists"
+	newResult.Url = publicPageURL
+	newResult.ID = primitive.NewObjectID()
+
+	createDuplicate, err := CreateUploadCertificate(&newResult)
+	if err != nil {
+		return false, nil, err
+	}
+
+	return true, createDuplicate, nil // URL already exists
+}
+
+func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID, res *FastAPIResp) (*models.UploadCertificate, error) {
+	var uploadCertificate models.UploadCertificate
+
+	nameMax := max(res.NameScoreTh, res.NameScoreEn)
+	if nameMax >= 90 && res.CourseScore >= 90 {
+		uploadCertificate.Status = models.StatusApproved
+	} else if nameMax > 75 {
+		if res.CourseScore > 75 {
+			uploadCertificate.Status = models.StatusPending
+		} else {
+			uploadCertificate.Status = models.StatusRejected
+		}
+	} else {
+		uploadCertificate.Status = models.StatusRejected
+	}
+
+	uploadCertificate.IsDuplicate = false
+	uploadCertificate.Url = publicPageURL
+	uploadCertificate.StudentId = studentId
+	uploadCertificate.CourseId = courseId
+	uploadCertificate.UploadAt = time.Now()
+	uploadCertificate.NameMatch = nameMax
+	uploadCertificate.CourseMatch = res.CourseScore
+
+	saved, err := CreateUploadCertificate(&uploadCertificate)
+	if err != nil {
+		return nil, err
+	}
+	return saved, nil
 }

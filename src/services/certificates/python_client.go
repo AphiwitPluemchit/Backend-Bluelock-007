@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,8 +13,14 @@ import (
 	"time"
 )
 
-type MinimalOK struct {
-	Ok bool `json:"ok"`
+type FastAPIResp struct {
+	IsVerified    bool `json:"isVerified"`
+	IsNameMatch   bool `json:"isNameMatch"`
+	IsCourseMatch bool `json:"isCourseMatch"`
+	NameScoreTh   int  `json:"nameScoreTh"`
+	NameScoreEn   int  `json:"nameScoreEn"`
+	CourseScore   int  `json:"courseScore"`
+	UsedOCR       bool `json:"usedOcr"`
 }
 
 type buuPayload struct {
@@ -23,7 +30,7 @@ type buuPayload struct {
 	CourseName string `json:"course_name"`
 }
 
-func callBUUMoocFastAPI(fastAPIBase string, html, studentTH, studentEN, courseName string) (bool, error) {
+func callBUUMoocFastAPI(fastAPIBase string, html, studentTH, studentEN, courseName string) (*FastAPIResp, error) {
 	body := buuPayload{
 		HTML:       html,
 		StudentTH:  studentTH,
@@ -38,61 +45,69 @@ func callBUUMoocFastAPI(fastAPIBase string, html, studentTH, studentEN, courseNa
 	client := &http.Client{Timeout: 20 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return false, errors.New("fastapi /buumooc returned status " + res.Status)
+		return nil, errors.New("fastapi /buumooc returned status " + res.Status)
 	}
 
-	var out MinimalOK
+	var out FastAPIResp
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return false, err
+		return nil, err
 	}
-	return out.Ok, nil
+	return &out, nil
 }
 
-func callThaiMoocFastAPI(fastAPIBase, pdfPath, studentTH, studentEN, courseName string) (bool, error) {
+func callThaiMoocFastAPI(fastAPIBase, pdfPath, studentTH, studentEN, courseName string) (*FastAPIResp, error) {
 	f, err := os.Open(pdfPath)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer f.Close()
 
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 
-	// file part
 	fw, _ := w.CreateFormFile("pdf", filepath.Base(pdfPath))
 	if _, err := io.Copy(fw, f); err != nil {
-		return false, err
+		return nil, err
 	}
-
-	// fields
 	_ = w.WriteField("student_th", studentTH)
 	_ = w.WriteField("student_en", studentEN)
 	_ = w.WriteField("course_name", courseName)
-
 	_ = w.Close()
 
 	req, _ := http.NewRequest("POST", fastAPIBase+"/thaimooc", &buf)
 	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Accept", "application/json")
+	// ป้องกันบาง proxy/เซิร์ฟเวอร์ที่เกลียด keep-alive
+	req.Close = true
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer res.Body.Close()
 
+	// อ่านทั้งก้อนก่อน
+	b, _ := io.ReadAll(res.Body)
+	// fmt.Printf("[fastapi status] %s\n", res.Status)
+	// fmt.Printf("[fastapi ctype ] %s\n", res.Header.Get("Content-Type"))
+	// fmt.Printf("[fastapi raw   ] %s\n", string(b))
+
 	if res.StatusCode != http.StatusOK {
-		return false, errors.New("fastapi /thaimooc returned status " + res.Status)
+		return nil, fmt.Errorf("fastapi /thaimooc %s — %s", res.Status, string(b))
+	}
+	if len(bytes.TrimSpace(b)) == 0 {
+		return nil, fmt.Errorf("fastapi /thaimooc returned empty body with %s", res.Status)
 	}
 
-	var out MinimalOK
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return false, err
+	var out FastAPIResp
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, fmt.Errorf("decode error: %w — body=%s", err, string(b))
 	}
-	return out.Ok, nil
+	return &out, nil
 }

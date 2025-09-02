@@ -39,13 +39,6 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_na
     isCourseMatch = course_score >= 95
     isVerified    = isNameMatch and isCourseMatch
 
-    print("isVerified", isVerified)
-    print("isNameMatch", isNameMatch)
-    print("isCourseMatch", isCourseMatch)
-    print("nameThai_score", name_score_th)
-    print("nameEng_score", name_score_en)
-    print("course_score", course_score)
-
     return {
         "isVerified": isVerified,
         "isNameMatch": isNameMatch,
@@ -54,8 +47,6 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_na
         "nameScoreEn": name_score_en,
         "courseScore": course_score,
         "usedOcr": used_ocr,
-        # ถ้าต้องการ debug ระหว่างทดสอบ ค่อยปลดคอมเมนต์:
-        # "scores": {"name": name_score, "course": course_score, "textLen": len(hay)},
     }
 
 

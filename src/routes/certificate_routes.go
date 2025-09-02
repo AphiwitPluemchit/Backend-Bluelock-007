@@ -8,6 +8,5 @@ import (
 
 func certificateRoutes(router fiber.Router) {
 	certificate := router.Group("/certificate")
-	certificate.Post("/upload", controllers.UploadHandler)
 	certificate.Get("/url-verify", controllers.VerifyURL)
 }
