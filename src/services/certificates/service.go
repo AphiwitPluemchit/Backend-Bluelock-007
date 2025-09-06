@@ -94,30 +94,31 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		{{Key: "$match", Value: filter}},
 	}
 
+	pipeline = append(pipeline,
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
+			"localField":   "studentId",
+			"foreignField": "_id",
+			"as":           "student",
+		}}},
+		bson.D{{Key: "$unwind", Value: bson.M{
+			"path":                       "$student",
+			"preserveNullAndEmptyArrays": true, // สำคัญมาก กันเอกสารถูกทิ้งหมด
+		}}},
+		// ทำ field ชื่อให้แบนและมีค่า default เพื่อใช้ sort/search ง่าย
+		bson.D{{Key: "$addFields", Value: bson.M{
+			"student":     "$student", // เก็บ object course
+			"studentName": bson.M{"$ifNull": []interface{}{"$student.name", ""}},
+		}}},
+	)
+
 	// ควร join เฉพาะตอน "ต้องใช้" (ค้นหาด้วยชื่อ หรือ sort ด้วย studentName)
 	needJoin := pagination.Search != "" || strings.EqualFold(pagination.SortBy, "studentname")
 	if needJoin {
-		pipeline = append(pipeline,
-			bson.D{{Key: "$lookup", Value: bson.M{
-				"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
-				"localField":   "studentId",
-				"foreignField": "_id",
-				"as":           "studentData",
-			}}},
-			bson.D{{Key: "$unwind", Value: bson.M{
-				"path":                       "$studentData",
-				"preserveNullAndEmptyArrays": true, // สำคัญมาก กันเอกสารถูกทิ้งหมด
-			}}},
-			// ทำ field ชื่อให้แบนและมีค่า default เพื่อใช้ sort/search ง่าย
-			bson.D{{Key: "$addFields", Value: bson.M{
-				"studentName": bson.M{"$ifNull": []interface{}{"$studentData.name", ""}},
-			}}},
-		)
-
 		if pagination.Search != "" {
 			pipeline = append(pipeline,
 				bson.D{{Key: "$match", Value: bson.M{
-					"studentName": bson.M{
+					"student.name": bson.M{
 						"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
 					},
 				}}},
@@ -141,23 +142,23 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		}}},
 	)
 
-	if params.StudentID == "" {
-		pipeline = append(pipeline,
-			bson.D{{Key: "$lookup", Value: bson.M{
-				"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
-				"localField":   "studentId",
-				"foreignField": "_id",
-				"as":           "student",
-			}}},
-			bson.D{{Key: "$unwind", Value: bson.M{
-				"path":                       "$student",
-				"preserveNullAndEmptyArrays": true, // สำคัญมาก กันเอกสารถูกทิ้งหมด
-			}}},
-			bson.D{{Key: "$addFields", Value: bson.M{
-				"student": "$student", // เก็บ object course
-			}}},
-		)
-	}
+	// if params.StudentID == nil {
+	// 	pipeline = append(pipeline,
+	// 		bson.D{{Key: "$lookup", Value: bson.M{
+	// 			"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
+	// 			"localField":   "studentId",
+	// 			"foreignField": "_id",
+	// 			"as":           "student",
+	// 		}}},
+	// 		bson.D{{Key: "$unwind", Value: bson.M{
+	// 			"path":                       "$student",
+	// 			"preserveNullAndEmptyArrays": true, // สำคัญมาก กันเอกสารถูกทิ้งหมด
+	// 		}}},
+	// 		bson.D{{Key: "$addFields", Value: bson.M{
+	// 			"student": "$student", // เก็บ object course
+	// 		}}},
+	// 	)
+	// }
 
 	// 4) Sorting
 	sortByField := pagination.SortBy
