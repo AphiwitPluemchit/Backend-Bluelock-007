@@ -125,6 +125,40 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		}
 	}
 
+	// 👉 join course (ปกติเรามักอยากโชว์เสมอ)
+	pipeline = append(pipeline,
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "courses",  // ชื่อคอลเลกชันของคุณ
+			"localField":   "courseId", // อิงจาก UploadCertificate.CourseId
+			"foreignField": "_id",
+			"as":           "course",
+		}}},
+		bson.D{{Key: "$unwind", Value: bson.M{
+			"path": "$course", "preserveNullAndEmptyArrays": true,
+		}}},
+		bson.D{{Key: "$addFields", Value: bson.M{
+			"course": "$course", // เก็บ object course
+		}}},
+	)
+
+	if params.StudentID == "" {
+		pipeline = append(pipeline,
+			bson.D{{Key: "$lookup", Value: bson.M{
+				"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
+				"localField":   "studentId",
+				"foreignField": "_id",
+				"as":           "student",
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.M{
+				"path":                       "$student",
+				"preserveNullAndEmptyArrays": true, // สำคัญมาก กันเอกสารถูกทิ้งหมด
+			}}},
+			bson.D{{Key: "$addFields", Value: bson.M{
+				"student": "$student", // เก็บ object course
+			}}},
+		)
+	}
+
 	// 4) Sorting
 	sortByField := pagination.SortBy
 	if strings.EqualFold(pagination.SortBy, "studentname") {

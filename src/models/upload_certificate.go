@@ -10,6 +10,7 @@ type UploadCertificate struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty" `
 	StudentId       primitive.ObjectID `bson:"studentId" json:"studentId"`
 	CourseId        primitive.ObjectID `bson:"courseId" json:"courseId"`
+	Course          *Course            `json:"course"`
 	Url             string             `bson:"url" json:"url"`
 	NameMatch       int                `bson:"nameMatch" json:"nameMatch"`
 	CourseMatch     int                `bson:"courseMatch" json:"courseMatch"`
