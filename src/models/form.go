@@ -29,8 +29,6 @@ type Block struct {
 	Choices []Choice `bson:"choices,omitempty" json:"choices,omitempty"`
 	Rows    []Row    `bson:"rows,omitempty" json:"rows,omitempty"`
 
-	Max  *int    `bson:"max,omitempty" json:"max,omitempty"`   
-	Icon *string `bson:"icon,omitempty" json:"icon,omitempty"` 
 }
 
 // --- Choice ---
