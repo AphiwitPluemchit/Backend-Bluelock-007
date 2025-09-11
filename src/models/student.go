@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -14,4 +16,21 @@ type Student struct {
 	SoftSkill int                `bson:"softSkill" json:"softSkill"`
 	HardSkill int                `bson:"hardSkill" json:"hardSkill"`
 	Major     string             `bson:"major" json:"major"`
+}
+
+// HourChangeHistory ประวัติการเปลี่ยนแปลงชั่วโมงของนักเรียน
+type HourChangeHistory struct {
+	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	StudentID        primitive.ObjectID `bson:"studentId" json:"studentId"`
+	StudentName      string             `bson:"studentName" json:"studentName"`
+	StudentCode      string             `bson:"studentCode" json:"studentCode"`
+	ActivityID       primitive.ObjectID `bson:"activityId" json:"activityId"`
+	ActivityName     string             `bson:"activityName" json:"activityName"`
+	ActivityItemID   primitive.ObjectID `bson:"activityItemId" json:"activityItemId"`
+	ActivityItemName string             `bson:"activityItemName" json:"activityItemName"`
+	SkillType        string             `bson:"skillType" json:"skillType"`     // "soft" หรือ "hard"
+	HoursChange      int                `bson:"hoursChange" json:"hoursChange"` // บวก = เพิ่ม, ลบ = ลด
+	ChangeType       string             `bson:"changeType" json:"changeType"`   // "add", "remove", "no_change"
+	Reason           string             `bson:"reason" json:"reason"`           // เหตุผลการเปลี่ยนแปลง
+	ChangedAt        time.Time          `bson:"changedAt" json:"changedAt"`
 }

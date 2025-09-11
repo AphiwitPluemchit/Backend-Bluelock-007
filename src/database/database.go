@@ -35,6 +35,7 @@ var (
 	QrClaimCollection           *mongo.Collection
 	UserCollection              *mongo.Collection
 	UploadCertificateCollection *mongo.Collection
+	HourChangeHistoryCollection *mongo.Collection
 )
 
 // ConnectMongoDB เชื่อมต่อกับ MongoDB แค่ครั้งเดียว
