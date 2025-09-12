@@ -13,14 +13,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func GetCheckinStatus(studentId, activityItemId string) ([]models.CheckinoutRecord, error) {
+func GetCheckinStatus(studentId, programItemId string) ([]models.CheckinoutRecord, error) {
 	uID, err1 := primitive.ObjectIDFromHex(studentId)
-	aID, err2 := primitive.ObjectIDFromHex(activityItemId)
+	aID, err2 := primitive.ObjectIDFromHex(programItemId)
 	if err1 != nil || err2 != nil {
 		return nil, fmt.Errorf("รหัสไม่ถูกต้อง")
 	}
 
-	filter := bson.M{"studentId": uID, "activityItemId": aID}
+	filter := bson.M{"studentId": uID, "programItemId": aID}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

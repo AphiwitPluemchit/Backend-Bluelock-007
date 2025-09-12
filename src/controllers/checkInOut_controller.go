@@ -9,20 +9,20 @@ import (
 
 func GetCheckinStatus(c *fiber.Ctx) error {
 	studentId := c.Query("studentId")
-	activityId := c.Query("activityId")
+	programId := c.Query("programId")
 
-	if studentId == "" || activityId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ studentId และ activityId"})
+	if studentId == "" || programId == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ studentId และ programId"})
 	}
 
-	// ดึง activityItemIds ทั้งหมดที่นิสิตลงทะเบียนไว้ใน activityId นี้
-	activityItemIds, found := enrollments.FindEnrolledItems(studentId, activityId)
-	if !found || len(activityItemIds) == 0 {
+	// ดึง programItemIds ทั้งหมดที่นิสิตลงทะเบียนไว้ใน programId นี้
+	programItemIds, found := enrollments.FindEnrolledItems(studentId, programId)
+	if !found || len(programItemIds) == 0 {
 		return c.JSON([]interface{}{}) // ส่ง array ว่าง
 	}
 
-	// ใช้แค่ activityItemId อันแรก
-	results, err := checkInOut.GetCheckinStatus(studentId, activityItemIds[0])
+	// ใช้แค่ programItemId อันแรก
+	results, err := checkInOut.GetCheckinStatus(studentId, programItemIds[0])
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -32,13 +32,13 @@ func GetCheckinStatus(c *fiber.Ctx) error {
 // POST /admin/qr-token
 func AdminCreateQRToken(c *fiber.Ctx) error {
 	var body struct {
-		ActivityId string `json:"activityId"`
-		Type       string `json:"type"`
+		ProgramId string `json:"programId"`
+		Type      string `json:"type"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.ActivityId == "" || body.Type == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityId และ type"})
+	if err := c.BodyParser(&body); err != nil || body.ProgramId == "" || body.Type == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ programId และ type"})
 	}
-	token, expiresAt, err := checkInOut.CreateQRToken(body.ActivityId, body.Type)
+	token, expiresAt, err := checkInOut.CreateQRToken(body.ProgramId, body.Type)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -58,7 +58,7 @@ func StudentClaimQRToken(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(fiber.Map{"activityId": qrToken.ActivityID.Hex(), "token": qrToken.Token, "type": qrToken.Type})
+	return c.JSON(fiber.Map{"programId": qrToken.ProgramID.Hex(), "token": qrToken.Token, "type": qrToken.Type})
 }
 
 // GET /Student/validate/:token
@@ -74,9 +74,9 @@ func StudentValidateQRToken(c *fiber.Ctx) error {
 		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{
-		"activityId": qrToken.ActivityID.Hex(),
-		"token":      qrToken.Token,
-		"type":       qrToken.Type,
+		"programId": qrToken.ProgramID.Hex(),
+		"token":     qrToken.Token,
+		"type":      qrToken.Type,
 	})
 }
 
@@ -97,7 +97,7 @@ func StudentCheckin(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 	}
-	err = checkInOut.RecordCheckin(studentId, qrToken.ActivityID.Hex(), "checkin")
+	err = checkInOut.RecordCheckin(studentId, qrToken.ProgramID.Hex(), "checkin")
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -121,21 +121,21 @@ func StudentCheckout(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 	}
-	err = checkInOut.RecordCheckin(studentId, qrToken.ActivityID.Hex(), "checkout")
+	err = checkInOut.RecordCheckin(studentId, qrToken.ProgramID.Hex(), "checkout")
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "ลงทะเบียนออกสำเร็จ"})
 }
 
-// GET /Student/activity/:activityId/form
-func GetActivityForm(c *fiber.Ctx) error {
-	activityId := c.Params("activityId")
-	if activityId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityId"})
+// GET /Student/program/:programId/form
+func GetProgramForm(c *fiber.Ctx) error {
+	programId := c.Params("programId")
+	if programId == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ programId"})
 	}
 
-	formId, err := checkInOut.GetActivityFormId(activityId)
+	formId, err := checkInOut.GetProgramFormId(programId)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -143,12 +143,12 @@ func GetActivityForm(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"formId": formId})
 }
 func AddHoursForStudent(c *fiber.Ctx) error {
-	activityItemId := c.Params("activityItemId")
-	if activityItemId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ activityItemId"})
+	programItemId := c.Params("programItemId")
+	if programItemId == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ programItemId"})
 	}
 
-	result, err := checkInOut.AddHoursForStudent(activityItemId)
+	result, err := checkInOut.AddHoursForStudent(programItemId)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
 	}

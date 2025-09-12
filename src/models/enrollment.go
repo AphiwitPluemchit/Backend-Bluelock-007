@@ -10,9 +10,8 @@ import (
 type Enrollment struct {
 	ID               primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	RegistrationDate time.Time          `json:"registrationDate" bson:"registrationDate"`
-	ActivityItemID   primitive.ObjectID `json:"activityItemId" bson:"activityItemId"`
+	ProgramItemID    primitive.ObjectID `json:"programItemId" bson:"programItemId"`
 	StudentID        primitive.ObjectID `json:"studentId" bson:"studentId"`
-	Student          *Student           `json:"student" bson:"student"` // เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
 	Food             *string            `json:"food" bson:"food"`
 }
 

@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-var collection = "BluelockDB"
+var collection = "V2"
 
 // var collection = "BluelockDB" // หรือ "UAT"
 func init() {
@@ -15,41 +15,41 @@ func init() {
 
 	// Ensure all collections exist (Mongo will also auto-create on first insert, but this makes it explicit)
 	if err := DB.EnsureCollections(collection, []string{
-		"activitys",
-		"activityItems",
-		"admins",
-		"checkInOuts",
-		"enrollments",
-		"foods",
-		"qrTokens",
-		"qrClaims",
-		"forms",
-		"questions",
-		"submissions",
-		"students",
-		"users",
-		"courses",
-		"uploadCertificates",
-		"hourChangeHistories",
+		"Programs",
+		"Program_Items",
+		"Admins",
+		"Check_In_Check_Out",
+		"Enrollments",
+		"Foods",
+		"Qr_Tokens",
+		"Qr_Claims",
+		"Forms",
+		"Questions",
+		"Submissions",
+		"Students",
+		"Users",
+		"Courses",
+		"Upload_Certificates",
+		"Hour_Change_Histories",
 	}); err != nil {
 		log.Fatal("Failed ensuring collections:", err)
 	}
 
-	DB.ActivityCollection = DB.GetCollection(collection, "activitys")
-	DB.ActivityItemCollection = DB.GetCollection(collection, "activityItems")
-	DB.AdminCollection = DB.GetCollection(collection, "admins")
-	DB.CheckinCollection = DB.GetCollection(collection, "checkInOuts")
-	DB.EnrollmentCollection = DB.GetCollection(collection, "enrollments")
-	DB.FoodCollection = DB.GetCollection(collection, "foods")
-	DB.QrTokenCollection = DB.GetCollection(collection, "qrTokens")
-	DB.QrClaimCollection = DB.GetCollection(collection, "qrClaims")
-	DB.FormCollection = DB.GetCollection(collection, "forms")
-	DB.SubmissionCollection = DB.GetCollection(collection, "submissions")
-	DB.StudentCollection = DB.GetCollection(collection, "students")
-	DB.UserCollection = DB.GetCollection(collection, "users")
-	DB.CourseCollection = DB.GetCollection(collection, "courses")
-	DB.UploadCertificateCollection = DB.GetCollection(collection, "uploadCertificates")
-	DB.HourChangeHistoryCollection = DB.GetCollection(collection, "hourChangeHistories")
+	DB.ProgramCollection = DB.GetCollection(collection, "Programs")
+	DB.ProgramItemCollection = DB.GetCollection(collection, "Program_Items")
+	DB.AdminCollection = DB.GetCollection(collection, "Admins")
+	DB.CheckinCollection = DB.GetCollection(collection, "Check_In_Check_Out")
+	DB.EnrollmentCollection = DB.GetCollection(collection, "Enrollments")
+	DB.FoodCollection = DB.GetCollection(collection, "Foods")
+	DB.QrTokenCollection = DB.GetCollection(collection, "Qr_Tokens")
+	DB.QrClaimCollection = DB.GetCollection(collection, "Qr_Claims")
+	DB.FormCollection = DB.GetCollection(collection, "Forms")
+	DB.SubmissionCollection = DB.GetCollection(collection, "Submissions")
+	DB.StudentCollection = DB.GetCollection(collection, "Students")
+	DB.UserCollection = DB.GetCollection(collection, "Users")
+	DB.CourseCollection = DB.GetCollection(collection, "Courses")
+	DB.UploadCertificateCollection = DB.GetCollection(collection, "Upload_Certificates")
+	DB.HourChangeHistoryCollection = DB.GetCollection(collection, "Hour_Change_Histories")
 
 	if DB.RedisURI != "" {
 		DB.InitAsynq()

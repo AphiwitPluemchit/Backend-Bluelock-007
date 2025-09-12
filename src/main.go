@@ -57,7 +57,7 @@ func main() {
 				},
 			)
 			mux := asynq.NewServeMux()
-			mux.HandleFunc(jobs.TypeCompleteActivity, jobs.HandleCompleteActivityTask)
+			mux.HandleFunc(jobs.TypeCompleteProgram, jobs.HandleCompleteProgramTask)
 			mux.HandleFunc(jobs.TypeCloseEnroll, jobs.HandleCloseEnrollTask)
 
 			if err := srv.Run(mux); err != nil {
@@ -85,8 +85,8 @@ func main() {
 	// เปิดใช้งาน Swagger ที่ URL /swagger
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
-	// ✅ ให้บริการไฟล์ใน uploads/activity/images/
-	app.Static("/uploads/activity/images", "./uploads/activity/images")
+	// ✅ ให้บริการไฟล์ใน uploads/program/images/
+	app.Static("/uploads/program/images", "./uploads/program/images")
 
 	// เริ่มเซิร์ฟเวอร์
 	log.Println("Server is running on port " + appURI)

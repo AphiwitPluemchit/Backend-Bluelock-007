@@ -14,17 +14,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// GetCheckinStatus returns all check-in/out records for a student and activityItemId
-func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{}, error) {
+// GetCheckinStatus returns all check-in/out records for a student and programItemId
+func GetCheckinStatus(studentId, programItemId string) ([]map[string]interface{}, error) {
 	uID, err1 := primitive.ObjectIDFromHex(studentId)
-	aID, err2 := primitive.ObjectIDFromHex(activityItemId)
+	aID, err2 := primitive.ObjectIDFromHex(programItemId)
 	if err1 != nil || err2 != nil {
 		return nil, fmt.Errorf("รหัสไม่ถูกต้อง")
 	}
 
 	filter := bson.M{
-		"studentId":      uID,
-		"activityItemId": aID,
+		"studentId":     uID,
+		"programItemId": aID,
 	}
 
 	cursor, err := DB.CheckinCollection.Find(context.TODO(), filter)
@@ -79,21 +79,21 @@ func GetCheckinStatus(studentId, activityItemId string) ([]map[string]interface{
 	return results, nil
 }
 
-// CreateQRToken creates a new QR token for an activityId, valid for 8 seconds
-func CreateQRToken(activityId string, qrType string) (string, int64, error) {
+// CreateQRToken creates a new QR token for an programId, valid for 8 seconds
+func CreateQRToken(programId string, qrType string) (string, int64, error) {
 	token := uuid.NewString()
-	activityObjID, err := primitive.ObjectIDFromHex(activityId)
+	programObjID, err := primitive.ObjectIDFromHex(programId)
 	if err != nil {
 		return "", 0, err
 	}
 	now := time.Now().Unix()
 	expiresAt := now + 30 // 30 วินาที
 	qrToken := models.QRToken{
-		Token:      token,
-		ActivityID: activityObjID,
-		Type:       qrType,
-		CreatedAt:  now,
-		ExpiresAt:  expiresAt,
+		Token:     token,
+		ProgramID: programObjID,
+		Type:      qrType,
+		CreatedAt: now,
+		ExpiresAt: expiresAt,
 	}
 	_, err = DB.QrTokenCollection.InsertOne(context.TODO(), qrToken)
 	if err != nil {
@@ -111,18 +111,18 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 	}
 	// 1. หาใน qr_claims ก่อน (token+studentId+expireAt>now)
 	var claim struct {
-		Token      string             `bson:"token"`
-		StudentID  primitive.ObjectID `bson:"studentId"`
-		ActivityID primitive.ObjectID `bson:"activityId"`
-		Type       string             `bson:"type"`
-		ClaimedAt  time.Time          `bson:"claimedAt"`
-		ExpireAt   time.Time          `bson:"expireAt"`
+		Token     string             `bson:"token"`
+		StudentID primitive.ObjectID `bson:"studentId"`
+		ProgramID primitive.ObjectID `bson:"programId"`
+		Type      string             `bson:"type"`
+		ClaimedAt time.Time          `bson:"claimedAt"`
+		ExpireAt  time.Time          `bson:"expireAt"`
 	}
 	err = DB.QrClaimCollection.FindOne(ctx, bson.M{"token": token, "studentId": studentObjID, "expireAt": bson.M{"$gt": time.Now()}}).Decode(&claim)
 	if err == nil {
 		return &models.QRToken{
 			Token:              claim.Token,
-			ActivityID:         claim.ActivityID,
+			ProgramID:          claim.ProgramID,
 			Type:               claim.Type,
 			ClaimedByStudentID: &studentObjID,
 		}, nil
@@ -135,7 +135,7 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 	}
 
 	// 3. ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
-	itemIDs, found := enrollments.FindEnrolledItems(studentId, qrToken.ActivityID.Hex())
+	itemIDs, found := enrollments.FindEnrolledItems(studentId, qrToken.ProgramID.Hex())
 	if !found || len(itemIDs) == 0 {
 		return nil, fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
 	}
@@ -143,12 +143,12 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 	// 4. upsert ลง qr_claims (หมดอายุใน 1 ชม. หลัง claim)
 	expireAt := time.Now().Add(1 * time.Hour)
 	claimDoc := bson.M{
-		"token":      token,
-		"studentId":  studentObjID,
-		"activityId": qrToken.ActivityID,
-		"type":       qrToken.Type,
-		"claimedAt":  time.Now(),
-		"expireAt":   expireAt,
+		"token":     token,
+		"studentId": studentObjID,
+		"programId": qrToken.ProgramID,
+		"type":      qrToken.Type,
+		"claimedAt": time.Now(),
+		"expireAt":  expireAt,
 	}
 	_, err = DB.QrClaimCollection.UpdateOne(ctx, bson.M{"token": token, "studentId": studentObjID}, bson.M{"$set": claimDoc}, options.Update().SetUpsert(true))
 	if err != nil {
@@ -166,12 +166,12 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 		return nil, err
 	}
 	var claim struct {
-		Token      string             `bson:"token"`
-		StudentID  primitive.ObjectID `bson:"studentId"`
-		ActivityID primitive.ObjectID `bson:"activityId"`
-		Type       string             `bson:"type"`
-		ClaimedAt  time.Time          `bson:"claimedAt"`
-		ExpireAt   time.Time          `bson:"expireAt"`
+		Token     string             `bson:"token"`
+		StudentID primitive.ObjectID `bson:"studentId"`
+		ProgramID primitive.ObjectID `bson:"programId"`
+		Type      string             `bson:"type"`
+		ClaimedAt time.Time          `bson:"claimedAt"`
+		ExpireAt  time.Time          `bson:"expireAt"`
 	}
 	err = DB.QrClaimCollection.FindOne(ctx, bson.M{"token": token, "studentId": studentObjID, "expireAt": bson.M{"$gt": time.Now()}}).Decode(&claim)
 	if err != nil {
@@ -179,23 +179,23 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 	}
 
 	// ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
-	itemIDs, found := enrollments.FindEnrolledItems(studentId, claim.ActivityID.Hex())
+	itemIDs, found := enrollments.FindEnrolledItems(studentId, claim.ProgramID.Hex())
 	if !found || len(itemIDs) == 0 {
 		return nil, fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
 	}
 
 	return &models.QRToken{
 		Token:              claim.Token,
-		ActivityID:         claim.ActivityID,
+		ProgramID:          claim.ProgramID,
 		Type:               claim.Type,
 		ClaimedByStudentID: &studentObjID,
 	}, nil
 }
 
-// SaveCheckInOut saves a check-in/out for a specific activityItemId, prevents duplicate in the same day
-func SaveCheckInOut(userId, activityItemId, checkType string) error {
+// SaveCheckInOut saves a check-in/out for a specific programItemId, prevents duplicate in the same day
+func SaveCheckInOut(userId, programItemId, checkType string) error {
 	uID, err1 := primitive.ObjectIDFromHex(userId)
-	aID, err2 := primitive.ObjectIDFromHex(activityItemId)
+	aID, err2 := primitive.ObjectIDFromHex(programItemId)
 	if err1 != nil || err2 != nil {
 		return fmt.Errorf("รหัสไม่ถูกต้อง")
 	}
@@ -207,9 +207,9 @@ func SaveCheckInOut(userId, activityItemId, checkType string) error {
 	endOfDay := startOfDay.Add(24 * time.Hour)
 	// เช็คว่ามี record ซ้ำในวันเดียวกันหรือยัง
 	filter := bson.M{
-		"studentId":      uID,
-		"activityItemId": aID,
-		"type":           checkType,
+		"studentId":     uID,
+		"programItemId": aID,
+		"type":          checkType,
 		"timestamp": bson.M{
 			"$gte": startOfDay,
 			"$lt":  endOfDay,
@@ -224,20 +224,20 @@ func SaveCheckInOut(userId, activityItemId, checkType string) error {
 	}
 	// Insert ใหม่
 	checkinRecord := models.CheckinRecord{
-		StudentID:      uID,
-		ActivityItemID: aID,
-		Type:           checkType,
-		Timestamp:      now,
+		StudentID:     uID,
+		ProgramItemID: aID,
+		Type:          checkType,
+		Timestamp:     now,
 	}
 
 	_, err = DB.CheckinCollection.InsertOne(context.TODO(), checkinRecord)
 	return err
 }
 
-// RecordCheckin records a check-in or check-out for a student for all enrolled items in an activity
-func RecordCheckin(studentId, activityItemId, checkType string) error {
-	// ดึง activityItemIds ทั้งหมดที่นิสิตลงทะเบียนใน activity นี้
-	itemIDs, found := enrollments.FindEnrolledItems(studentId, activityItemId)
+// RecordCheckin records a check-in or check-out for a student for all enrolled items in an program
+func RecordCheckin(studentId, programItemId, checkType string) error {
+	// ดึง programItemIds ทั้งหมดที่นิสิตลงทะเบียนใน program นี้
+	itemIDs, found := enrollments.FindEnrolledItems(studentId, programItemId)
 	if !found || len(itemIDs) == 0 {
 		return fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
 	}
@@ -250,40 +250,40 @@ func RecordCheckin(studentId, activityItemId, checkType string) error {
 	return nil
 }
 
-// GetActivityFormId ดึง formId จาก activityId
-func GetActivityFormId(activityId string) (string, error) {
+// GetProgramFormId ดึง formId จาก programId
+func GetProgramFormId(programId string) (string, error) {
 	ctx := context.TODO()
-	activityObjID, err := primitive.ObjectIDFromHex(activityId)
+	programObjID, err := primitive.ObjectIDFromHex(programId)
 	if err != nil {
-		return "", fmt.Errorf("invalid activity ID format")
+		return "", fmt.Errorf("invalid program ID format")
 	}
 
-	var activity struct {
+	var program struct {
 		FormID primitive.ObjectID `bson:"formId"`
 	}
 
-	err = DB.ActivityCollection.FindOne(ctx, bson.M{"_id": activityObjID}).Decode(&activity)
+	err = DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programObjID}).Decode(&program)
 	if err != nil {
-		return "", fmt.Errorf("activity not found")
+		return "", fmt.Errorf("program not found")
 	}
 
 	// ตรวจสอบว่า formId เป็น zero value หรือไม่
-	if activity.FormID.IsZero() {
-		return "", fmt.Errorf("activity does not have a form")
+	if program.FormID.IsZero() {
+		return "", fmt.Errorf("program does not have a form")
 	}
 
-	return activity.FormID.Hex(), nil
+	return program.FormID.Hex(), nil
 }
 
 // AddHoursForStudentResult represents the overall result of the operation
 type AddHoursForStudentResult struct {
-	ActivityItemID string             `json:"activityItemId"`
-	ActivityName   string             `json:"activityName"`
-	SkillType      string             `json:"skillType"`
-	TotalStudents  int                `json:"totalStudents"`
-	SuccessCount   int                `json:"successCount"`
-	ErrorCount     int                `json:"errorCount"`
-	Results        []HourChangeResult `json:"results"`
+	ProgramItemID string             `json:"programItemId"`
+	ProgramName   string             `json:"programName"`
+	SkillType     string             `json:"skillType"`
+	TotalStudents int                `json:"totalStudents"`
+	SuccessCount  int                `json:"successCount"`
+	ErrorCount    int                `json:"errorCount"`
+	Results       []HourChangeResult `json:"results"`
 }
 
 // HourChangeResult represents the result of hour changes for a student
@@ -297,33 +297,33 @@ type HourChangeResult struct {
 }
 
 // AddHoursForStudent calculates and adds hours for students based on check-in/out records
-func AddHoursForStudent(activityItemId string) (*AddHoursForStudentResult, error) {
+func AddHoursForStudent(programItemId string) (*AddHoursForStudentResult, error) {
 	ctx := context.TODO()
-	activityItemObjID, err := primitive.ObjectIDFromHex(activityItemId)
+	programItemObjID, err := primitive.ObjectIDFromHex(programItemId)
 	if err != nil {
-		return nil, fmt.Errorf("invalid activityItemId format: %v", err)
+		return nil, fmt.Errorf("invalid programItemId format: %v", err)
 	}
 
-	// 1. ดึงข้อมูล ActivityItem เพื่อหา hour และ dates
-	var activityItem models.ActivityItem
-	err = DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": activityItemObjID}).Decode(&activityItem)
+	// 1. ดึงข้อมูล ProgramItem เพื่อหา hour และ dates
+	var programItem models.ProgramItem
+	err = DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemObjID}).Decode(&programItem)
 	if err != nil {
-		return nil, fmt.Errorf("activity item not found: %v", err)
+		return nil, fmt.Errorf("program item not found: %v", err)
 	}
 
-	if activityItem.Hour == nil {
-		return nil, fmt.Errorf("activity item has no hour value")
+	if programItem.Hour == nil {
+		return nil, fmt.Errorf("program item has no hour value")
 	}
 
-	// 2. ดึงข้อมูล activity เพื่อหา skill type และชื่อ
-	var activity models.Activity
-	err = DB.ActivityCollection.FindOne(ctx, bson.M{"_id": activityItem.ActivityID}).Decode(&activity)
+	// 2. ดึงข้อมูล program เพื่อหา skill type และชื่อ
+	var program models.Program
+	err = DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programItem.ProgramID}).Decode(&program)
 	if err != nil {
-		return nil, fmt.Errorf("activity not found: %v", err)
+		return nil, fmt.Errorf("program not found: %v", err)
 	}
 
-	// 3. ดึงข้อมูล enrollments ทั้งหมดของ activityItem นี้
-	cursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"activityItemId": activityItemObjID})
+	// 3. ดึงข้อมูล enrollments ทั้งหมดของ programItem นี้
+	cursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"programItemId": programItemObjID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch enrollments: %v", err)
 	}
@@ -336,25 +336,25 @@ func AddHoursForStudent(activityItemId string) (*AddHoursForStudentResult, error
 
 	// 4. สร้าง result struct
 	result := &AddHoursForStudentResult{
-		ActivityItemID: activityItemId,
-		ActivityName:   *activity.Name,
-		SkillType:      activity.Skill,
-		TotalStudents:  len(enrollments),
-		SuccessCount:   0,
-		ErrorCount:     0,
-		Results:        make([]HourChangeResult, 0, len(enrollments)),
+		ProgramItemID: programItemId,
+		ProgramName:   *program.Name,
+		SkillType:     program.Skill,
+		TotalStudents: len(enrollments),
+		SuccessCount:  0,
+		ErrorCount:    0,
+		Results:       make([]HourChangeResult, 0, len(enrollments)),
 	}
 
 	// 5. ประมวลผลแต่ละ enrollment
 	for _, enrollment := range enrollments {
-		hourResult, err := processStudentHours(ctx, enrollment.StudentID, activityItemObjID, activityItem, activity.Skill)
+		hourResult, err := processStudentHours(ctx, enrollment.StudentID, programItemObjID, programItem, program.Skill)
 		if err != nil {
 			result.ErrorCount++
 			result.Results = append(result.Results, HourChangeResult{
 				StudentID:   enrollment.StudentID.Hex(),
 				StudentName: "Unknown",
 				StudentCode: "Unknown",
-				SkillType:   activity.Skill,
+				SkillType:   program.Skill,
 				HoursChange: 0,
 				Message:     fmt.Sprintf("Error: %v", err),
 			})
@@ -400,17 +400,17 @@ func GetHourChangeHistory(studentID string, limit int) ([]models.HourChangeHisto
 	return histories, nil
 }
 
-// GetHourChangeHistoryByActivity ดึงประวัติการเปลี่ยนแปลงชั่วโมงของกิจกรรม
-func GetHourChangeHistoryByActivity(activityID string, limit int) ([]models.HourChangeHistory, error) {
+// GetHourChangeHistoryByProgram ดึงประวัติการเปลี่ยนแปลงชั่วโมงของกิจกรรม
+func GetHourChangeHistoryByProgram(programID string, limit int) ([]models.HourChangeHistory, error) {
 	ctx := context.TODO()
 
-	activityObjID, err := primitive.ObjectIDFromHex(activityID)
+	programObjID, err := primitive.ObjectIDFromHex(programID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid activity ID format: %v", err)
+		return nil, fmt.Errorf("invalid program ID format: %v", err)
 	}
 
 	// สร้าง filter และ options
-	filter := bson.M{"activityId": activityObjID}
+	filter := bson.M{"programId": programObjID}
 	opts := options.Find().SetSort(bson.D{{Key: "changedAt", Value: -1}})
 
 	if limit > 0 {

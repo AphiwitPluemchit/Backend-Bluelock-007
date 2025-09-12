@@ -20,8 +20,8 @@ var (
 	once       sync.Once // ✅ ป้องกันการรัน ConnectMongoDB() ซ้ำ
 	connectErr error
 
-	ActivityCollection          *mongo.Collection // Renamed: exported
-	ActivityItemCollection      *mongo.Collection // Renamed: exported
+	ProgramCollection           *mongo.Collection // Renamed: exported
+	ProgramItemCollection       *mongo.Collection // Renamed: exported
 	EnrollmentCollection        *mongo.Collection
 	StudentCollection           *mongo.Collection // Renamed: exported
 	CourseCollection            *mongo.Collection // ✅ เพิ่มตัวแปรนี้

@@ -3,7 +3,7 @@ package enrollments
 import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services/activities"
+	"Backend-Bluelock-007/src/services/programs"
 	"context"
 	"errors"
 	"fmt"
@@ -20,24 +20,24 @@ import (
 )
 
 // ✅ 1. Student ลงทะเบียนกิจกรรม (ลงซ้ำไม่ได้ + เช็ค major + กันเวลาทับซ้อน)
-func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string) error {
+func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 1) ตรวจว่า ActivityItem มีจริงไหม
-	var activityItem models.ActivityItem
-	if err := DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": activityItemID}).Decode(&activityItem); err != nil {
+	// 1) ตรวจว่า ProgramItem มีจริงไหม
+	var programItem models.ProgramItem
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemID}).Decode(&programItem); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return errors.New("activity item not found")
+			return errors.New("program item not found")
 		}
 		return err
 	}
 
-	// 2) ถ้ามีการเลือกอาหาร: +1 vote ให้ foodName ที่ตรงกันใน Activity
+	// 2) ถ้ามีการเลือกอาหาร: +1 vote ให้ foodName ที่ตรงกันใน Program
 	if food != nil {
-		activityID := activityItem.ActivityID
+		programID := programItem.ProgramID
 
-		filter := bson.M{"_id": activityID}
+		filter := bson.M{"_id": programID}
 		update := bson.M{
 			"$inc": bson.M{"foodVotes.$[elem].vote": 1},
 		}
@@ -47,7 +47,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 			},
 		})
 
-		if _, err := DB.ActivityCollection.UpdateOne(ctx, filter, update, arrayFilter); err != nil {
+		if _, err := DB.ProgramCollection.UpdateOne(ctx, filter, update, arrayFilter); err != nil {
 			return fmt.Errorf("update food vote failed: %w", err)
 		}
 		// fmt.Println("Updated food vote for:", *food)
@@ -66,15 +66,15 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 			continue
 		}
 
-		// ดึง activityItem เดิมที่เคยลง
-		var existingItem models.ActivityItem
-		if err := DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": existing.ActivityItemID}).Decode(&existingItem); err != nil {
+		// ดึง programItem เดิมที่เคยลง
+		var existingItem models.ProgramItem
+		if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": existing.ProgramItemID}).Decode(&existingItem); err != nil {
 			continue
 		}
 
 		// เปรียบเทียบวันเวลา
 		for _, dOld := range existingItem.Dates {
-			for _, dNew := range activityItem.Dates {
+			for _, dNew := range programItem.Dates {
 				if dOld.Date == dNew.Date { // วันเดียวกัน
 					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
 						return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว")
@@ -84,7 +84,7 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		}
 	}
 
-	// 4) โหลด student และเช็ค major ให้ตรงกับ activityItem.Majors (ถ้ามีจำกัด)
+	// 4) โหลด student และเช็ค major ให้ตรงกับ programItem.Majors (ถ้ามีจำกัด)
 	var student models.Student
 	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -94,10 +94,10 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 	}
 
 	// ✅ เช็คสาขา: กิจกรรมอนุญาตเฉพาะบาง major
-	if len(activityItem.Majors) > 0 {
+	if len(programItem.Majors) > 0 {
 		allowed := false
-		for _, m := range activityItem.Majors {
-			log.Println(activityItem.Majors)
+		for _, m := range programItem.Majors {
+			log.Println(programItem.Majors)
 			log.Println(student.Major)
 			if strings.EqualFold(m, student.Major) { // ปลอดภัยต่อเคสตัวพิมพ์เล็ก/ใหญ่
 				allowed = true
@@ -109,30 +109,30 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		}
 	}
 
-	// (ถ้าต้องการเช็คชั้นปีด้วย ให้เพิ่มเงื่อนไขจาก activityItem.StudentYears ที่นี่ได้)
+	// (ถ้าต้องการเช็คชั้นปีด้วย ให้เพิ่มเงื่อนไขจาก programItem.StudentYears ที่นี่ได้)
 
 	// 5) กันเต็มโควต้า
-	if activityItem.MaxParticipants != nil && activityItem.EnrollmentCount >= *activityItem.MaxParticipants {
+	if programItem.MaxParticipants != nil && programItem.EnrollmentCount >= *programItem.MaxParticipants {
 		return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากจำนวนผู้เข้าร่วมเต็มแล้ว")
 	}
 
 	// 6) กันลงซ้ำ
 	count, err := DB.EnrollmentCollection.CountDocuments(ctx, bson.M{
-		"activityItemId": activityItemID,
-		"studentId":      studentID,
+		"programItemId": programItemID,
+		"studentId":     studentID,
 	})
 	if err != nil {
 		return err
 	}
 	if count > 0 {
-		return errors.New("already enrolled in this activity")
+		return errors.New("already enrolled in this program")
 	}
 
 	// 7) Insert enrollment
 	newEnrollment := models.Enrollment{
 		ID:               primitive.NewObjectID(),
 		StudentID:        studentID,
-		ActivityItemID:   activityItemID,
+		ProgramItemID:    programItemID,
 		RegistrationDate: time.Now(),
 		Food:             food,
 	}
@@ -140,10 +140,10 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 		return err
 	}
 
-	// 8) เพิ่ม enrollmentcount +1 ใน activityItems
-	if _, err := DB.ActivityItemCollection.UpdateOne(
+	// 8) เพิ่ม enrollmentcount +1 ใน programItems
+	if _, err := DB.ProgramItemCollection.UpdateOne(
 		ctx,
-		bson.M{"_id": activityItemID},
+		bson.M{"_id": programItemID},
 		bson.M{"$inc": bson.M{"enrollmentcount": 1}},
 	); err != nil {
 		return fmt.Errorf("เพิ่ม enrollmentcount ไม่สำเร็จ: %w", err)
@@ -153,44 +153,44 @@ func RegisterStudent(activityItemID, studentID primitive.ObjectID, food *string)
 }
 
 // ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
-func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ActivityDto, int64, int, error) {
+func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ProgramDto, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// ✅ Step 1: ดึง activityItemIds จาก enrollment ที่ student ลงทะเบียน
+	// ✅ Step 1: ดึง programItemIds จาก enrollment ที่ student ลงทะเบียน
 	matchStage := bson.D{{Key: "$match", Value: bson.M{"studentId": studentID}}}
-	lookupActivityItem := bson.D{{Key: "$lookup", Value: bson.M{
-		"from":         "activityItems",
-		"localField":   "activityItemId",
+	lookupProgramItem := bson.D{{Key: "$lookup", Value: bson.M{
+		"from":         "Program_Items",
+		"localField":   "programItemId",
 		"foreignField": "_id",
-		"as":           "activityItemDetails",
+		"as":           "programItemDetails",
 	}}}
-	unwindActivityItem := bson.D{{Key: "$unwind", Value: "$activityItemDetails"}}
-	groupActivityIDs := bson.D{{Key: "$group", Value: bson.M{
-		"_id":             nil,
-		"activityItemIds": bson.M{"$addToSet": "$activityItemDetails._id"},
-		"activityIds":     bson.M{"$addToSet": "$activityItemDetails.activityId"},
+	unwindProgramItem := bson.D{{Key: "$unwind", Value: "$programItemDetails"}}
+	groupProgramIDs := bson.D{{Key: "$group", Value: bson.M{
+		"_id":            nil,
+		"programItemIds": bson.M{"$addToSet": "$programItemDetails._id"},
+		"programIds":     bson.M{"$addToSet": "$programItemDetails.programId"},
 	}}}
 
-	enrollmentStage := mongo.Pipeline{matchStage, lookupActivityItem, unwindActivityItem, groupActivityIDs}
+	enrollmentStage := mongo.Pipeline{matchStage, lookupProgramItem, unwindProgramItem, groupProgramIDs}
 	cur, err := DB.EnrollmentCollection.Aggregate(ctx, enrollmentStage)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("error fetching enrollments: %v", err)
 	}
 	var enrollmentResult []bson.M
 	if err := cur.All(ctx, &enrollmentResult); err != nil || len(enrollmentResult) == 0 {
-		return []models.ActivityDto{}, 0, 0, nil
+		return []models.ProgramDto{}, 0, 0, nil
 	}
-	activityIDs := enrollmentResult[0]["activityIds"].(primitive.A)
+	programIDs := enrollmentResult[0]["programIds"].(primitive.A)
 
-	// ✅ Step 2: Filter + Paginate + Lookup activities เหมือน GetAllActivities
+	// ✅ Step 2: Filter + Paginate + Lookup programs เหมือน GetAllPrograms
 	skip := int64((params.Page - 1) * params.Limit)
 	sort := bson.D{{Key: params.SortBy, Value: 1}}
 	if strings.ToLower(params.Order) == "desc" {
 		sort[0].Value = -1
 	}
 
-	filter := bson.M{"_id": bson.M{"$in": activityIDs}}
+	filter := bson.M{"_id": bson.M{"$in": programIDs}}
 	if params.Search != "" {
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
 	}
@@ -198,25 +198,25 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 		filter["skill"] = bson.M{"$in": skillFilter}
 	}
 
-	total, err := DB.ActivityCollection.CountDocuments(ctx, filter)
+	total, err := DB.ProgramCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	pipeline := activities.GetActivitiesPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
-	cursor, err := DB.ActivityCollection.Aggregate(ctx, pipeline)
+	pipeline := programs.GetProgramsPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
+	cursor, err := DB.ProgramCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	var activities []models.ActivityDto
-	if err := cursor.All(ctx, &activities); err != nil {
+	var programs []models.ProgramDto
+	if err := cursor.All(ctx, &programs); err != nil {
 		return nil, 0, 0, err
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
-	return activities, total, totalPages, nil
+	return programs, total, totalPages, nil
 }
 
 // ✅ 3. ยกเลิกการลงทะเบียน
@@ -233,19 +233,19 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 		return err
 	}
 
-	var activityItem models.ActivityItem
-	if err := DB.ActivityItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ActivityItemID}).Decode(&activityItem); err != nil {
+	var programItem models.ProgramItem
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ProgramItemID}).Decode(&programItem); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return errors.New("activity item not found")
+			return errors.New("program item not found")
 		}
 		return err
 	}
 
 	if enrollment.Food != nil {
-		activityID := activityItem.ActivityID
+		programID := programItem.ProgramID
 
 		// ✅ Update -1 vote ของ foodName ที่ตรงกับชื่ออาหาร
-		filter := bson.M{"_id": activityID}
+		filter := bson.M{"_id": programID}
 		update := bson.M{
 			"$inc": bson.M{"foodVotes.$[elem].vote": -1},
 		}
@@ -256,7 +256,7 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 		})
 
 		// ✅ Run update
-		_, err := DB.ActivityCollection.UpdateOne(ctx, filter, update, arrayFilter)
+		_, err := DB.ProgramCollection.UpdateOne(ctx, filter, update, arrayFilter)
 		if err != nil {
 			return err
 		}
@@ -273,9 +273,9 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 		return errors.New("no enrollment found to delete")
 	}
 
-	// ✅ ลบ enrollmentcount -1 จาก activityItem
-	_, err = DB.ActivityItemCollection.UpdateOne(ctx,
-		bson.M{"_id": enrollment.ActivityItemID},
+	// ✅ ลบ enrollmentcount -1 จาก programItem
+	_, err = DB.ProgramItemCollection.UpdateOne(ctx,
+		bson.M{"_id": enrollment.ProgramItemID},
 		bson.M{"$inc": bson.M{"enrollmentcount": -1}},
 	)
 	if err != nil {
@@ -286,15 +286,15 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 }
 
 // ✅ 4. Admin ดู Student ที่ลงทะเบียนในกิจกรรม พร้อมรายละเอียด
-func GetStudentsByActivity(activityID primitive.ObjectID) ([]bson.M, error) {
+func GetStudentsByProgram(programID primitive.ObjectID) ([]bson.M, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 🔍 ดึง `activityItemId` ทั้งหมดที่อยู่ภายใต้ `activityId`
-	activityItemIDs := []primitive.ObjectID{}
-	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	// 🔍 ดึง `programItemId` ทั้งหมดที่อยู่ภายใต้ `programId`
+	programItemIDs := []primitive.ObjectID{}
+	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})
 	if err != nil {
-		return nil, fmt.Errorf("error fetching activity items: %v", err)
+		return nil, fmt.Errorf("error fetching program items: %v", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -303,25 +303,25 @@ func GetStudentsByActivity(activityID primitive.ObjectID) ([]bson.M, error) {
 			ID primitive.ObjectID `bson:"_id"`
 		}
 		if err := cursor.Decode(&item); err != nil {
-			log.Println("Error decoding activity item:", err)
+			log.Println("Error decoding program item:", err)
 			continue
 		}
-		activityItemIDs = append(activityItemIDs, item.ID)
+		programItemIDs = append(programItemIDs, item.ID)
 	}
 
-	if len(activityItemIDs) == 0 {
+	if len(programItemIDs) == 0 {
 		return []bson.M{}, nil
 	}
 
-	// 🔍 ดึงข้อมูลนักศึกษาที่ลงทะเบียนในทุก `activityItemId`
+	// 🔍 ดึงข้อมูลนักศึกษาที่ลงทะเบียนในทุก `programItemId`
 	pipeline := mongo.Pipeline{
-		// 1️⃣ Match Enrollment ตาม `activityItemIds`
-		bson.D{{Key: "$match", Value: bson.M{"activityItemId": bson.M{"$in": activityItemIDs}}}},
+		// 1️⃣ Match Enrollment ตาม `programItemIds`
+		bson.D{{Key: "$match", Value: bson.M{"programItemId": bson.M{"$in": programItemIDs}}}},
 
 		// 2️⃣ Lookup Student Collection
 		bson.D{{
 			Key: "$lookup", Value: bson.M{
-				"from":         "students",
+				"from":         "Students",
 				"localField":   "studentId",
 				"foreignField": "_id",
 				"as":           "studentDetails",
@@ -329,62 +329,51 @@ func GetStudentsByActivity(activityID primitive.ObjectID) ([]bson.M, error) {
 		}},
 		bson.D{{Key: "$unwind", Value: "$studentDetails"}},
 
-		// 3️⃣ Lookup Major Collection
+		// 4️⃣ Lookup ProgramItems เพื่อดึง `name`
 		bson.D{{
 			Key: "$lookup", Value: bson.M{
-				"from":         "majors",
-				"localField":   "studentDetails.majorId",
+				"from":         "Program_Items",
+				"localField":   "programItemId",
 				"foreignField": "_id",
-				"as":           "majorDetails",
+				"as":           "programItemDetails",
 			},
 		}},
-		bson.D{{Key: "$unwind", Value: bson.M{"path": "$majorDetails", "preserveNullAndEmptyArrays": true}}},
-
-		// 4️⃣ Lookup ActivityItems เพื่อดึง `name`
-		bson.D{{
-			Key: "$lookup", Value: bson.M{
-				"from":         "activityItems",
-				"localField":   "activityItemId",
-				"foreignField": "_id",
-				"as":           "activityItemDetails",
-			},
-		}},
-		bson.D{{Key: "$unwind", Value: "$activityItemDetails"}},
+		bson.D{{Key: "$unwind", Value: "$programItemDetails"}},
 
 		// 5️⃣ Project ข้อมูลที่ต้องการ
 		bson.D{{
 			Key: "$project", Value: bson.M{
-				"activityItemId":   "$activityItemId",
-				"activityItemName": "$activityItemDetails.name", // ✅ เพิ่ม Name ของ ActivityItem
+				"programItemId":   "$programItemId",
+				"programItemName": "$programItemDetails.name", // ✅ เพิ่ม Name ของ ProgramItem
 				"student": bson.M{
 					"id":        "$studentDetails._id",
 					"code":      "$studentDetails.code",
 					"name":      "$studentDetails.name",
 					"email":     "$studentDetails.email",
 					"status":    "$studentDetails.status",
-					"major":     "$majorDetails.majorName",
+					"major":     "$studentDetails.major",
 					"softSkill": "$studentDetails.softSkill",
 					"hardSkill": "$studentDetails.hardSkill",
 				},
 			},
 		}},
 
-		// 6️⃣ Group นักศึกษาตาม `activityItemId`
+		// 6️⃣ Group นักศึกษาตาม `programItemId`
 		bson.D{{
 			Key: "$group", Value: bson.M{
-				"_id":      "$activityItemId",
-				"id":       bson.M{"$first": "$activityItemId"},
-				"name":     bson.M{"$first": "$activityItemName"}, // ✅ เพิ่ม Name
+				"_id":      "$programItemId",
+				"id":       bson.M{"$first": "$programItemId"},
+				"name":     bson.M{"$first": "$programItemName"}, // ✅ เพิ่ม Name
 				"students": bson.M{"$push": bson.M{"student": "$student"}},
 			},
 		}},
 
-		// 7️⃣ Group ตาม `activityId`
+		// 7️⃣ Group ตาม `programId`
 		bson.D{{
 			Key: "$group", Value: bson.M{
-				"_id":            activityID,
-				"activityId":     bson.M{"$first": activityID},
-				"activityItemId": bson.M{"$push": bson.M{"id": "$id", "name": "$name", "students": "$students"}}, // ✅ เพิ่ม Name ลงใน activityItemId
+				"_id":           programID,
+				"programId":     bson.M{"$first": programID},
+				"programItemId": bson.M{"$push": bson.M{"id": "$id", "name": "$name", "students": "$students"}}, // ✅ เพิ่ม Name ลงใน programItemId
 			},
 		}},
 
@@ -410,15 +399,15 @@ func GetStudentsByActivity(activityID primitive.ObjectID) ([]bson.M, error) {
 	return result, nil
 }
 
-// ✅ 5. ดึงข้อมูลเฉพาะ Activity ที่ Student ลงทะเบียนไว้ (1 ตัว)
-func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.ObjectID) (bson.M, error) {
+// ✅ 5. ดึงข้อมูลเฉพาะ Program ที่ Student ลงทะเบียนไว้ (1 ตัว)
+func GetEnrollmentByStudentAndProgram(studentID, programItemID primitive.ObjectID) (bson.M, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// 🔍 ตรวจสอบว่ามี Enrollment หรือไม่
 	count, err := DB.EnrollmentCollection.CountDocuments(ctx, bson.M{
-		"studentId":      studentID,
-		"activityItemId": activityItemID,
+		"studentId":     studentID,
+		"programItemId": programItemID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("database error: %v", err)
@@ -427,48 +416,48 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 		return nil, errors.New("Enrollment not found")
 	}
 
-	// 🔄 Aggregate Query เพื่อดึงเฉพาะ Enrollment ที่ตรงกับ Student และ ActivityItem
+	// 🔄 Aggregate Query เพื่อดึงเฉพาะ Enrollment ที่ตรงกับ Student และ ProgramItem
 	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID, "activityItemId": activityItemID}}},
+		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID, "programItemId": programItemID}}},
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activityIte	ms",
-			"localField":   "activityItemId",
+			"from":         "Program_Items",
+			"localField":   "programItemId",
 			"foreignField": "_id",
-			"as":           "activityItemDetails",
+			"as":           "programItemDetails",
 		}}},
-		bson.D{{Key: "$unwind", Value: "$activityItemDetails"}},
+		bson.D{{Key: "$unwind", Value: "$programItemDetails"}},
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activitys",
-			"localField":   "activityItemDetails.activityId",
+			"from":         "Programs",
+			"localField":   "programItemDetails.programId",
 			"foreignField": "_id",
-			"as":           "activityDetails",
+			"as":           "programDetails",
 		}}},
-		bson.D{{Key: "$unwind", Value: "$activityDetails"}},
+		bson.D{{Key: "$unwind", Value: "$programDetails"}},
 		bson.D{{Key: "$project", Value: bson.M{
 			"_id":              0,
 			"id":               "$_id",
 			"registrationDate": "$registrationDate",
 			"studentId":        "$studentId",
-			"activity": bson.M{
-				"id":              "$activityDetails._id",
-				"name":            "$activityDetails.name",
-				"type":            "$activityDetails.type",
-				"adminId":         "$activityDetails.adminId",
-				"activityStateId": "$activityDetails.activityStateId",
-				"skillId":         "$activityDetails.skillId",
-				"majorIds":        "$activityDetails.majorIds",
-				"activityItems": bson.M{
-					"id":              "$activityItemDetails._id",
-					"activityId":      "$activityItemDetails.activityId",
-					"name":            "$activityItemDetails.name",
-					"maxParticipants": "$activityItemDetails.maxParticipants",
-					"description":     "$activityItemDetails.description",
-					"room":            "$activityItemDetails.room",
-					"startDate":       "$activityItemDetails.startDate",
-					"endDate":         "$activityItemDetails.endDate",
-					"duration":        "$activityItemDetails.duration",
-					"operator":        "$activityItemDetails.operator",
-					"hour":            "$activityItemDetails.hour",
+			"program": bson.M{
+				"id":             "$programDetails._id",
+				"name":           "$programDetails.name",
+				"type":           "$programDetails.type",
+				"adminId":        "$programDetails.adminId",
+				"programStateId": "$programDetails.programStateId",
+				"skillId":        "$programDetails.skillId",
+				"majorIds":       "$programDetails.majorIds",
+				"programItems": bson.M{
+					"id":              "$programItemDetails._id",
+					"programId":       "$programItemDetails.programId",
+					"name":            "$programItemDetails.name",
+					"maxParticipants": "$programItemDetails.maxParticipants",
+					"description":     "$programItemDetails.description",
+					"room":            "$programItemDetails.room",
+					"startDate":       "$programItemDetails.startDate",
+					"endDate":         "$programItemDetails.endDate",
+					"duration":        "$programItemDetails.duration",
+					"operator":        "$programItemDetails.operator",
+					"hour":            "$programItemDetails.hour",
 				},
 			},
 		}}},
@@ -493,15 +482,15 @@ func GetEnrollmentByStudentAndActivity(studentID, activityItemID primitive.Objec
 	return result[0], nil // ✅ ส่ง Object เดียว
 }
 
-// ✅ 6. ดึงข้อมูล Enrollment ของ Student ใน Activity (รวม IsStudentEnrolledInActivity + GetEnrollmentByStudentAndActivity)
-func GetStudentEnrollmentInActivity(studentID, activityID primitive.ObjectID) (bson.M, error) {
+// ✅ 6. ดึงข้อมูล Enrollment ของ Student ใน Program (รวม IsStudentEnrolledInProgram + GetEnrollmentByStudentAndProgram)
+func GetStudentEnrollmentInProgram(studentID, programID primitive.ObjectID) (bson.M, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 1️⃣ ดึง activityItems ทั้งหมดใน activity นี้
-	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	// 1️⃣ ดึง programItems ทั้งหมดใน program นี้
+	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})
 	if err != nil {
-		return nil, fmt.Errorf("error fetching activity items: %v", err)
+		return nil, fmt.Errorf("error fetching program items: %v", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -516,69 +505,69 @@ func GetStudentEnrollmentInActivity(studentID, activityID primitive.ObjectID) (b
 	}
 
 	if len(itemIDs) == 0 {
-		return nil, errors.New("No activity items found for this activity")
+		return nil, errors.New("No program items found for this program")
 	}
 
 	// 2️⃣ ตรวจสอบว่านิสิตลงทะเบียนใน item ใดๆ เหล่านี้หรือไม่
 	filter := bson.M{
-		"studentId":      studentID,
-		"activityItemId": bson.M{"$in": itemIDs},
+		"studentId":     studentID,
+		"programItemId": bson.M{"$in": itemIDs},
 	}
 
 	var enrollment struct {
-		ID             primitive.ObjectID `bson:"_id"`
-		ActivityItemID primitive.ObjectID `bson:"activityItemId"`
+		ID            primitive.ObjectID `bson:"_id"`
+		ProgramItemID primitive.ObjectID `bson:"programItemId"`
 	}
 	err = DB.EnrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, errors.New("Student not enrolled in this activity")
+			return nil, errors.New("Student not enrolled in this program")
 		}
 		return nil, fmt.Errorf("database error: %v", err)
 	}
 
-	// 3️⃣ Aggregate Query เพื่อดึงข้อมูลเต็มของ Enrollment ที่ตรงกับ Student และ ActivityItem
+	// 3️⃣ Aggregate Query เพื่อดึงข้อมูลเต็มของ Enrollment ที่ตรงกับ Student และ ProgramItem
 	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID, "activityItemId": enrollment.ActivityItemID}}},
+		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID, "programItemId": enrollment.ProgramItemID}}},
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activityItems",
-			"localField":   "activityItemId",
+			"from":         "Program_Items",
+			"localField":   "programItemId",
 			"foreignField": "_id",
-			"as":           "activityItemDetails",
+			"as":           "programItemDetails",
 		}}},
-		bson.D{{Key: "$unwind", Value: "$activityItemDetails"}},
+		bson.D{{Key: "$unwind", Value: "$programItemDetails"}},
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activitys",
-			"localField":   "activityItemDetails.activityId",
+			"from":         "Programs",
+			"localField":   "programItemDetails.programId",
 			"foreignField": "_id",
-			"as":           "activityDetails",
+			"as":           "programDetails",
 		}}},
-		bson.D{{Key: "$unwind", Value: "$activityDetails"}},
+		bson.D{{Key: "$unwind", Value: "$programDetails"}},
 		bson.D{{Key: "$project", Value: bson.M{
 			"_id":              0,
 			"id":               "$_id",
 			"registrationDate": "$registrationDate",
 			"studentId":        "$studentId",
 			"food":             "$food",
-			"activity": bson.M{
-				"id":              "$activityDetails._id",
-				"name":            "$activityDetails.name",
-				"adminId":         "$activityDetails.adminId",
-				"activityStateId": "$activityDetails.activityStateId",
-				"skillId":         "$activityDetails.skillId",
-				"majorIds":        "$activityDetails.majorIds",
-				"activityItems": bson.M{
-					"id":              "$activityItemDetails._id",
-					"activityId":      "$activityItemDetails.activityId",
-					"name":            "$activityItemDetails.name",
-					"maxParticipants": "$activityItemDetails.maxParticipants",
-					"description":     "$activityItemDetails.description",
-					"rooms":           "$activityItemDetails.rooms",
-					"startDate":       "$activityItemDetails.startDate",
-					"endDate":         "$activityItemDetails.endDate",
-					"duration":        "$activityItemDetails.duration",
-					"operator":        "$activityItemDetails.operator",
-					"hour":            "$activityItemDetails.hour",
+			"program": bson.M{
+				"id":             "$programDetails._id",
+				"name":           "$programDetails.name",
+				"adminId":        "$programDetails.adminId",
+				"programStateId": "$programDetails.programStateId",
+				"skillId":        "$programDetails.skillId",
+				"majorIds":       "$programDetails.majorIds",
+				"programItems": bson.M{
+					"id":              "$programItemDetails._id",
+					"programId":       "$programItemDetails.programId",
+					"name":            "$programItemDetails.name",
+					"maxParticipants": "$programItemDetails.maxParticipants",
+					"description":     "$programItemDetails.description",
+					"rooms":           "$programItemDetails.rooms",
+					"startDate":       "$programItemDetails.startDate",
+					"endDate":         "$programItemDetails.endDate",
+					"duration":        "$programItemDetails.duration",
+					"operator":        "$programItemDetails.operator",
+					"hour":            "$programItemDetails.hour",
 				},
 			},
 		}}},
@@ -607,18 +596,18 @@ func isTimeOverlap(start1, end1, start2, end2 string) bool {
 	return !(end1 <= start2 || end2 <= start1)
 }
 
-func IsStudentEnrolled(studentId string, activityItemId string) bool {
+func IsStudentEnrolled(studentId string, programItemId string) bool {
 	sID, err1 := primitive.ObjectIDFromHex(studentId)
-	aID, err2 := primitive.ObjectIDFromHex(activityItemId)
+	aID, err2 := primitive.ObjectIDFromHex(programItemId)
 
 	if err1 != nil || err2 != nil {
-		log.Printf("Invalid ObjectID: studentId=%s, activityItemId=%s", studentId, activityItemId)
+		log.Printf("Invalid ObjectID: studentId=%s, programItemId=%s", studentId, programItemId)
 		return false
 	}
 
 	filter := bson.M{
-		"studentId":      sID,
-		"activityItemId": aID,
+		"studentId":     sID,
+		"programItemId": aID,
 	}
 
 	count, err := DB.EnrollmentCollection.CountDocuments(context.TODO(), filter)
@@ -630,10 +619,10 @@ func IsStudentEnrolled(studentId string, activityItemId string) bool {
 	return count > 0
 }
 
-// FindEnrolledItem คืน activityItemId ที่นิสิตลงทะเบียนไว้ใน activityId นี้
-func FindEnrolledItem(userId string, activityId string) (string, bool) {
+// FindEnrolledItem คืน programItemId ที่นิสิตลงทะเบียนไว้ใน programId นี้
+func FindEnrolledItem(userId string, programId string) (string, bool) {
 	uID, _ := primitive.ObjectIDFromHex(userId)
-	aID, _ := primitive.ObjectIDFromHex(activityId)
+	aID, _ := primitive.ObjectIDFromHex(programId)
 
 	// 1. ดึง enrollments ทั้งหมดของ userId
 	cursor, err := DB.EnrollmentCollection.Find(context.TODO(), bson.M{
@@ -644,29 +633,29 @@ func FindEnrolledItem(userId string, activityId string) (string, bool) {
 	}
 	defer cursor.Close(context.TODO())
 
-	// 2. เช็กแต่ละรายการว่า activityItemId → activityId ตรงหรือไม่
+	// 2. เช็กแต่ละรายการว่า programItemId → programId ตรงหรือไม่
 	for cursor.Next(context.TODO()) {
 		var enrollment models.Enrollment
 		if err := cursor.Decode(&enrollment); err != nil {
 			continue
 		}
 
-		var item models.ActivityItem
-		err := DB.ActivityItemCollection.FindOne(context.TODO(), bson.M{
-			"_id": enrollment.ActivityItemID,
+		var item models.ProgramItem
+		err := DB.ProgramItemCollection.FindOne(context.TODO(), bson.M{
+			"_id": enrollment.ProgramItemID,
 		}).Decode(&item)
-		if err == nil && item.ActivityID == aID {
-			return enrollment.ActivityItemID.Hex(), true
+		if err == nil && item.ProgramID == aID {
+			return enrollment.ProgramItemID.Hex(), true
 		}
 	}
 
 	return "", false
 }
 
-// FindEnrolledItems คืน activityItemIds ทั้งหมดที่นิสิตลงทะเบียนไว้ใน activityId นี้
-func FindEnrolledItems(userId string, activityId string) ([]string, bool) {
+// FindEnrolledItems คืน programItemIds ทั้งหมดที่นิสิตลงทะเบียนไว้ใน programId นี้
+func FindEnrolledItems(userId string, programId string) ([]string, bool) {
 	uID, _ := primitive.ObjectIDFromHex(userId)
-	aID, _ := primitive.ObjectIDFromHex(activityId)
+	aID, _ := primitive.ObjectIDFromHex(programId)
 
 	var enrolledItemIDs []string
 
@@ -679,19 +668,19 @@ func FindEnrolledItems(userId string, activityId string) ([]string, bool) {
 	}
 	defer cursor.Close(context.TODO())
 
-	// 2. เช็กแต่ละรายการว่า activityItemId → activityId ตรงหรือไม่
+	// 2. เช็กแต่ละรายการว่า programItemId → programId ตรงหรือไม่
 	for cursor.Next(context.TODO()) {
 		var enrollment models.Enrollment
 		if err := cursor.Decode(&enrollment); err != nil {
 			continue
 		}
 
-		var item models.ActivityItem
-		err := DB.ActivityItemCollection.FindOne(context.TODO(), bson.M{
-			"_id": enrollment.ActivityItemID,
+		var item models.ProgramItem
+		err := DB.ProgramItemCollection.FindOne(context.TODO(), bson.M{
+			"_id": enrollment.ProgramItemID,
 		}).Decode(&item)
-		if err == nil && item.ActivityID == aID {
-			enrolledItemIDs = append(enrolledItemIDs, enrollment.ActivityItemID.Hex())
+		if err == nil && item.ProgramID == aID {
+			enrolledItemIDs = append(enrolledItemIDs, enrollment.ProgramItemID.Hex())
 		}
 	}
 
@@ -701,15 +690,27 @@ func FindEnrolledItems(userId string, activityId string) ([]string, bool) {
 	return enrolledItemIDs, true
 }
 
-// GetEnrollmentActivityDetails คืนข้อมูล Activity ที่คล้ายกับ activity getOne แต่เอาเฉพาะ item ที่นักเรียนลงทะเบียน
-func GetEnrollmentActivityDetails(studentID, activityID primitive.ObjectID) (*models.ActivityDto, error) {
+// GetEnrollmentProgramDetails คืนข้อมูล Program ที่คล้ายกับ program getOne แต่เอาเฉพาะ item ที่นักเรียนลงทะเบียน
+func GetEnrollmentProgramDetails(studentID, programID primitive.ObjectID) (*models.ProgramDto, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 1️⃣ ดึง activityItems ทั้งหมดใน activity นี้
-	cursor, err := DB.ActivityItemCollection.Find(ctx, bson.M{"activityId": activityID})
+	// 0️⃣ ตรวจสอบว่า program มีอยู่จริงหรือไม่
+	var programExists struct {
+		ID primitive.ObjectID `bson:"_id"`
+	}
+	err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programID}).Decode(&programExists)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching activity items: %v", err)
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("Program not found")
+		}
+		return nil, fmt.Errorf("error checking program existence: %v", err)
+	}
+
+	// 1️⃣ ดึง programItems ทั้งหมดใน program นี้
+	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})
+	if err != nil {
+		return nil, fmt.Errorf("error fetching program items: %v", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -723,143 +724,162 @@ func GetEnrollmentActivityDetails(studentID, activityID primitive.ObjectID) (*mo
 		}
 	}
 
+	// Debug: Log the program items found
+	fmt.Printf("DEBUG: Found %d program items for program %s: %v\n", len(itemIDs), programID.Hex(), itemIDs)
+
 	if len(itemIDs) == 0 {
-		return nil, errors.New("No activity items found for this activity")
+		return nil, errors.New("No program items found for this program")
 	}
 
 	// 2️⃣ ตรวจสอบว่านิสิตลงทะเบียนใน item ใดๆ เหล่านี้หรือไม่
 	filter := bson.M{
-		"studentId":      studentID,
-		"activityItemId": bson.M{"$in": itemIDs},
+		"studentId":     studentID,
+		"programItemId": bson.M{"$in": itemIDs},
 	}
 
+	// Debug: Log the enrollment filter
+	fmt.Printf("DEBUG: Checking enrollment with filter: %+v\n", filter)
+
 	var enrollment struct {
-		ID             primitive.ObjectID `bson:"_id"`
-		ActivityItemID primitive.ObjectID `bson:"activityItemId"`
+		ID            primitive.ObjectID `bson:"_id"`
+		ProgramItemID primitive.ObjectID `bson:"programItemId"`
 	}
 	err = DB.EnrollmentCollection.FindOne(ctx, filter).Decode(&enrollment)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, errors.New("Student not enrolled in this activity")
+			// Debug: Check if student has any enrollments at all
+			var anyEnrollment struct {
+				ID primitive.ObjectID `bson:"_id"`
+			}
+			anyErr := DB.EnrollmentCollection.FindOne(ctx, bson.M{"studentId": studentID}).Decode(&anyEnrollment)
+			if anyErr == nil {
+				fmt.Printf("DEBUG: Student has enrollments but not in this program\n")
+			} else {
+				fmt.Printf("DEBUG: Student has no enrollments at all\n")
+			}
+			return nil, errors.New("Student not enrolled in this program")
 		}
 		return nil, fmt.Errorf("database error: %v", err)
 	}
 
-	// 3️⃣ Aggregate Query เพื่อดึงข้อมูล Activity พร้อม ActivityItems ที่นักเรียนลงทะเบียน
-	pipeline := mongo.Pipeline{
-		// Match Activity
-		bson.D{{Key: "$match", Value: bson.M{"_id": activityID}}},
+	fmt.Printf("DEBUG: Found enrollment: %s for programItem: %s\n", enrollment.ID.Hex(), enrollment.ProgramItemID.Hex())
 
-		// Lookup ActivityItems
+	// 3️⃣ Aggregate Query เพื่อดึงข้อมูล Program พร้อม ProgramItems ที่นักเรียนลงทะเบียน
+	pipeline := mongo.Pipeline{
+		// Match Program
+		bson.D{{Key: "$match", Value: bson.M{"_id": programID}}},
+
+		// Lookup ProgramItems
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "activityItems",
+			"from":         "Program_Items",
 			"localField":   "_id",
-			"foreignField": "activityId",
-			"as":           "activityItems",
+			"foreignField": "programId",
+			"as":           "programItems",
 		}}},
 
-		// Unwind ActivityItems
-		bson.D{{Key: "$unwind", Value: "$activityItems"}},
+		// Unwind ProgramItems
+		bson.D{{Key: "$unwind", Value: "$programItems"}},
 
 		// Lookup Enrollments เพื่อเช็คว่านักเรียนลงทะเบียนใน item นี้หรือไม่
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "enrollments",
-			"localField":   "activityItems._id",
-			"foreignField": "activityItemId",
+			"from":         "Enrollments",
+			"localField":   "programItems._id",
+			"foreignField": "programItemId",
 			"as":           "enrollments",
 		}}},
 
-		// Match เฉพาะ ActivityItems ที่นักเรียนลงทะเบียน
+		// Match เฉพาะ ProgramItems ที่นักเรียนลงทะเบียน
 		bson.D{{Key: "$match", Value: bson.M{
 			"enrollments": bson.M{
 				"$elemMatch": bson.M{"studentId": studentID},
 			},
 		}}},
 
-		// Group กลับเป็น Activity พร้อม ActivityItems ที่กรองแล้ว
+		// Group กลับเป็น Program พร้อม ProgramItems ที่กรองแล้ว
 		bson.D{{Key: "$group", Value: bson.M{
 			"_id":           "$_id",
 			"name":          bson.M{"$first": "$name"},
 			"type":          bson.M{"$first": "$type"},
-			"activityState": bson.M{"$first": "$activityState"},
+			"programState":  bson.M{"$first": "$programState"},
 			"skill":         bson.M{"$first": "$skill"},
 			"file":          bson.M{"$first": "$file"},
 			"foodVotes":     bson.M{"$first": "$foodVotes"},
 			"endDateEnroll": bson.M{"$first": "$endDateEnroll"},
-			"activityItems": bson.M{"$push": "$activityItems"},
+			"programItems":  bson.M{"$push": "$programItems"},
 		}}},
 
-		// Project ให้ตรงกับ ActivityDto
+		// Project ให้ตรงกับ ProgramDto
 		bson.D{{Key: "$project", Value: bson.M{
 			"_id":           0,
 			"id":            "$_id",
 			"name":          "$name",
 			"type":          "$type",
-			"activityState": "$activityState",
+			"programState":  "$programState",
 			"skill":         "$skill",
 			"file":          "$file",
 			"foodVotes":     "$foodVotes",
 			"endDateEnroll": "$endDateEnroll",
-			"activityItems": "$activityItems",
+			"programItems":  "$programItems",
 		}}},
 	}
 
-	cursor, err = DB.ActivityCollection.Aggregate(ctx, pipeline)
+	log.Println(pipeline)
+	cursor, err = DB.ProgramCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("aggregation error: %v", err)
 	}
 	defer cursor.Close(ctx)
 
-	var result models.ActivityDto
+	var result models.ProgramDto
 	if cursor.Next(ctx) {
 		if err := cursor.Decode(&result); err != nil {
 			return nil, fmt.Errorf("cursor error: %v", err)
 		}
 		return &result, nil
 	}
-
-	return nil, errors.New("Activity not found")
+	log.Println(result)
+	return nil, errors.New("Student not enrolled in this program")
 }
 
-func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ActivityHistory, int64, int, error) {
+func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ProgramHistory, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// ✅ Step 1: ดึง activityItemIds จาก enrollment ที่ student ลงทะเบียน
+	// ✅ Step 1: ดึง programItemIds จาก enrollment ที่ student ลงทะเบียน
 	matchStage := bson.D{{Key: "$match", Value: bson.M{"studentId": studentID}}}
-	lookupActivityItem := bson.D{{Key: "$lookup", Value: bson.M{
-		"from":         "activityItems",
-		"localField":   "activityItemId",
+	lookupProgramItem := bson.D{{Key: "$lookup", Value: bson.M{
+		"from":         "Program_Items",
+		"localField":   "programItemId",
 		"foreignField": "_id",
-		"as":           "activityItemDetails",
+		"as":           "programItemDetails",
 	}}}
-	unwindActivityItem := bson.D{{Key: "$unwind", Value: "$activityItemDetails"}}
-	groupActivityIDs := bson.D{{Key: "$group", Value: bson.M{
-		"_id":             nil,
-		"activityItemIds": bson.M{"$addToSet": "$activityItemDetails._id"},
-		"activityIds":     bson.M{"$addToSet": "$activityItemDetails.activityId"},
+	unwindProgramItem := bson.D{{Key: "$unwind", Value: "$programItemDetails"}}
+	groupProgramIDs := bson.D{{Key: "$group", Value: bson.M{
+		"_id":            nil,
+		"programItemIds": bson.M{"$addToSet": "$programItemDetails._id"},
+		"programIds":     bson.M{"$addToSet": "$programItemDetails.programId"},
 	}}}
 
-	enrollmentStage := mongo.Pipeline{matchStage, lookupActivityItem, unwindActivityItem, groupActivityIDs}
+	enrollmentStage := mongo.Pipeline{matchStage, lookupProgramItem, unwindProgramItem, groupProgramIDs}
 	cur, err := DB.EnrollmentCollection.Aggregate(ctx, enrollmentStage)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("error fetching enrollments: %v", err)
 	}
 	var enrollmentResult []bson.M
 	if err := cur.All(ctx, &enrollmentResult); err != nil || len(enrollmentResult) == 0 {
-		return []models.ActivityHistory{}, 0, 0, nil
+		return []models.ProgramHistory{}, 0, 0, nil
 	}
-	activityIDs := enrollmentResult[0]["activityIds"].(primitive.A)
-	activityItemIDs := enrollmentResult[0]["activityItemIds"].(primitive.A)
+	programIDs := enrollmentResult[0]["programIds"].(primitive.A)
+	programItemIDs := enrollmentResult[0]["programItemIds"].(primitive.A)
 
-	// ✅ Step 2: Filter + Paginate + Lookup activities เหมือน GetAllActivities
+	// ✅ Step 2: Filter + Paginate + Lookup programs เหมือน GetAllPrograms
 	skip := int64((params.Page - 1) * params.Limit)
 	sort := bson.D{{Key: params.SortBy, Value: 1}}
 	if strings.ToLower(params.Order) == "desc" {
 		sort[0].Value = -1
 	}
 
-	filter := bson.M{"_id": bson.M{"$in": activityIDs}}
+	filter := bson.M{"_id": bson.M{"$in": programIDs}}
 	if params.Search != "" {
 		filter["name"] = bson.M{"$regex": params.Search, "$options": "i"}
 	}
@@ -867,40 +887,40 @@ func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID, params models.
 		filter["skill"] = bson.M{"$in": skillFilter}
 	}
 
-	total, err := DB.ActivityCollection.CountDocuments(ctx, filter)
+	total, err := DB.ProgramCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	pipeline := activities.GetActivitiesPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
-	// เพิ่มขั้นตอนเพื่อกรอง activityItems ให้เหลือเฉพาะที่นิสิตลงทะเบียน
+	pipeline := programs.GetProgramsPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
+	// เพิ่มขั้นตอนเพื่อกรอง programItems ให้เหลือเฉพาะที่นิสิตลงทะเบียน
 	pipeline = append(pipeline,
 		bson.D{{Key: "$addFields", Value: bson.M{
-			"activityItems": bson.M{
+			"programItems": bson.M{
 				"$filter": bson.M{
-					"input": "$activityItems",
+					"input": "$programItems",
 					"as":    "it",
-					"cond":  bson.M{"$in": []interface{}{"$$it._id", activityItemIDs}},
+					"cond":  bson.M{"$in": []interface{}{"$$it._id", programItemIDs}},
 				},
 			},
 		}}},
 	)
 
-	cursor, err := DB.ActivityCollection.Aggregate(ctx, pipeline)
+	cursor, err := DB.ProgramCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	var activitiesOut []models.ActivityHistory
-	if err := cursor.All(ctx, &activitiesOut); err != nil {
+	var programsOut []models.ProgramHistory
+	if err := cursor.All(ctx, &programsOut); err != nil {
 		return nil, 0, 0, err
 	}
 
 	// ✅ เติม CheckinoutRecord โดยเรียกใช้ services.GetCheckinStatus (เวลาคืนเป็นโซนไทยอยู่แล้ว)
-	for i := range activitiesOut {
-		for j := range activitiesOut[i].ActivityItems {
-			item := &activitiesOut[i].ActivityItems[j]
+	for i := range programsOut {
+		for j := range programsOut[i].ProgramItems {
+			item := &programsOut[i].ProgramItems[j]
 			status, _ := GetCheckinStatus(studentID.Hex(), item.ID.Hex())
 			if len(status) > 0 {
 				item.CheckinoutRecord = status
@@ -909,9 +929,9 @@ func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID, params models.
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
-	return activitiesOut, total, totalPages, nil
+	return programsOut, total, totalPages, nil
 }
-func GetEnrollmentId(studentID, activityItemID primitive.ObjectID) (primitive.ObjectID, error) {
+func GetEnrollmentId(studentID, programItemID primitive.ObjectID) (primitive.ObjectID, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -922,8 +942,8 @@ func GetEnrollmentId(studentID, activityItemID primitive.ObjectID) (primitive.Ob
 	err := DB.EnrollmentCollection.FindOne(
 		ctx,
 		bson.M{
-			"studentId":      studentID,
-			"activityItemId": activityItemID,
+			"studentId":     studentID,
+			"programItemId": programItemID,
 		},
 		options.FindOne().
 			SetProjection(bson.M{"_id": 1}).
@@ -946,7 +966,7 @@ type BulkEnrollItem struct {
 }
 
 type BulkEnrollResult struct {
-	ActivityItemID string                  `json:"activityItemId"`
+	ProgramItemID  string                  `json:"programItemId"`
 	TotalRequested int                     `json:"totalRequested"`
 	Success        []BulkEnrollSuccessItem `json:"success"`
 	Failed         []BulkEnrollFailedItem  `json:"failed"`
@@ -964,9 +984,9 @@ type BulkEnrollFailedItem struct {
 }
 
 // ✅ Bulk โดยยังคงใช้กฎจาก RegisterStudent เดิมทุกอย่าง
-func RegisterStudentsByCodes(ctx context.Context, activityItemID primitive.ObjectID, items []BulkEnrollItem) (*BulkEnrollResult, error) {
+func RegisterStudentsByCodes(ctx context.Context, programItemID primitive.ObjectID, items []BulkEnrollItem) (*BulkEnrollResult, error) {
 	res := &BulkEnrollResult{
-		ActivityItemID: activityItemID.Hex(),
+		ProgramItemID:  programItemID.Hex(),
 		TotalRequested: len(items),
 		Success:        make([]BulkEnrollSuccessItem, 0, len(items)),
 		Failed:         make([]BulkEnrollFailedItem, 0),
@@ -1027,7 +1047,7 @@ func RegisterStudentsByCodes(ctx context.Context, activityItemID primitive.Objec
 		}
 
 		// เรียก service เดิมให้ตรวจทุกกฎ (กันชนเวลา/สาขา/เต็มโควต้า/ลงซ้ำ/เพิ่ม foodVotes/เพิ่ม enrollmentcount)
-		if err := RegisterStudent(activityItemID, stu.ID, it.Food); err != nil {
+		if err := RegisterStudent(programItemID, stu.ID, it.Food); err != nil {
 			res.Failed = append(res.Failed, BulkEnrollFailedItem{
 				StudentCode: code,
 				Reason:      err.Error(),

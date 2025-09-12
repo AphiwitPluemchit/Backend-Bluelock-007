@@ -12,7 +12,7 @@ import (
 )
 
 // processStudentHours processes hours for a single student
-func processStudentHours(ctx context.Context, studentID primitive.ObjectID, activityItemID primitive.ObjectID, activityItem models.ActivityItem, skillType string) (*HourChangeResult, error) {
+func processStudentHours(ctx context.Context, studentID primitive.ObjectID, programItemID primitive.ObjectID, programItem models.ProgramItem, skillType string) (*HourChangeResult, error) {
 	// ดึงข้อมูลนักเรียนเพื่อหาชื่อและรหัสนักศึกษา
 	var student models.Student
 	err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student)
@@ -22,8 +22,8 @@ func processStudentHours(ctx context.Context, studentID primitive.ObjectID, acti
 
 	// ดึงข้อมูล check-in/out ของนักเรียนนี้
 	cursor, err := DB.CheckinCollection.Find(ctx, bson.M{
-		"studentId":      studentID,
-		"activityItemId": activityItemID,
+		"studentId":     studentID,
+		"programItemId": programItemID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("ไม่สามารถดึงข้อมูลบันทึกการเข้า/ออกได้: %v", err)
@@ -37,15 +37,15 @@ func processStudentHours(ctx context.Context, studentID primitive.ObjectID, acti
 
 	// ถ้าไม่มี check-in/out records เลย ให้ลบ hour
 	if len(checkinRecords) == 0 {
-		err := removeStudentHours(ctx, studentID, *activityItem.Hour, skillType)
+		err := removeStudentHours(ctx, studentID, *programItem.Hour, skillType)
 		if err != nil {
 			return nil, err
 		}
 
 		// บันทึกประวัติการเปลี่ยนแปลง
 		err = saveHourChangeHistory(ctx, studentID, student.Name, student.Code,
-			activityItem.ActivityID.Hex(), "", activityItemID.Hex(), "", skillType,
-			-*activityItem.Hour, "ไม่พบบันทึกการเช็คอิน/เช็คเอาท์")
+			programItem.ProgramID.Hex(), "", programItemID.Hex(), "", skillType,
+			-*programItem.Hour, "ไม่พบบันทึกการเช็คอิน/เช็คเอาท์")
 		if err != nil {
 			// ไม่ return error เพราะการบันทึกประวัติไม่ควรทำให้การประมวลผลล้มเหลว
 			fmt.Printf("Warning: Failed to save hour change history: %v\n", err)
@@ -56,7 +56,7 @@ func processStudentHours(ctx context.Context, studentID primitive.ObjectID, acti
 			StudentName: student.Name,
 			StudentCode: student.Code,
 			SkillType:   skillType,
-			HoursChange: -*activityItem.Hour,
+			HoursChange: -*programItem.Hour,
 			Message:     "ไม่พบบันทึกการเช็คอิน/เช็คเอาท์ - ชั่วโมงถูกลบออก",
 		}, nil
 	}
@@ -79,7 +79,7 @@ func processStudentHours(ctx context.Context, studentID primitive.ObjectID, acti
 	totalHoursToAdd := 0
 	processedDates := make(map[string]bool)
 
-	for _, dateInfo := range activityItem.Dates {
+	for _, dateInfo := range programItem.Dates {
 		date := dateInfo.Date
 		if processedDates[date] {
 			continue
@@ -113,7 +113,7 @@ func processStudentHours(ctx context.Context, studentID primitive.ObjectID, acti
 		}
 
 		// ตรวจสอบเงื่อนไขการเพิ่มชั่วโมง
-		hoursToAdd := calculateHoursForDate(dateInfo, earliestCheckin, earliestCheckout, *activityItem.Hour)
+		hoursToAdd := calculateHoursForDate(dateInfo, earliestCheckin, earliestCheckout, *programItem.Hour)
 		totalHoursToAdd += hoursToAdd
 	}
 
@@ -141,7 +141,7 @@ func processStudentHours(ctx context.Context, studentID primitive.ObjectID, acti
 
 	// บันทึกประวัติการเปลี่ยนแปลง (ทุกกรณี)
 	err = saveHourChangeHistory(ctx, studentID, student.Name, student.Code,
-		activityItem.ActivityID.Hex(), "", activityItemID.Hex(), "", skillType,
+		programItem.ProgramID.Hex(), "", programItemID.Hex(), "", skillType,
 		totalHoursToAdd, reason)
 	if err != nil {
 		// ไม่ return error เพราะการบันทึกประวัติไม่ควรทำให้การประมวลผลล้มเหลว
@@ -159,7 +159,7 @@ func processStudentHours(ctx context.Context, studentID primitive.ObjectID, acti
 }
 
 // calculateHoursForDate calculates hours to add/remove for a specific date
-func calculateHoursForDate(dateInfo models.Dates, checkin *time.Time, checkout *time.Time, activityHour int) int {
+func calculateHoursForDate(dateInfo models.Dates, checkin *time.Time, checkout *time.Time, programHour int) int {
 	// แปลงเวลาเริ่มเป็น time.Time
 	startTime, err := parseTime(dateInfo.Date, dateInfo.Stime)
 	if err != nil {
@@ -174,7 +174,7 @@ func calculateHoursForDate(dateInfo models.Dates, checkin *time.Time, checkout *
 		// มีทั้ง check-in และ checkout
 		if checkin.Before(allowedCheckinTime) || checkin.Equal(allowedCheckinTime) {
 			// Check-in ก่อนหรือเท่ากับเวลาเริ่ม + 15 นาที
-			return activityHour
+			return programHour
 		} else {
 			// Check-in หลังเวลาเริ่ม + 15 นาที
 			return 0
@@ -187,7 +187,7 @@ func calculateHoursForDate(dateInfo models.Dates, checkin *time.Time, checkout *
 		return 0
 	} else {
 		// ไม่มีทั้ง check-in และ checkout
-		return -activityHour // ลบชั่วโมง
+		return -programHour // ลบชั่วโมง
 	}
 }
 
@@ -197,7 +197,7 @@ func parseTime(date, timeStr string) (time.Time, error) {
 	return time.ParseInLocation("2006-01-02 15:04", date+" "+timeStr, loc)
 }
 
-// addStudentHours adds hours to student's skill count based on activity skill type
+// addStudentHours adds hours to student's skill count based on program skill type
 func addStudentHours(ctx context.Context, studentID primitive.ObjectID, hours int, skillType string) error {
 	// ดึงข้อมูลนักเรียน
 	var student models.Student
@@ -233,7 +233,7 @@ func addStudentHours(ctx context.Context, studentID primitive.ObjectID, hours in
 	return nil
 }
 
-// removeStudentHours removes hours from student's skill count based on activity skill type
+// removeStudentHours removes hours from student's skill count based on program skill type
 func removeStudentHours(ctx context.Context, studentID primitive.ObjectID, hours int, skillType string) error {
 	// ดึงข้อมูลนักเรียน
 	var student models.Student
@@ -281,7 +281,7 @@ func removeStudentHours(ctx context.Context, studentID primitive.ObjectID, hours
 
 // saveHourChangeHistory บันทึกประวัติการเปลี่ยนแปลงชั่วโมง
 func saveHourChangeHistory(ctx context.Context, studentID primitive.ObjectID, studentName, studentCode string,
-	activityID, activityName, activityItemID, activityItemName, skillType string,
+	programID, programName, programItemID, programItemName, skillType string,
 	hoursChange int, reason string) error {
 
 	// กำหนด changeType ตาม hoursChange
@@ -294,32 +294,32 @@ func saveHourChangeHistory(ctx context.Context, studentID primitive.ObjectID, st
 		changeType = "no_change"
 	}
 
-	// แปลง activityID และ activityItemID เป็น ObjectID
-	activityObjID, err := primitive.ObjectIDFromHex(activityID)
+	// แปลง programID และ programItemID เป็น ObjectID
+	programObjID, err := primitive.ObjectIDFromHex(programID)
 	if err != nil {
-		return fmt.Errorf("invalid activity ID format: %v", err)
+		return fmt.Errorf("invalid program ID format: %v", err)
 	}
 
-	activityItemObjID, err := primitive.ObjectIDFromHex(activityItemID)
+	programItemObjID, err := primitive.ObjectIDFromHex(programItemID)
 	if err != nil {
-		return fmt.Errorf("invalid activity item ID format: %v", err)
+		return fmt.Errorf("invalid program item ID format: %v", err)
 	}
 
 	// สร้างประวัติการเปลี่ยนแปลง
 	history := models.HourChangeHistory{
-		ID:               primitive.NewObjectID(),
-		StudentID:        studentID,
-		StudentName:      studentName,
-		StudentCode:      studentCode,
-		ActivityID:       activityObjID,
-		ActivityName:     activityName,
-		ActivityItemID:   activityItemObjID,
-		ActivityItemName: activityItemName,
-		SkillType:        skillType,
-		HoursChange:      hoursChange,
-		ChangeType:       changeType,
-		Reason:           reason,
-		ChangedAt:        time.Now(),
+		ID:              primitive.NewObjectID(),
+		StudentID:       studentID,
+		StudentName:     studentName,
+		StudentCode:     studentCode,
+		ProgramID:       programObjID,
+		ProgramName:     programName,
+		ProgramItemID:   programItemObjID,
+		ProgramItemName: programItemName,
+		SkillType:       skillType,
+		HoursChange:     hoursChange,
+		ChangeType:      changeType,
+		Reason:          reason,
+		ChangedAt:       time.Now(),
 	}
 
 	// บันทึกลงฐานข้อมูล

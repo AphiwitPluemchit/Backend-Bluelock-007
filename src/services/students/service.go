@@ -4,7 +4,7 @@ import (
 	"Backend-Bluelock-007/src/database"
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services/activities"
+	"Backend-Bluelock-007/src/services/programs"
 	"context"
 	"errors"
 	"fmt"
@@ -71,7 +71,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 			}
 		}
 		if len(intYears) > 0 {
-			yearPrefixes := activities.GenerateStudentCodeFilter(intYears)
+			yearPrefixes := programs.GenerateStudentCodeFilter(intYears)
 			var regexFilters []bson.M
 			for _, prefix := range yearPrefixes {
 				regexFilters = append(regexFilters, bson.M{"code": bson.M{"$regex": "^" + prefix}})
@@ -153,7 +153,7 @@ func GetStudentByCode(code string) (bson.M, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{"code": code}}},
 		{{Key: "$lookup", Value: bson.M{
-			"from":         "users",
+			"from":         "Users",
 			"localField":   "_id",
 			"foreignField": "refId",
 			"as":           "user",
@@ -387,35 +387,35 @@ func GetSammaryByCode(code string) (bson.M, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{"studentId": student.ID}}},
 		{{Key: "$lookup", Value: bson.M{
-			"from":         "activityItems",
-			"localField":   "activityItemId",
+			"from":         "Program_Items",
+			"localField":   "programItemId",
 			"foreignField": "_id",
-			"as":           "activityItem",
+			"as":           "programItem",
 		}}},
-		{{Key: "$unwind", Value: "$activityItem"}},
+		{{Key: "$unwind", Value: "$programItem"}},
 		{{Key: "$lookup", Value: bson.M{
-			"from":         "activitys",
-			"localField":   "activityItem.activityId",
+			"from":         "Programs",
+			"localField":   "programItem.programId",
 			"foreignField": "_id",
-			"as":           "activity",
+			"as":           "program",
 		}}},
-		{{Key: "$unwind", Value: "$activity"}},
+		{{Key: "$unwind", Value: "$program"}},
 		{{Key: "$project", Value: bson.M{
 			"_id":              0,
 			"registrationDate": "$registrationDate",
-			"activity": bson.M{
-				"id":            "$activity._id",
-				"name":          "$activity.name",
-				"type":          "$activity.type",
-				"activityState": "$activity.activityState",
-				"skill":         "$activity.skill",
-				"activityItem": bson.M{
-					"id":          "$activityItem._id",
-					"name":        "$activityItem.name",
-					"dates":       "$activityItem.dates",
-					"hour":        "$activityItem.hour",
-					"operator":    "$activityItem.operator",
-					"description": "$activityItem.description",
+			"program": bson.M{
+				"id":            "$program._id",
+				"name":          "$program.name",
+				"type":          "$program.type",
+				"programState": "$program.programState",
+				"skill":         "$program.skill",
+				"programItem": bson.M{
+					"id":          "$programItem._id",
+					"name":        "$programItem.name",
+					"dates":       "$programItem.dates",
+					"hour":        "$programItem.hour",
+					"operator":    "$programItem.operator",
+					"description": "$programItem.description",
 				},
 			},
 		}}},
@@ -486,7 +486,7 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 			}
 		}
 		if len(intYears) > 0 {
-			yearPrefixes := activities.GenerateStudentCodeFilter(intYears)
+			yearPrefixes := programs.GenerateStudentCodeFilter(intYears)
 			var regexFilters []bson.M
 			for _, prefix := range yearPrefixes {
 				regexFilters = append(regexFilters, bson.M{"code": bson.M{"$regex": "^" + prefix}})

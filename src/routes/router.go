@@ -18,7 +18,7 @@ func InitRoutes(app fiber.Router) {
 	// Group API routes under /api
 	// เรียกใช้ฟังก์ชัน InitUserRoutes และ InitOrderRoutes
 	authRoutes(app)
-	activityRoutes(app)
+	programRoutes(app)
 	adminRoutes(app)
 	checkInOutRoutes(app)
 	enrollmentRoutes(app)

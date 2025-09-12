@@ -12,63 +12,63 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func HandleCompleteActivityTask(ctx context.Context, t *asynq.Task) error {
+func HandleCompleteProgramTask(ctx context.Context, t *asynq.Task) error {
 	log.Println("🎯 Start task handler")
 
-	var payload ActivityPayload
+	var payload ProgramPayload
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		log.Println("❌ Payload decode error:", err)
 		return err
 	}
 
-	collection := database.GetCollection("BluelockDB", "activitys")
-	id, _ := primitive.ObjectIDFromHex(payload.ActivityID)
+	collection := database.GetCollection("BluelockDB", "Programs")
+	id, _ := primitive.ObjectIDFromHex(payload.ProgramID)
 
-	// ✅ ตรวจสอบว่า activity ยังมีอยู่ไหม
-	var activity bson.M
-	err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&activity)
+	// ✅ ตรวจสอบว่า program ยังมีอยู่ไหม
+	var program bson.M
+	err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&program)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Println("⚠️ Activity not found. Possibly deleted. Skipping task:", id.Hex())
+			log.Println("⚠️ Program not found. Possibly deleted. Skipping task:", id.Hex())
 			return nil // ✅ ไม่ถือว่า error
 		}
-		log.Println("❌ Failed to find activity:", err)
+		log.Println("❌ Failed to find program:", err)
 		return err
 	}
 
 	// ✅ ดำเนินการเปลี่ยนสถานะ
 	_, err = collection.UpdateOne(ctx,
 		bson.M{"_id": id},
-		bson.M{"$set": bson.M{"activityState": "complete"}},
+		bson.M{"$set": bson.M{"programState": "complete"}},
 	)
 
 	if err != nil {
-		log.Println("❌ Failed to update activity state:", err)
+		log.Println("❌ Failed to update program state:", err)
 		return err
 	}
 
-	log.Println("✅ Activity closed:", id.Hex())
+	log.Println("✅ Program closed:", id.Hex())
 	return nil
 }
 
 func HandleCloseEnrollTask(ctx context.Context, t *asynq.Task) error {
-	var payload ActivityPayload
+	var payload ProgramPayload
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		return err
 	}
 
-	objectID, err := primitive.ObjectIDFromHex(payload.ActivityID)
+	objectID, err := primitive.ObjectIDFromHex(payload.ProgramID)
 	if err != nil {
 		return err
 	}
 
 	// เปลี่ยน state → "close"
 	filter := bson.M{"_id": objectID}
-	update := bson.M{"$set": bson.M{"activityState": "close"}}
-	_, err = database.GetCollection("BluelockDB", "activitys").UpdateOne(context.TODO(), filter, update)
+	update := bson.M{"$set": bson.M{"programState": "close"}}
+	_, err = database.GetCollection("BluelockDB", "Programs").UpdateOne(context.TODO(), filter, update)
 
 	if err == nil {
-		log.Println("✅ Activity auto-closed after enroll deadline:", payload.ActivityID)
+		log.Println("✅ Program auto-closed after enroll deadline:", payload.ProgramID)
 	}
 
 	return err
