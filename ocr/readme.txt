@@ -1,9 +1,9 @@
 How to run
 
-1. Create virtual environment with python -m venv .venv
-2. Activate virtual environment with .venv\Scripts\activate
-3. Install dependencies with pip install -r requirements.txt
-4. Run the app with uvicorn main:app --reload
+1. Create virtual environment with => python -m venv .venv
+2. Activate virtual environment with => .venv\Scripts\activate
+3. Install dependencies with => pip install -r requirements.txt
+4. Run the app with => uvicorn main:app --reload
 
 .env
 TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe
