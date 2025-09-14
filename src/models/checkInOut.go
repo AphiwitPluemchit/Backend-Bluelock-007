@@ -47,6 +47,8 @@ type QRClaim struct {
 	ClaimedAt time.Time          `bson:"claimedAt" json:"claimedAt"`
 	ExpireAt  time.Time          `bson:"expireAt" json:"expireAt"`
 }
+
+// CheckinoutRecord สำหรับการแสดงข้อมูลการเช็คชื่อ
 type CheckinoutRecord struct {
 	Checkin  *time.Time `bson:"checkin" json:"checkin"`
 	Checkout *time.Time `bson:"checkout" json:"checkout"`

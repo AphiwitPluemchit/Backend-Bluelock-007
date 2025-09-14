@@ -8,11 +8,14 @@ import (
 
 // Enrollment - การลงทะเบียนกิจกรรม
 type Enrollment struct {
-	ID               primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
-	RegistrationDate time.Time          `json:"registrationDate" bson:"registrationDate"`
-	ProgramItemID    primitive.ObjectID `json:"programItemId" bson:"programItemId"`
-	StudentID        primitive.ObjectID `json:"studentId" bson:"studentId"`
-	Food             *string            `json:"food" bson:"food"`
+	ID               primitive.ObjectID  `json:"id,omitempty" bson:"_id,omitempty"`
+	RegistrationDate time.Time           `json:"registrationDate" bson:"registrationDate"`
+	ProgramID        primitive.ObjectID  `json:"programId" bson:"programId"`
+	ProgramItemID    primitive.ObjectID  `json:"programItemId" bson:"programItemId"`
+	StudentID        primitive.ObjectID  `json:"studentId" bson:"studentId"`
+	Food             *string             `json:"food" bson:"food"`
+	Participation    *string             `json:"participation" bson:"participation"`
+	CheckinoutRecord *[]CheckinoutRecord `json:"checkinoutRecord" bson:"checkinoutRecord"`
 }
 
 // SuccessResponse ใช้เป็นโครงสร้าง JSON Response ที่ Swagger ใช้
