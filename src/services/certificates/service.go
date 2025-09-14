@@ -184,6 +184,9 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 }
 
 func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, bool, error) {
+	fmt.Println("VerifyURL ")
+	fmt.Println("studentId", studentId)
+	fmt.Println("courseId", courseId)
 	student, course, err := CheckStudentCourse(studentId, courseId)
 	if err != nil {
 		return false, false, err
@@ -394,20 +397,23 @@ func CheckStudentCourse(studentId string, courseId string) (models.Student, mode
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
+	fmt.Println("Check Student Course")
 
 	// find student
 	student, err := students.GetStudentById(studentObjectID)
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
+	fmt.Println("studentId", studentId)
 
 	// find course
 	course, err := courses.GetCourseByID(courseObjectID)
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
+	fmt.Println("courseId", courseId)
 
-	return *student, *course, nil
+	return *student, *course, err
 }
 
 func FastAPIURL() string {
