@@ -5,13 +5,17 @@ import (
 	"Backend-Bluelock-007/src/models"
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -209,4 +213,146 @@ func AuthenticateUser(email, password string) (*models.User, error) {
 	}
 
 	return result, nil
+}
+
+// GetUserByEmail retrieves a user by email
+func GetUserByEmail(email string) (*models.User, error) {
+	ctx := context.Background()
+
+	var dbUser models.User
+	err := DB.UserCollection.FindOne(ctx, bson.M{"email": strings.ToLower(email)}).Decode(&dbUser)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Check if user is active
+	if !dbUser.IsActive {
+		return nil, errors.New("account is suspended")
+	}
+
+	// Prepare response data
+	result := &models.User{
+		ID:          dbUser.ID,
+		Name:        dbUser.Name,
+		Email:       dbUser.Email,
+		Role:        dbUser.Role,
+		RefID:       dbUser.RefID,
+		Code:        dbUser.Code,
+		Major:       "",
+		StudentYear: 0,
+	}
+
+	// Get name from profile based on role
+	// switch dbUser.Role {
+	// case "Student":
+	// 	var student models.Student
+	// 	err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
+	// 	if err == nil {
+	// 		result.ID = student.ID
+	// 		result.Name = student.Name
+	// 		result.Code = student.Code
+	// 		result.Major = student.Major
+	// 		result.StudentYear = extractStudentYearFromCode(student.Code)
+	// 	}
+	// case "Admin":
+	// 	var admin models.Admin
+	// 	err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
+	// 	if err == nil {
+	// 		result.ID = admin.ID
+	// 		result.Name = admin.Name
+	// 	}
+	// }
+
+	return result, nil
+}
+
+// CreateGoogleUser creates a new user from Google OAuth information
+func CreateGoogleUser(googleUser *GoogleUserInfo) (*models.User, error) {
+	ctx := context.Background()
+
+	// Check if it's a university email (you can customize this logic)
+	if !strings.HasSuffix(strings.ToLower(googleUser.Email), "@go.buu.ac.th") {
+		return nil, errors.New("only university email addresses are allowed")
+	}
+	// && !strings.HasSuffix(strings.ToLower(googleUser.Email), "@chula.ac.th")
+
+	// Determine role based on email domain
+	// role := "Student"
+	// if strings.HasSuffix(strings.ToLower(googleUser.Email), "@chula.ac.th") {
+	// 	role = "Admin"
+	// }
+
+	// ดึงรหัส
+	local := strings.ToLower(strings.TrimSpace(googleUser.Email))
+	parts := strings.SplitN(local, "@", 2)
+	if len(parts) != 2 {
+		return nil, errors.New("invalid email format")
+	}
+	// เอาแบบเข้ม: เฉพาะตัวเลขนำหน้า
+	re := regexp.MustCompile(`^\d+`)
+	code := re.FindString(parts[0])
+	if code == "" {
+		return nil, errors.New("no numeric student code found in email")
+	}
+
+	// -- เตรียมตัวแปร --
+	var refID primitive.ObjectID
+	var student models.Student
+	err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			// ไม่เจอ => สร้างใหม่
+			student = models.Student{
+				Name:  googleUser.Name,
+				Code:  code,
+				Major: "",
+			}
+			fmt.Println("create student => :", student)
+
+			insertRes, err := DB.StudentCollection.InsertOne(ctx, student)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create student profile: %v", err)
+			}
+
+			// InsertedID เป็น primitive.ObjectID (ไม่ใช่ pointer)
+			oid, ok := insertRes.InsertedID.(primitive.ObjectID)
+			if !ok {
+				return nil, fmt.Errorf("unexpected InsertedID type %T", insertRes.InsertedID)
+			}
+			refID = oid
+		} else {
+			// เออเรอร์อื่น ๆ
+			return nil, fmt.Errorf("failed to query student: %v", err)
+		}
+	} else {
+		// เจออยู่แล้ว
+		refID = student.ID
+	}
+
+	// Create user account
+	user := models.User{
+		Email:    strings.ToLower(googleUser.Email),
+		Role:     "Student",
+		Code:     code,
+		RefID:    refID,
+		IsActive: true,
+	}
+
+	userResult, err := DB.UserCollection.InsertOne(ctx, user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user account: %v", err)
+	}
+
+	// Return the created user
+	createdUser := &models.User{
+		ID:    userResult.InsertedID.(primitive.ObjectID),
+		Name:  googleUser.Name,
+		Email: strings.ToLower(googleUser.Email),
+		Role:  "Student",
+		RefID: refID,
+		Code:  code,
+		Major: "",
+	}
+
+	return createdUser, nil
 }

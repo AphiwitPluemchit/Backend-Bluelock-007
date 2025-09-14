@@ -1,10 +1,11 @@
 module Backend-Bluelock-007
 
-go 1.24
+go 1.24.0
 
 toolchain go1.24.6
 
 require (
+	github.com/chromedp/chromedp v0.14.1
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/gofiber/swagger v1.1.1
@@ -16,6 +17,7 @@ require (
 	github.com/swaggo/swag v1.16.4
 	go.mongodb.org/mongo-driver v1.17.2
 	golang.org/x/crypto v0.33.0
+	golang.org/x/oauth2 v0.31.0
 )
 
 require (
@@ -33,10 +35,10 @@ require (
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/chromedp/cdproto v0.0.0-20250803210736-d308e07a266d // indirect
-	github.com/chromedp/chromedp v0.14.1 // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20250813233538-9b1f9ea2e11b // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect

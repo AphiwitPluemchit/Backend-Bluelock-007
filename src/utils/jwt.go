@@ -1,13 +1,22 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("your_secret_key") // 🔒 เปลี่ยนเป็น env จริงจัง
+func getJWTSecret() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "your_secret_key" // fallback for development
+	}
+	return []byte(secret)
+}
 
 type JWTClaims struct {
 	UserID string `json:"userId"`
@@ -27,7 +36,7 @@ func GenerateJWT(userID, email, role string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	return token.SignedString(getJWTSecret())
 }
 
 func ParseJWT(tokenStr string) (*JWTClaims, error) {
@@ -36,7 +45,7 @@ func ParseJWT(tokenStr string) (*JWTClaims, error) {
 	}
 
 	token, err := jwt.ParseWithClaims(tokenStr, &JWTClaims{}, func(t *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil || token == nil {
@@ -49,4 +58,13 @@ func ParseJWT(tokenStr string) (*JWTClaims, error) {
 	}
 
 	return claims, nil
+}
+
+// GenerateRandomString generates a random string of specified length
+func GenerateRandomString(length int) string {
+	bytes := make([]byte, length/2)
+	if _, err := rand.Read(bytes); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(bytes)
 }
