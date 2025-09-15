@@ -232,10 +232,14 @@ func GetUserByEmail(email string) (*models.User, error) {
 
 	// Prepare response data
 	result := &models.User{
-		ID:    dbUser.RefID,
-		Name:  dbUser.Name,
-		Email: dbUser.Email,
-		Role:  dbUser.Role,
+		ID:          dbUser.RefID,
+		Name:        dbUser.Name,
+		Email:       dbUser.Email,
+		Role:        dbUser.Role,
+		RefID:       dbUser.RefID,
+		Code:        dbUser.Code,
+		Major:       "",
+		StudentYear: 0,
 	}
 
 	// Get name from profile based on role

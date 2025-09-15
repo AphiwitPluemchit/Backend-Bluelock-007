@@ -48,8 +48,32 @@ type QRClaim struct {
 	ExpireAt  time.Time          `bson:"expireAt" json:"expireAt"`
 }
 
+// models/hour_change_history.go
+type HourChangeHistory struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	StudentID   primitive.ObjectID `bson:"studentId" json:"studentId"`
+	StudentCode string             `bson:"studentCode,omitempty" json:"studentCode,omitempty"`
+
+	// สำหรับกิจกรรม (program)
+	ProgramID     primitive.ObjectID  `bson:"programId,omitempty" json:"programId,omitempty"`
+	ProgramItemID primitive.ObjectID  `bson:"programItemId,omitempty" json:"programItemId,omitempty"`
+	EnrollmentID  *primitive.ObjectID `bson:"enrollmentId,omitempty" json:"enrollmentId,omitempty"`
+	ProgramDate   string              `bson:"programDate,omitempty" json:"programDate,omitempty"`
+
+	// สำหรับ certificate
+	CertificateID *primitive.ObjectID `bson:"certificateId,omitempty" json:"certificateId,omitempty"`
+
+	Type        string    `bson:"type" json:"type"` // "program" | "certificate"
+	SkillType   string    `bson:"skillType" json:"skillType"`
+	HoursChange int       `bson:"hoursChange" json:"hoursChange"`
+	ChangeType  string    `bson:"changeType" json:"changeType"` // "add" | "remove" | "no_change"
+	Remark      string    `bson:"remark,omitempty" json:"remark,omitempty"`
+	ChangedAt   time.Time `bson:"changedAt" json:"changedAt"`
+}
+
 // CheckinoutRecord สำหรับการแสดงข้อมูลการเช็คชื่อ
 type CheckinoutRecord struct {
-	Checkin  *time.Time `bson:"checkin" json:"checkin"`
-	Checkout *time.Time `bson:"checkout" json:"checkout"`
+	Checkin       *time.Time `bson:"checkin" json:"checkin"`
+	Checkout      *time.Time `bson:"checkout" json:"checkout"`
+	Participation *string    `bson:"participation" json:"participation" example:"ยังไม่เข้าร่วมกิจกรรม, เช็คอิน/เช็คเอาท์ตรงเวลา, เช็คอิน/เช็คเอาท์ไม่ตรงเวลา, เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์"`
 }

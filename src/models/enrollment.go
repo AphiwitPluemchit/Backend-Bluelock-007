@@ -14,7 +14,6 @@ type Enrollment struct {
 	ProgramItemID    primitive.ObjectID  `json:"programItemId" bson:"programItemId"`
 	StudentID        primitive.ObjectID  `json:"studentId" bson:"studentId"`
 	Food             *string             `json:"food" bson:"food"`
-	Participation    *string             `json:"participation" bson:"participation"`
 	CheckinoutRecord *[]CheckinoutRecord `json:"checkinoutRecord" bson:"checkinoutRecord"`
 }
 

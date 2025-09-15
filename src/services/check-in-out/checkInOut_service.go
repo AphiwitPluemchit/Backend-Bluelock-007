@@ -231,7 +231,71 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 	}
 
 	_, err = DB.CheckinCollection.InsertOne(context.TODO(), checkinRecord)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// อัปเดตข้อมูลการเช็คชื่อในเอกสาร Enrollment ให้สะท้อนสถานะล่าสุด
+	// คำนวณคู่ checkin/checkout ใหม่ แล้วเซ็ตลง field checkinoutRecord ของ enrollment
+	if status, _ := enrollments.GetCheckinStatus(userId, programItemId); status != nil {
+		update := bson.M{"$set": bson.M{"checkinoutRecord": status}}
+		_, _ = DB.EnrollmentCollection.UpdateOne(
+			context.TODO(),
+			bson.M{"studentId": uID, "programItemId": aID},
+			update,
+		)
+	}
+
+	// หากเป็นการ checkout ให้รีเฟรช participation ภายในอาเรย์ checkinoutRecord เท่านั้น (ไม่แตะฟิลด์อื่น)
+	if checkType == "checkout" {
+		if status, _ := enrollments.GetCheckinStatus(userId, programItemId); status != nil {
+			_, _ = DB.EnrollmentCollection.UpdateOne(
+				context.TODO(),
+				bson.M{"studentId": uID, "programItemId": aID},
+				bson.M{"$set": bson.M{"checkinoutRecord": status}},
+			)
+
+			// เพิ่มการตรวจสอบว่าเข้าร่วมครบทุกวันที่กำหนดหรือไม่
+			// เกณฑ์: วันนั้นถือว่า "เข้าร่วม" หาก participation เป็น "เช็คอิน/เช็คเอาท์ตรงเวลา" หรือ "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา"
+			ctx := context.TODO()
+			var programItem models.ProgramItem
+			if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": aID}).Decode(&programItem); err == nil {
+				loc, _ := time.LoadLocation("Asia/Bangkok")
+				// map วันที่ -> participation
+				participationByDate := make(map[string]string)
+				for _, r := range status {
+					var dateKey string
+					if r.Checkin != nil {
+						dateKey = r.Checkin.In(loc).Format("2006-01-02")
+					} else if r.Checkout != nil {
+						dateKey = r.Checkout.In(loc).Format("2006-01-02")
+					}
+					if dateKey == "" || r.Participation == nil {
+						continue
+					}
+					participationByDate[dateKey] = *r.Participation
+				}
+
+				attendedAll := true
+				for _, d := range programItem.Dates {
+					p := participationByDate[d.Date]
+					if !(p == "เช็คอิน/เช็คเอาท์ตรงเวลา" || p == "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา") {
+						attendedAll = false
+						break
+					}
+				}
+
+				// อัปเดตธง attendedAllDays ใน enrollment (เพิ่มฟิลด์ใหม่นี้ในเอกสาร)
+				_, _ = DB.EnrollmentCollection.UpdateOne(
+					ctx,
+					bson.M{"studentId": uID, "programItemId": aID},
+					bson.M{"$set": bson.M{"attendedAllDays": attendedAll}},
+				)
+			}
+		}
+	}
+
+	return nil
 }
 
 // RecordCheckin records a check-in or check-out for a student for all enrolled items in an program
@@ -275,28 +339,16 @@ func GetProgramFormId(programId string) (string, error) {
 	return program.FormID.Hex(), nil
 }
 
-// AddHoursForStudentResult represents the overall result of the operation
 type AddHoursForStudentResult struct {
-	ProgramItemID string             `json:"programItemId"`
-	ProgramName   string             `json:"programName"`
-	SkillType     string             `json:"skillType"`
-	TotalStudents int                `json:"totalStudents"`
-	SuccessCount  int                `json:"successCount"`
-	ErrorCount    int                `json:"errorCount"`
-	Results       []HourChangeResult `json:"results"`
+	ProgramItemID string                     `json:"programItemId"`
+	ProgramName   string                     `json:"programName"`
+	SkillType     string                     `json:"skillType"`
+	TotalStudents int                        `json:"totalStudents"`
+	SuccessCount  int                        `json:"successCount"`
+	ErrorCount    int                        `json:"errorCount"`
+	Results       []models.HourChangeHistory `json:"results"`
 }
 
-// HourChangeResult represents the result of hour changes for a student
-type HourChangeResult struct {
-	StudentID   string `json:"studentId"`
-	StudentName string `json:"studentName"`
-	StudentCode string `json:"studentCode"`
-	SkillType   string `json:"skillType"`
-	HoursChange int    `json:"hoursChange"` // positive for add, negative for remove
-	Message     string `json:"message"`
-}
-
-// AddHoursForStudent calculates and adds hours for students based on check-in/out records
 func AddHoursForStudent(programItemId string) (*AddHoursForStudentResult, error) {
 	ctx := context.TODO()
 	programItemObjID, err := primitive.ObjectIDFromHex(programItemId)
@@ -304,68 +356,87 @@ func AddHoursForStudent(programItemId string) (*AddHoursForStudentResult, error)
 		return nil, fmt.Errorf("invalid programItemId format: %v", err)
 	}
 
-	// 1. ดึงข้อมูล ProgramItem เพื่อหา hour และ dates
+	// 1) ProgramItem
 	var programItem models.ProgramItem
-	err = DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemObjID}).Decode(&programItem)
-	if err != nil {
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemObjID}).Decode(&programItem); err != nil {
 		return nil, fmt.Errorf("program item not found: %v", err)
 	}
-
 	if programItem.Hour == nil {
 		return nil, fmt.Errorf("program item has no hour value")
 	}
 
-	// 2. ดึงข้อมูล program เพื่อหา skill type และชื่อ
+	// 2) Program
 	var program models.Program
-	err = DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programItem.ProgramID}).Decode(&program)
-	if err != nil {
+	if err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programItem.ProgramID}).Decode(&program); err != nil {
 		return nil, fmt.Errorf("program not found: %v", err)
 	}
 
-	// 3. ดึงข้อมูล enrollments ทั้งหมดของ programItem นี้
-	cursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"programItemId": programItemObjID})
+	// 3) Enrollments
+	cur, err := DB.EnrollmentCollection.Find(ctx, bson.M{"programItemId": programItemObjID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch enrollments: %v", err)
 	}
-	defer cursor.Close(ctx)
+	defer cur.Close(ctx)
 
 	var enrollments []models.Enrollment
-	if err := cursor.All(ctx, &enrollments); err != nil {
+	if err := cur.All(ctx, &enrollments); err != nil {
 		return nil, fmt.Errorf("failed to decode enrollments: %v", err)
 	}
 
-	// 4. สร้าง result struct
+	// 4) Result
 	result := &AddHoursForStudentResult{
 		ProgramItemID: programItemId,
-		ProgramName:   *program.Name,
+		ProgramName:   deref(program.Name), // เผื่อ program.Name เป็น *string
 		SkillType:     program.Skill,
 		TotalStudents: len(enrollments),
-		SuccessCount:  0,
-		ErrorCount:    0,
-		Results:       make([]HourChangeResult, 0, len(enrollments)),
+		Results:       make([]models.HourChangeHistory, 0, len(enrollments)),
 	}
 
-	// 5. ประมวลผลแต่ละ enrollment
-	for _, enrollment := range enrollments {
-		hourResult, err := processStudentHours(ctx, enrollment.StudentID, programItemObjID, programItem, program.Skill)
+	// 5) Process each enrollment
+	for _, en := range enrollments {
+		h, err := processStudentHours(
+			ctx,
+			en.ID, // ส่ง enrollmentId เข้าไป
+			en.StudentID,
+			programItemObjID,
+			programItem,
+			program.Skill,
+		)
 		if err != nil {
 			result.ErrorCount++
-			result.Results = append(result.Results, HourChangeResult{
-				StudentID:   enrollment.StudentID.Hex(),
-				StudentName: "Unknown",
-				StudentCode: "Unknown",
-				SkillType:   program.Skill,
-				HoursChange: 0,
-				Message:     fmt.Sprintf("Error: %v", err),
+			// กรณี error: แนบข้อมูลเท่าที่รู้ (ไว้โชว์ใน response)
+			// ดึง Student เพื่อเติม studentCode กรณี model Enrollment ไม่มี field นี้
+			var st models.Student
+			_ = DB.StudentCollection.FindOne(ctx, bson.M{"_id": en.StudentID}).Decode(&st)
+
+			result.Results = append(result.Results, models.HourChangeHistory{
+				StudentID:     en.StudentID,
+				StudentCode:   st.Code,
+				ProgramID:     programItem.ProgramID,
+				ProgramItemID: programItemObjID,
+				EnrollmentID:  &en.ID,
+				Type:          RecordTypeProgram,
+				SkillType:     program.Skill,
+				HoursChange:   0,
+				ChangeType:    ChangeTypeNoChange,
+				Remark:        fmt.Sprintf("Error: %v", err),
+				ChangedAt:     time.Now(),
 			})
 			continue
 		}
 
 		result.SuccessCount++
-		result.Results = append(result.Results, *hourResult)
+		result.Results = append(result.Results, *h)
 	}
 
 	return result, nil
+}
+
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // GetHourChangeHistory ดึงประวัติการเปลี่ยนแปลงชั่วโมงของนักเรียน
