@@ -232,14 +232,10 @@ func GetUserByEmail(email string) (*models.User, error) {
 
 	// Prepare response data
 	result := &models.User{
-		ID:          dbUser.ID,
-		Name:        dbUser.Name,
-		Email:       dbUser.Email,
-		Role:        dbUser.Role,
-		RefID:       dbUser.RefID,
-		Code:        dbUser.Code,
-		Major:       "",
-		StudentYear: 0,
+		ID:    dbUser.RefID,
+		Name:  dbUser.Name,
+		Email: dbUser.Email,
+		Role:  dbUser.Role,
 	}
 
 	// Get name from profile based on role
@@ -303,9 +299,9 @@ func CreateGoogleUser(googleUser *GoogleUserInfo) (*models.User, error) {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			// ไม่เจอ => สร้างใหม่
 			student = models.Student{
-				Name:  googleUser.Name,
-				Code:  code,
-				Major: "",
+				EngName: googleUser.Name,
+				Code:    code,
+				Major:   "",
 			}
 			fmt.Println("create student => :", student)
 
@@ -338,14 +334,14 @@ func CreateGoogleUser(googleUser *GoogleUserInfo) (*models.User, error) {
 		IsActive: true,
 	}
 
-	userResult, err := DB.UserCollection.InsertOne(ctx, user)
+	_, err = DB.UserCollection.InsertOne(ctx, user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user account: %v", err)
 	}
 
 	// Return the created user
 	createdUser := &models.User{
-		ID:    userResult.InsertedID.(primitive.ObjectID),
+		ID:    refID,
 		Name:  googleUser.Name,
 		Email: strings.ToLower(googleUser.Email),
 		Role:  "Student",

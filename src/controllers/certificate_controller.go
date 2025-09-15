@@ -25,6 +25,8 @@ func VerifyURL(c *fiber.Ctx) error {
 	studentId := c.Query("studentId")
 	courseId := c.Query("courseId")
 
+	fmt.Println("url", url)
+
 	isVerified, isDuplicate, err := services.VerifyURL(url, studentId, courseId)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
