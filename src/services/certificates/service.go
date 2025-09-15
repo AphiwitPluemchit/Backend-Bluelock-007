@@ -65,6 +65,10 @@ func GetUploadCertificate(id string) (*models.UploadCertificate, error) {
 func GetUploadCertificates(params models.UploadCertificateQuery, pagination models.PaginationParams) ([]models.UploadCertificate, models.PaginationMeta, error) {
 	ctx := context.Background()
 
+	// Debug logs
+	fmt.Println("GetUploadCertificates called with params:")
+	fmt.Printf("  StudentID=%s CourseID=%s Status=%s\n", params.StudentID, params.CourseID, params.Status)
+
 	// 1) Build base filter
 	filter := bson.M{}
 	if params.StudentID != "" {
@@ -88,15 +92,19 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 
 	// 2) Clean pagination
 	pagination = models.CleanPagination(pagination)
+	fmt.Printf("  Pagination: page=%d limit=%d search=%s sortBy=%s order=%s\n", pagination.Page, pagination.Limit, pagination.Search, pagination.SortBy, pagination.Order)
 
 	// 3) Build pipeline
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: filter}},
 	}
 
+	// print filter for debugging
+	fmt.Println("  Mongo filter:", filter)
+
 	pipeline = append(pipeline,
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
+			"from":         "Students", // ใช้ชื่อ collection ตามที่เชื่อมต่อใน DB
 			"localField":   "studentId",
 			"foreignField": "_id",
 			"as":           "student",
@@ -107,13 +115,14 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		}}},
 		// ทำ field ชื่อให้แบนและมีค่า default เพื่อใช้ sort/search ง่าย
 		bson.D{{Key: "$addFields", Value: bson.M{
-			"student":     "$student", // เก็บ object course
+			"student":     bson.M{"$ifNull": []interface{}{"$student", bson.M{}}}, // เก็บ object student หรือ {} แทน null
 			"studentName": bson.M{"$ifNull": []interface{}{"$student.name", ""}},
 		}}},
 	)
 
 	// ควร join เฉพาะตอน "ต้องใช้" (ค้นหาด้วยชื่อ หรือ sort ด้วย studentName)
 	needJoin := pagination.Search != "" || strings.EqualFold(pagination.SortBy, "studentname")
+	fmt.Println("  needJoin for student lookup:", needJoin)
 	if needJoin {
 		if pagination.Search != "" {
 			pipeline = append(pipeline,
@@ -129,7 +138,7 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 	// 👉 join course (ปกติเรามักอยากโชว์เสมอ)
 	pipeline = append(pipeline,
 		bson.D{{Key: "$lookup", Value: bson.M{
-			"from":         "courses",  // ชื่อคอลเลกชันของคุณ
+			"from":         "Courses",  // ชื่อคอลเลกชันของคุณ (ตรงกับ DB)
 			"localField":   "courseId", // อิงจาก UploadCertificate.CourseId
 			"foreignField": "_id",
 			"as":           "course",
@@ -138,27 +147,9 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 			"path": "$course", "preserveNullAndEmptyArrays": true,
 		}}},
 		bson.D{{Key: "$addFields", Value: bson.M{
-			"course": "$course", // เก็บ object course
+			"course": bson.M{"$ifNull": []interface{}{"$course", bson.M{}}}, // เก็บ object course หรือ {} แทน null
 		}}},
 	)
-
-	// if params.StudentID == nil {
-	// 	pipeline = append(pipeline,
-	// 		bson.D{{Key: "$lookup", Value: bson.M{
-	// 			"from":         "students", // <== ตรวจชื่อคอลเลกชันให้ถูกต้อง!
-	// 			"localField":   "studentId",
-	// 			"foreignField": "_id",
-	// 			"as":           "student",
-	// 		}}},
-	// 		bson.D{{Key: "$unwind", Value: bson.M{
-	// 			"path":                       "$student",
-	// 			"preserveNullAndEmptyArrays": true, // สำคัญมาก กันเอกสารถูกทิ้งหมด
-	// 		}}},
-	// 		bson.D{{Key: "$addFields", Value: bson.M{
-	// 			"student": "$student", // เก็บ object course
-	// 		}}},
-	// 	)
-	// }
 
 	// 4) Sorting
 	sortByField := pagination.SortBy
@@ -174,16 +165,28 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		{Key: sortByField, Value: sortOrder},
 	}}})
 
+	fmt.Printf("  Sorting: field=%s order=%d\n", sortByField, sortOrder)
+
+	// Debug: print pipeline (best-effort)
+	pipelineBytes, _ := bson.MarshalExtJSON(pipeline, true, true)
+	fmt.Println("  Aggregation pipeline:", string(pipelineBytes))
+
 	rows, meta, err := models.AggregatePaginateGlobal[models.UploadCertificate](
 		ctx, DB.UploadCertificateCollection, pipeline, pagination.Page, pagination.Limit,
 	)
 	if err != nil {
 		return nil, models.PaginationMeta{}, err
 	}
+
+	// Debug: number of returned rows
+	fmt.Printf("  Aggregation returned %d rows\n", len(rows))
 	return rows, meta, nil
 }
 
 func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, bool, error) {
+	fmt.Println("VerifyURL ")
+	fmt.Println("studentId", studentId)
+	fmt.Println("courseId", courseId)
 	student, course, err := CheckStudentCourse(studentId, courseId)
 	if err != nil {
 		return false, false, err
@@ -394,20 +397,23 @@ func CheckStudentCourse(studentId string, courseId string) (models.Student, mode
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
+	fmt.Println("Check Student Course")
 
 	// find student
 	student, err := students.GetStudentById(studentObjectID)
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
+	fmt.Println("studentId", studentId)
 
 	// find course
 	course, err := courses.GetCourseByID(courseObjectID)
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
+	fmt.Println("courseId", courseId)
 
-	return *student, *course, nil
+	return *student, *course, err
 }
 
 func FastAPIURL() string {
@@ -421,13 +427,16 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 	ctx := context.Background()
 
 	var result models.UploadCertificate
-	err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"url": publicPageURL, "status": models.StatusApproved}).Decode(&result)
+	filter := bson.M{"url": publicPageURL, "status": models.StatusApproved}
+	fmt.Println("checkDuplicateURL filter:", filter)
+	err := DB.UploadCertificateCollection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return false, nil, nil // URL is unique (no document found)
 		}
 		return false, nil, err // Some other error occurred
 	}
+	fmt.Println("Found existing approved upload certificate:", result)
 
 	// copy result to new object remove _id
 	newResult := models.UploadCertificate{}
@@ -442,10 +451,13 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 	newResult.Url = publicPageURL
 	newResult.ID = primitive.NewObjectID()
 
+	fmt.Println("Creating duplicate upload certificate:", newResult)
 	createDuplicate, err := CreateUploadCertificate(&newResult)
 	if err != nil {
 		return false, nil, err
 	}
+
+	fmt.Println("Created duplicate upload certificate:", createDuplicate)
 
 	return true, createDuplicate, nil // URL already exists
 }
