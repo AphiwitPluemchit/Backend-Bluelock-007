@@ -16,5 +16,6 @@ func enrollmentRoutes(router fiber.Router) {
 	enrollmentRoutes.Get("/program/:programId", controllers.GetStudentsByProgram)                                        // ✅ Admin ดูนักศึกษาที่ลงทะเบียน
 	enrollmentRoutes.Get("/student/:studentId/program/:programId/check", controllers.CheckEnrollmentByStudentAndProgram) // ✅ ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
 	// enrollmentRoutes.Get("/student/:studentId/program/:programId", controllers.GetStudentEnrollmentInProgram)            // ✅ ดึงข้อมูล Enrollment ของ Student ใน Program
-	enrollmentRoutes.Get("/history/student/:studentId", controllers.GetEnrollmentsHistoryByStudent) // ✅ ประวัติการอบรมของ Student (กิจกรรมทั้งหมดที่เคยลง)
+	enrollmentRoutes.Get("/history/student/:studentId", controllers.GetRegistrationHistoryStatus)          // ✅ ประวัติการลงทะเบียน แบ่งสถานะจาก Hour_Change_Histories
+	enrollmentRoutes.Get("/history-status/student/:studentId", controllers.GetEnrollmentsHistoryByStudent) // ✅ ประวัติการอบรมของ Student (กิจกรรมทั้งหมดที่เคยลง)
 }

@@ -841,7 +841,7 @@ func GetEnrollmentProgramDetails(studentID, programID primitive.ObjectID) (*mode
 	return nil, errors.New("Student not enrolled in this program")
 }
 
-func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ProgramHistory, int64, int, error) {
+func GetRegistrationHistoryStatus(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ProgramHistory, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -930,6 +930,221 @@ func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID, params models.
 
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 	return programsOut, total, totalPages, nil
+}
+
+// RegistrationHistoryStatus กลุ่มประวัติการลงทะเบียนตามสถานะ
+// - pending: ยังไม่เข้าร่วม (ไม่มีบันทึกใน Hour_Change_Histories)
+// - participated: เข้าร่วมแล้ว (changeType = add หรือ no_change)
+// - absent: ลงทะเบียนแต่ไม่ได้เข้าร่วม (changeType = remove)
+type EnrollmentsHistoryStatus struct {
+	Pending      []map[string]interface{} `json:"pending"`
+	Participated []map[string]interface{} `json:"participated"`
+	Absent       []map[string]interface{} `json:"absent"`
+}
+
+// GetRegistrationHistoryStatus ดึงประวัติการลงทะเบียนของนิสิต แบ่งสถานะจาก Hour_Change_Histories
+func GetEnrollmentsHistoryByStudent(studentID primitive.ObjectID) (*EnrollmentsHistoryStatus, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1) ดึง enrollments ของนักศึกษา
+	cur, err := DB.EnrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
+	if err != nil {
+		return nil, fmt.Errorf("error fetching enrollments: %v", err)
+	}
+	defer cur.Close(ctx)
+
+	type enrollmentLite struct {
+		ID               primitive.ObjectID         `bson:"_id"`
+		ProgramItemID    primitive.ObjectID         `bson:"programItemId"`
+		RegistrationDate time.Time                  `bson:"registrationDate"`
+		Food             *string                    `bson:"food"`
+		CheckinoutRecord *[]models.CheckinoutRecord `bson:"checkinoutRecord"`
+	}
+
+	enrollments := make([]enrollmentLite, 0)
+	programItemIDs := make([]primitive.ObjectID, 0)
+	for cur.Next(ctx) {
+		var e enrollmentLite
+		if err := cur.Decode(&e); err == nil {
+			enrollments = append(enrollments, e)
+			programItemIDs = append(programItemIDs, e.ProgramItemID)
+		}
+	}
+	if err := cur.Err(); err != nil {
+		return nil, fmt.Errorf("cursor error: %v", err)
+	}
+	if len(enrollments) == 0 {
+		return &EnrollmentsHistoryStatus{Pending: []map[string]interface{}{}, Participated: []map[string]interface{}{}, Absent: []map[string]interface{}{}}, nil
+	}
+
+	// 2) โหลด ProgramItems ที่เกี่ยวข้อง
+	itemCur, err := DB.ProgramItemCollection.Find(ctx, bson.M{"_id": bson.M{"$in": programItemIDs}})
+	if err != nil {
+		return nil, fmt.Errorf("error fetching program items: %v", err)
+	}
+	defer itemCur.Close(ctx)
+
+	itemMap := make(map[primitive.ObjectID]models.ProgramItem, len(programItemIDs))
+	programIDs := make([]primitive.ObjectID, 0)
+	for itemCur.Next(ctx) {
+		var it models.ProgramItem
+		if err := itemCur.Decode(&it); err == nil {
+			itemMap[it.ID] = it
+			programIDs = append(programIDs, it.ProgramID)
+		}
+	}
+	if err := itemCur.Err(); err != nil {
+		return nil, fmt.Errorf("cursor error: %v", err)
+	}
+
+	// 3) โหลด Programs สำหรับเติมชื่อ
+	progCur, err := DB.ProgramCollection.Find(ctx, bson.M{"_id": bson.M{"$in": programIDs}})
+	if err != nil {
+		return nil, fmt.Errorf("error fetching programs: %v", err)
+	}
+	defer progCur.Close(ctx)
+
+	progMap := make(map[primitive.ObjectID]models.Program, len(programIDs))
+	for progCur.Next(ctx) {
+		var p models.Program
+		if err := progCur.Decode(&p); err == nil {
+			progMap[p.ID] = p
+		}
+	}
+	if err := progCur.Err(); err != nil {
+		return nil, fmt.Errorf("cursor error: %v", err)
+	}
+
+	// 4) โหลด Hour_Change_Histories ของนิสิตสำหรับ program items เหล่านี้ทั้งหมด
+	histCur, err := DB.HourChangeHistoryCollection.Find(ctx, bson.M{
+		"studentId":     studentID,
+		"programItemId": bson.M{"$in": programItemIDs},
+		"type":          "program",
+	}, options.Find().SetSort(bson.D{{Key: "changedAt", Value: -1}}))
+	if err != nil {
+		return nil, fmt.Errorf("error fetching hour change histories: %v", err)
+	}
+	defer histCur.Close(ctx)
+
+	type histLite struct {
+		ProgramItemID primitive.ObjectID  `bson:"programItemId"`
+		EnrollmentID  *primitive.ObjectID `bson:"enrollmentId"`
+		ChangeType    string              `bson:"changeType"`
+		HoursChange   int                 `bson:"hoursChange"`
+		ChangedAt     time.Time           `bson:"changedAt"`
+	}
+
+	// เก็บเฉพาะ record ล่าสุดต่อ programItemId
+	latestByItem := make(map[primitive.ObjectID]histLite)
+	for histCur.Next(ctx) {
+		var h histLite
+		if err := histCur.Decode(&h); err == nil {
+			if _, ok := latestByItem[h.ProgramItemID]; !ok {
+				latestByItem[h.ProgramItemID] = h
+			}
+		}
+	}
+	if err := histCur.Err(); err != nil {
+		return nil, fmt.Errorf("cursor error: %v", err)
+	}
+
+	// 5) จัดหมวดหมู่ผลลัพธ์
+	res := &EnrollmentsHistoryStatus{
+		Pending:      make([]map[string]interface{}, 0),
+		Participated: make([]map[string]interface{}, 0),
+		Absent:       make([]map[string]interface{}, 0),
+	}
+
+	for _, e := range enrollments {
+		it := itemMap[e.ProgramItemID]
+		prog := progMap[it.ProgramID]
+
+		// build nested objects with full details
+		checkRecs := []models.CheckinoutRecord{}
+		if e.CheckinoutRecord != nil {
+			checkRecs = append(checkRecs, (*e.CheckinoutRecord)...)
+		}
+		programItemObj := map[string]interface{}{
+			"id":               it.ID.Hex(),
+			"programId":        it.ProgramID.Hex(),
+			"name":             deref(it.Name),
+			"description":      it.Description,
+			"studentYears":     it.StudentYears,
+			"maxParticipants":  it.MaxParticipants,
+			"majors":           it.Majors,
+			"rooms":            it.Rooms,
+			"operator":         it.Operator,
+			"dates":            it.Dates,
+			"hour":             it.Hour,
+			"enrollmentCount":  it.EnrollmentCount,
+			"checkinoutRecord": checkRecs,
+		}
+		programObj := map[string]interface{}{
+			"id":            prog.ID.Hex(),
+			"formId":        prog.FormID.Hex(),
+			"name":          deref(prog.Name),
+			"type":          prog.Type,
+			"programState":  prog.ProgramState,
+			"skill":         prog.Skill,
+			"endDateEnroll": prog.EndDateEnroll,
+			"file":          prog.File,
+			"foodVotes":     prog.FoodVotes,
+			"programItems":  []map[string]interface{}{programItemObj},
+		}
+		enrollmentObj := map[string]interface{}{
+			"id":               e.ID.Hex(),
+			"registrationDate": e.RegistrationDate,
+			"food":             e.Food,
+		}
+		base := map[string]interface{}{
+			"program":    programObj,
+			"enrollment": enrollmentObj,
+		}
+
+		if h, ok := latestByItem[e.ProgramItemID]; ok {
+			// เข้าร่วมแล้ว: add หรือ no_change
+			if h.ChangeType == "add" || h.ChangeType == "no_change" || h.HoursChange >= 0 && h.ChangeType == "" {
+				m := mapsClone(base)
+				m["changedAt"] = h.ChangedAt
+				m["changeType"] = h.ChangeType
+				res.Participated = append(res.Participated, m)
+				continue
+			}
+			// ไม่ได้เข้าร่วม: remove
+			if h.ChangeType == "remove" || h.HoursChange < 0 {
+				m := mapsClone(base)
+				m["changedAt"] = h.ChangedAt
+				m["changeType"] = h.ChangeType
+				res.Absent = append(res.Absent, m)
+				continue
+			}
+			// อย่างอื่นถือว่ายังไม่เข้าร่วม
+			res.Pending = append(res.Pending, base)
+		} else {
+			// ไม่มี history → ยังไม่เข้าร่วม
+			res.Pending = append(res.Pending, base)
+		}
+	}
+
+	return res, nil
+}
+
+// mapsClone คัดลอก map[string]interface{}
+func mapsClone(in map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+// deref คืนค่าสตริงจาก *string ถ้าว่างให้เป็น ""
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 func GetEnrollmentId(studentID, programItemID primitive.ObjectID) (primitive.ObjectID, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

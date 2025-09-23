@@ -308,7 +308,7 @@ func GetStudentEnrollmentInProgram(c *fiber.Ctx) error {
 }
 
 // ✅ 6. Student ดูกิจกรรมที่ลงทะเบียนไปแล้ว (History)
-func GetEnrollmentsHistoryByStudent(c *fiber.Ctx) error {
+func GetRegistrationHistoryStatus(c *fiber.Ctx) error {
 	// 🔍 แปลง studentId จาก path param
 	studentID, err := primitive.ObjectIDFromHex(c.Params("studentId"))
 	if err != nil {
@@ -330,7 +330,7 @@ func GetEnrollmentsHistoryByStudent(c *fiber.Ctx) error {
 	}
 
 	// ✅ 3. เรียก service (service จะ filter ให้เหลือเฉพาะ programItems ที่นิสิตลง + format checkin/checkout เป็นเวลาไทย)
-	programs, total, totalPages, err := enrollments.GetEnrollmentsHistoryByStudent(studentID, params, skillFilter)
+	programs, total, totalPages, err := enrollments.GetRegistrationHistoryStatus(studentID, params, skillFilter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -345,4 +345,28 @@ func GetEnrollmentsHistoryByStudent(c *fiber.Ctx) error {
 			"totalPages": totalPages,
 		},
 	})
+}
+
+// GetRegistrationHistoryStatus godoc
+// @Summary      ประวัติการลงทะเบียนโครงการ (แบ่งสถานะ)
+// @Description  คืนกลุ่มสถานะ: ยังไม่เข้าร่วม, เข้าร่วมแล้ว, ลงทะเบียนแต่ไม่ได้เข้าร่วม โดยอิงจาก Hour_Change_Histories
+// @Tags         enrollments
+// @Produce      json
+// @Param        studentId path string true "Student ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  models.ErrorResponse
+// @Failure      500  {object}  models.ErrorResponse
+// @Router       /enrollments/history-status/student/{studentId} [get]
+func GetEnrollmentsHistoryByStudent(c *fiber.Ctx) error {
+	studentID, err := primitive.ObjectIDFromHex(c.Params("studentId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid studentId format"})
+	}
+
+	status, err := enrollments.GetEnrollmentsHistoryByStudent(studentID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(status)
 }
