@@ -228,7 +228,7 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 		return nil, 0, 0, err
 	}
 
-	// เตรียม latest hour-change-history ต่อ programItem เพื่อตีสถานะ 1/2/3
+	// เตรียม latest hour-change-history ต่อ programItem เพื่อตีสถานะ + หา approvedAt
 	type histLite struct {
 		ProgramItemID primitive.ObjectID  `bson:"programItemId"`
 		EnrollmentID  *primitive.ObjectID `bson:"enrollmentId"`
@@ -236,7 +236,10 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 		HoursChange   int                 `bson:"hoursChange"`
 		ChangedAt     time.Time           `bson:"changedAt"`
 	}
-	latestByItem := make(map[primitive.ObjectID]histLite)
+
+	latestByItem := make(map[primitive.ObjectID]histLite)    // ล่าสุดสุด (อะไรก็ได้)
+	approvedByItem := make(map[primitive.ObjectID]time.Time) // ล่าสุดที่ถือว่าอนุมัติ
+
 	if len(programItemIDs) > 0 {
 		histCur, err := DB.HourChangeHistoryCollection.Find(ctx, bson.M{
 			"studentId":     studentID,
@@ -247,8 +250,15 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 			for histCur.Next(ctx) {
 				var h histLite
 				if derr := histCur.Decode(&h); derr == nil {
+					// 1) เก็บตัวล่าสุด (ใช้ตีสถานะ)
 					if _, ok := latestByItem[h.ProgramItemID]; !ok {
 						latestByItem[h.ProgramItemID] = h
+					}
+					// 2) เก็บตัวล่าสุดที่ "อนุมัติ"
+					if _, ok := approvedByItem[h.ProgramItemID]; !ok {
+						if h.ChangeType == "add" || h.ChangeType == "no_change" || (h.HoursChange >= 0 && h.ChangeType == "") {
+							approvedByItem[h.ProgramItemID] = h.ChangedAt
+						}
 					}
 				}
 			}
@@ -256,7 +266,6 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 		}
 	}
 
-	// เติม CheckinoutRecord และ Status ลงในแต่ละ programItem
 	for i := range programs {
 		for j := range programs[i].ProgramItems {
 			item := &programs[i].ProgramItems[j]
@@ -271,14 +280,22 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 			st := 1
 			if h, ok := latestByItem[item.ID]; ok {
 				if h.ChangeType == "remove" || h.HoursChange < 0 {
-					st = 3 // ลงทะเบียนแต่ไม่เข้า
+					st = 3 // ลงทะเบียนแต่ไม่เข้า/ตัดชั่วโมง
 				} else if h.ChangeType == "add" || h.ChangeType == "no_change" || (h.HoursChange >= 0 && h.ChangeType == "") {
-					st = 2 // เข้าร่วมแล้ว
+					st = 2 // เข้าร่วม/อนุมัติแล้ว
 				} else {
-					st = 1 // อย่างอื่นถือว่ายังไม่เข้าร่วม
+					st = 1
 				}
 			}
 			item.Status = &st
+
+			// ✅ ใส่วันที่อนุมัติ (ถ้ามีและสถานะเป็น 2)
+			if st == 2 {
+				if t, ok := approvedByItem[item.ID]; ok {
+					tt := t
+					item.ApprovedAt = &tt
+				}
+			}
 		}
 	}
 

@@ -1,6 +1,10 @@
 package models
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 // Program กิจกรรมหลัก
 type Program struct {
@@ -87,6 +91,7 @@ type ProgramItemDtoWithCheckinoutRecord struct {
 	EnrollmentCount  int                `json:"enrollmentCount"  `
 	CheckinoutRecord []CheckinoutRecord `json:"checkinoutRecord,omitempty"`
 	Status           *int               `json:"status,omitempty"`
+	ApprovedAt       *time.Time         `json:"approvedAt,omitempty" bson:"-"`
 }
 
 type Dates struct {
