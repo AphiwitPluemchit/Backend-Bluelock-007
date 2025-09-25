@@ -153,7 +153,7 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 }
 
 // ✅ 2. ดึงกิจกรรมทั้งหมดที่ Student ลงทะเบียนไปแล้ว พร้อม pagination และ filter
-func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ProgramDto, int64, int, error) {
+func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.PaginationParams, skillFilter []string) ([]models.ProgramDtoWithCheckinoutRecord, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -179,9 +179,10 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	}
 	var enrollmentResult []bson.M
 	if err := cur.All(ctx, &enrollmentResult); err != nil || len(enrollmentResult) == 0 {
-		return []models.ProgramDto{}, 0, 0, nil
+		return []models.ProgramDtoWithCheckinoutRecord{}, 0, 0, nil
 	}
 	programIDs := enrollmentResult[0]["programIds"].(primitive.A)
+	programItemIDs := enrollmentResult[0]["programItemIds"].(primitive.A)
 
 	// ✅ Step 2: Filter + Paginate + Lookup programs เหมือน GetAllPrograms
 	skip := int64((params.Page - 1) * params.Limit)
@@ -204,15 +205,81 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	}
 
 	pipeline := programs.GetProgramsPipeline(filter, params.SortBy, sort[0].Value.(int), skip, int64(params.Limit), []string{}, []int{})
+	// กรอง programItems ให้เหลือเฉพาะที่นิสิตลงทะเบียนไว้
+	pipeline = append(pipeline,
+		bson.D{{Key: "$addFields", Value: bson.M{
+			"programItems": bson.M{
+				"$filter": bson.M{
+					"input": "$programItems",
+					"as":    "it",
+					"cond":  bson.M{"$in": []interface{}{"$$it._id", programItemIDs}},
+				},
+			},
+		}}},
+	)
 	cursor, err := DB.ProgramCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 	defer cursor.Close(ctx)
 
-	var programs []models.ProgramDto
+	var programs []models.ProgramDtoWithCheckinoutRecord
 	if err := cursor.All(ctx, &programs); err != nil {
 		return nil, 0, 0, err
+	}
+
+	// เตรียม latest hour-change-history ต่อ programItem เพื่อตีสถานะ 1/2/3
+	type histLite struct {
+		ProgramItemID primitive.ObjectID  `bson:"programItemId"`
+		EnrollmentID  *primitive.ObjectID `bson:"enrollmentId"`
+		ChangeType    string              `bson:"changeType"`
+		HoursChange   int                 `bson:"hoursChange"`
+		ChangedAt     time.Time           `bson:"changedAt"`
+	}
+	latestByItem := make(map[primitive.ObjectID]histLite)
+	if len(programItemIDs) > 0 {
+		histCur, err := DB.HourChangeHistoryCollection.Find(ctx, bson.M{
+			"studentId":     studentID,
+			"programItemId": bson.M{"$in": programItemIDs},
+			"type":          "program",
+		}, options.Find().SetSort(bson.D{{Key: "changedAt", Value: -1}}))
+		if err == nil {
+			for histCur.Next(ctx) {
+				var h histLite
+				if derr := histCur.Decode(&h); derr == nil {
+					if _, ok := latestByItem[h.ProgramItemID]; !ok {
+						latestByItem[h.ProgramItemID] = h
+					}
+				}
+			}
+			_ = histCur.Close(ctx)
+		}
+	}
+
+	// เติม CheckinoutRecord และ Status ลงในแต่ละ programItem
+	for i := range programs {
+		for j := range programs[i].ProgramItems {
+			item := &programs[i].ProgramItems[j]
+
+			// check-in/out times
+			statusRecs, _ := GetCheckinStatus(studentID.Hex(), item.ID.Hex())
+			if len(statusRecs) > 0 {
+				item.CheckinoutRecord = statusRecs
+			}
+
+			// default: 1 ยังไม่เข้าร่วม
+			st := 1
+			if h, ok := latestByItem[item.ID]; ok {
+				if h.ChangeType == "remove" || h.HoursChange < 0 {
+					st = 3 // ลงทะเบียนแต่ไม่เข้า
+				} else if h.ChangeType == "add" || h.ChangeType == "no_change" || (h.HoursChange >= 0 && h.ChangeType == "") {
+					st = 2 // เข้าร่วมแล้ว
+				} else {
+					st = 1 // อย่างอื่นถือว่ายังไม่เข้าร่วม
+				}
+			}
+			item.Status = &st
+		}
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
