@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// GetCheckinStatus returns all check-in/out records for a student and programItemId from Enrollment
+// GetCheckinStatus returns all check-in/out records for a student and programItemId
 func GetCheckinStatus(studentId, programItemId string) ([]map[string]interface{}, error) {
 	uID, err1 := primitive.ObjectIDFromHex(studentId)
 	aID, err2 := primitive.ObjectIDFromHex(programItemId)
@@ -22,32 +22,59 @@ func GetCheckinStatus(studentId, programItemId string) ([]map[string]interface{}
 		return nil, fmt.Errorf("รหัสไม่ถูกต้อง")
 	}
 
-	// อ่านจาก Enrollment.checkinoutRecord เท่านั้น
-	var enrollment models.Enrollment
-	err := DB.EnrollmentCollection.FindOne(
-		context.TODO(),
-		bson.M{"studentId": uID, "programItemId": aID},
-	).Decode(&enrollment)
-	if err != nil {
-		// ไม่พบ enrollment ให้คืนค่า array ว่าง
-		return []map[string]interface{}{}, nil
+	filter := bson.M{
+		"studentId":     uID,
+		"programItemId": aID,
 	}
 
-	results := []map[string]interface{}{}
-	if enrollment.CheckinoutRecord == nil {
-		return results, nil
+	cursor, err := DB.CheckinCollection.Find(context.TODO(), filter)
+	if err != nil {
+		return nil, fmt.Errorf("ไม่สามารถค้นหาข้อมูลเช็คชื่อได้")
 	}
-	for _, r := range *enrollment.CheckinoutRecord {
-		item := map[string]interface{}{}
-		if r.Checkin != nil {
-			item["checkin"] = *r.Checkin
+	defer cursor.Close(context.TODO())
+
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+
+	// แยก checkin/checkout ตามวัน
+	type rec struct {
+		Type      string    `bson:"type"`
+		Timestamp time.Time `bson:"timestamp"`
+	}
+	var checkins, checkouts []time.Time
+	for cursor.Next(context.TODO()) {
+		var r rec
+		if err := cursor.Decode(&r); err != nil {
+			continue
 		}
-		if r.Checkout != nil {
-			item["checkout"] = *r.Checkout
+		t := r.Timestamp.In(loc)
+		switch r.Type {
+		case "checkin":
+			checkins = append(checkins, t)
+		case "checkout":
+			checkouts = append(checkouts, t)
 		}
-		if len(item) > 0 {
-			results = append(results, item)
+	}
+
+	// จับคู่ checkin/checkout ตามลำดับเวลา
+	var results []map[string]interface{}
+	usedCheckout := make([]bool, len(checkouts))
+	for _, ci := range checkins {
+		// หา checkout ที่เร็วที่สุดหลัง checkin นี้
+		var co *time.Time
+		for i, c := range checkouts {
+			if !usedCheckout[i] && c.After(ci) {
+				co = &c
+				usedCheckout[i] = true
+				break
+			}
 		}
+		result := map[string]interface{}{
+			"checkin": ci,
+		}
+		if co != nil {
+			result["checkout"] = *co
+		}
+		results = append(results, result)
 	}
 	return results, nil
 }
@@ -172,150 +199,99 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 	if err1 != nil || err2 != nil {
 		return fmt.Errorf("รหัสไม่ถูกต้อง")
 	}
-
+	// หาวันนี้ (ตัดเวลา)
 	now := time.Now()
-	loc, _ := time.LoadLocation("Asia/Bangkok")
-	dateKey := now.In(loc).Format("2006-01-02")
-
-	// ดึง enrollment สำหรับ student+programItem
-	var enrollment models.Enrollment
-	err := DB.EnrollmentCollection.FindOne(context.TODO(), bson.M{"studentId": uID, "programItemId": aID}).Decode(&enrollment)
+	y, m, d := now.Date()
+	loc := now.Location()
+	startOfDay := time.Date(y, m, d, 0, 0, 0, 0, loc)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+	// เช็คว่ามี record ซ้ำในวันเดียวกันหรือยัง
+	filter := bson.M{
+		"studentId":     uID,
+		"programItemId": aID,
+		"type":          checkType,
+		"timestamp": bson.M{
+			"$gte": startOfDay,
+			"$lt":  endOfDay,
+		},
+	}
+	count, err := DB.CheckinCollection.CountDocuments(context.TODO(), filter)
 	if err != nil {
-		return fmt.Errorf("ไม่พบการลงทะเบียนของกิจกรรมนี้")
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("คุณได้เช็คชื่อ %s แล้วในวันนี้", checkType)
+	}
+	// Insert ใหม่
+	checkinRecord := models.CheckinRecord{
+		StudentID:     uID,
+		ProgramItemID: aID,
+		Type:          checkType,
+		Timestamp:     now,
 	}
 
-	// เตรียมอาร์เรย์
-	records := []models.CheckinoutRecord{}
-	if enrollment.CheckinoutRecord != nil {
-		records = append(records, (*enrollment.CheckinoutRecord)...)
+	_, err = DB.CheckinCollection.InsertOne(context.TODO(), checkinRecord)
+	if err != nil {
+		return err
 	}
 
-	// หาเรคคอร์ดของวันเดียวกันล่าสุด
-	var targetIdx int = -1
-	for i := len(records) - 1; i >= 0; i-- {
-		var d string
-		if records[i].Checkin != nil {
-			d = records[i].Checkin.In(loc).Format("2006-01-02")
-		} else if records[i].Checkout != nil {
-			d = records[i].Checkout.In(loc).Format("2006-01-02")
-		}
-		if d == dateKey {
-			targetIdx = i
-			break
-		}
+	// อัปเดตข้อมูลการเช็คชื่อในเอกสาร Enrollment ให้สะท้อนสถานะล่าสุด
+	// คำนวณคู่ checkin/checkout ใหม่ แล้วเซ็ตลง field checkinoutRecord ของ enrollment
+	if status, _ := enrollments.GetCheckinStatus(userId, programItemId); status != nil {
+		update := bson.M{"$set": bson.M{"checkinoutRecord": status}}
+		_, _ = DB.EnrollmentCollection.UpdateOne(
+			context.TODO(),
+			bson.M{"studentId": uID, "programItemId": aID},
+			update,
+		)
 	}
 
-	switch checkType {
-	case "checkin":
-		// ป้องกันเช็คอินซ้ำในวันเดียวกัน
-		if targetIdx >= 0 && records[targetIdx].Checkin != nil {
-			return fmt.Errorf("คุณได้เช็คชื่อ checkin แล้วในวันนี้")
-		}
-		t := now
-		if targetIdx >= 0 {
-			records[targetIdx].Checkin = &t
-		} else {
-			records = append(records, models.CheckinoutRecord{Checkin: &t})
-		}
-	case "checkout":
-		// ต้องมีเรคคอร์ดวันนี้ และยังไม่มี checkout
-		if targetIdx >= 0 {
-			if records[targetIdx].Checkout != nil {
-				return fmt.Errorf("คุณได้เช็คชื่อ checkout แล้วในวันนี้")
-			}
-			t := now
-			records[targetIdx].Checkout = &t
-		} else {
-			// อนุญาต checkout-only กรณีไม่มี checkin
-			t := now
-			records = append(records, models.CheckinoutRecord{Checkout: &t})
-		}
-	default:
-		return fmt.Errorf("ประเภทการเช็คชื่อไม่ถูกต้อง")
-	}
+	// หากเป็นการ checkout ให้รีเฟรช participation ภายในอาเรย์ checkinoutRecord เท่านั้น (ไม่แตะฟิลด์อื่น)
+	if checkType == "checkout" {
+		if status, _ := enrollments.GetCheckinStatus(userId, programItemId); status != nil {
+			_, _ = DB.EnrollmentCollection.UpdateOne(
+				context.TODO(),
+				bson.M{"studentId": uID, "programItemId": aID},
+				bson.M{"$set": bson.M{"checkinoutRecord": status}},
+			)
 
-	// เติมค่า Participation ต่อรายการตามเวลาเริ่มใน ProgramItem
-	var programItem models.ProgramItem
-	if err := DB.ProgramItemCollection.FindOne(context.TODO(), bson.M{"_id": aID}).Decode(&programItem); err == nil {
-		startByDate := make(map[string]time.Time, len(programItem.Dates))
-		for _, d := range programItem.Dates {
-			if d.Date == "" || d.Stime == "" {
-				continue
-			}
-			if st, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc); err == nil {
-				startByDate[d.Date] = st
-			}
-		}
-		for i := range records {
-			var d string
-			if records[i].Checkin != nil {
-				d = records[i].Checkin.In(loc).Format("2006-01-02")
-			} else if records[i].Checkout != nil {
-				d = records[i].Checkout.In(loc).Format("2006-01-02")
-			}
-			participation := "ยังไม่เข้าร่วมกิจกรรม"
-			hasIn := records[i].Checkin != nil
-			hasOut := records[i].Checkout != nil
-			switch {
-			case hasIn && hasOut:
-				if st, ok := startByDate[d]; ok {
-					early := st.Add(-15 * time.Minute)
-					late := st.Add(15 * time.Minute)
-					if (records[i].Checkin.Equal(early) || records[i].Checkin.After(early)) &&
-						(records[i].Checkin.Before(late) || records[i].Checkin.Equal(late)) {
-						participation = "เช็คอิน/เช็คเอาท์ตรงเวลา"
-					} else {
-						participation = "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา"
+			// เพิ่มการตรวจสอบว่าเข้าร่วมครบทุกวันที่กำหนดหรือไม่
+			// เกณฑ์: วันนั้นถือว่า "เข้าร่วม" หาก participation เป็น "เช็คอิน/เช็คเอาท์ตรงเวลา" หรือ "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา"
+			ctx := context.TODO()
+			var programItem models.ProgramItem
+			if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": aID}).Decode(&programItem); err == nil {
+				loc, _ := time.LoadLocation("Asia/Bangkok")
+				// map วันที่ -> participation
+				participationByDate := make(map[string]string)
+				for _, r := range status {
+					var dateKey string
+					if r.Checkin != nil {
+						dateKey = r.Checkin.In(loc).Format("2006-01-02")
+					} else if r.Checkout != nil {
+						dateKey = r.Checkout.In(loc).Format("2006-01-02")
 					}
-				} else {
-					participation = "เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์ (ไม่พบเวลาเริ่มกิจกรรมของวันนั้น)"
+					if dateKey == "" || r.Participation == nil {
+						continue
+					}
+					participationByDate[dateKey] = *r.Participation
 				}
-			case hasIn && !hasOut:
-				if st, ok := startByDate[d]; ok && !records[i].Checkin.Before(st.Add(-15*time.Minute)) {
-					participation = "เช็คอินแล้ว (รอเช็คเอาท์)"
-				} else {
-					participation = "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
+
+				attendedAll := true
+				for _, d := range programItem.Dates {
+					p := participationByDate[d.Date]
+					if !(p == "เช็คอิน/เช็คเอาท์ตรงเวลา" || p == "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา") {
+						attendedAll = false
+						break
+					}
 				}
-			case !hasIn && hasOut:
-				participation = "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
+
+				// อัปเดตธง attendedAllDays ใน enrollment (เพิ่มฟิลด์ใหม่นี้ในเอกสาร)
+				_, _ = DB.EnrollmentCollection.UpdateOne(
+					ctx,
+					bson.M{"studentId": uID, "programItemId": aID},
+					bson.M{"$set": bson.M{"attendedAllDays": attendedAll}},
+				)
 			}
-			p := participation
-			records[i].Participation = &p
-		}
-		// อัปเดตธง attendedAllDays
-		participationByDate := make(map[string]string)
-		for _, r := range records {
-			var d string
-			if r.Checkin != nil {
-				d = r.Checkin.In(loc).Format("2006-01-02")
-			} else if r.Checkout != nil {
-				d = r.Checkout.In(loc).Format("2006-01-02")
-			}
-			if d == "" || r.Participation == nil {
-				continue
-			}
-			participationByDate[d] = *r.Participation
-		}
-		attendedAll := true
-		for _, d := range programItem.Dates {
-			p := participationByDate[d.Date]
-			if !(p == "เช็คอิน/เช็คเอาท์ตรงเวลา" || p == "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา") {
-				attendedAll = false
-				break
-			}
-		}
-		// อัปเดต enrollment ด้วย records และ attendedAllDays
-		update := bson.M{"$set": bson.M{"checkinoutRecord": records, "attendedAllDays": attendedAll}}
-		_, err = DB.EnrollmentCollection.UpdateOne(context.TODO(), bson.M{"studentId": uID, "programItemId": aID}, update)
-		if err != nil {
-			return err
-		}
-	} else {
-		// อัปเดตเฉพาะ records ถ้าหา programItem ไม่ได้
-		update := bson.M{"$set": bson.M{"checkinoutRecord": records}}
-		_, err = DB.EnrollmentCollection.UpdateOne(context.TODO(), bson.M{"studentId": uID, "programItemId": aID}, update)
-		if err != nil {
-			return err
 		}
 	}
 

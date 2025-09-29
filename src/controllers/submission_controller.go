@@ -2,15 +2,17 @@ package controllers
 
 import (
 	"log"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services/submission"
+	submissionSvc "Backend-Bluelock-007/src/services/submission"
 )
 
-// ===== DTO ที่รับจาก Frontend เป็น string IDs =====
+// --------- Input DTOs ---------
+
 type responseIn struct {
 	ID         string  `json:"id,omitempty"`
 	AnswerText *string `json:"answerText,omitempty"`
@@ -25,14 +27,15 @@ type submissionIn struct {
 	Responses []responseIn `json:"responses"`
 }
 
-// createSubmission
+// --------- Create ---------
+
 func CreateSubmission(c *fiber.Ctx) error {
 	var in submissionIn
 	if err := c.BodyParser(&in); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input: " + err.Error()})
 	}
 
-	// แปลง string → ObjectID
+	// validate & convert IDs
 	formOID, err := primitive.ObjectIDFromHex(in.FormID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid formId"})
@@ -82,9 +85,10 @@ func CreateSubmission(c *fiber.Ctx) error {
 		Responses: resps,
 	}
 
-	log.Printf("[submission] IN form=%s user=%s responses=%d", submissions.FormID.Hex(), submissions.UserID.Hex(), len(submissions.Responses))
+	log.Printf("[submission] IN form=%s user=%s responses=%d",
+		submissions.FormID.Hex(), submissions.UserID.Hex(), len(submissions.Responses))
 
-	created, err := submission.CreateSubmission(c.Context(), &submissions)
+	created, err := submissionSvc.CreateSubmission(c.Context(), &submissions)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -92,14 +96,15 @@ func CreateSubmission(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(created)
 }
 
-// GetSubmission handles getting a submission by ID
+// --------- Read (by id) ---------
+
 func GetSubmission(c *fiber.Ctx) error {
 	id, err := primitive.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	submission, err := submission.GetSubmissionByID(c.Context(), id)
+	submission, err := submissionSvc.GetSubmissionByID(c.Context(), id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Submission not found"})
 	}
@@ -107,14 +112,15 @@ func GetSubmission(c *fiber.Ctx) error {
 	return c.JSON(submission)
 }
 
-// GetSubmissionsByForm handles getting submissions by form ID
+// --------- Read (by form, legacy path) ---------
+
 func GetSubmissionsByForm(c *fiber.Ctx) error {
 	formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
 	}
 
-	submissions, err := submission.GetSubmissionsByFormID(c.Context(), formID)
+	submissions, err := submissionSvc.GetSubmissionsByFormID(c.Context(), formID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -122,16 +128,78 @@ func GetSubmissionsByForm(c *fiber.Ctx) error {
 	return c.JSON(submissions)
 }
 
-// DeleteSubmission handles submission deletion
-func DeleteSubmission(c *fiber.Ctx) error {
-	id, err := primitive.ObjectIDFromHex(c.Params("id"))
+// --------- Read (by form with query) ---------
+// ใช้กับ: GET /forms/:formId/submissions?limit=1&sort=latest
+func GetSubmissionsByFormWithQuery(c *fiber.Ctx) error {
+	formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
 	}
 
-	if err := submission.DeleteSubmission(c.Context(), id); err != nil {
+	limit := 0
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	sortParam := c.Query("sort") // e.g., "latest"
+
+	subs, err := submissionSvc.GetSubmissionsByFormIDWithQuery(c.Context(), formID, limit, sortParam)
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+	return c.JSON(subs)
+}
 
-	return c.SendStatus(fiber.StatusNoContent)
+// ========== Analytics รวมไว้ในไฟล์นี้ได้เลย ==========
+
+// GET /analytics/forms/:formId/blocks/:blockId
+// ใช้ทำกราฟแท่งของบล็อกเดียว (single-choice หรือ grid)
+func GetBlockAnalytics(c *fiber.Ctx) error {
+	formOID, err := primitive.ObjectIDFromHex(c.Params("formId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid formId"})
+	}
+	blockOID, err := primitive.ObjectIDFromHex(c.Params("blockId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid blockId"})
+	}
+
+	items, err := submissionSvc.AggregateBlockCounts(c.Context(), formOID, blockOID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(items)
+}
+
+// GET /analytics/forms/:formId/blocks
+// รวมทุกบล็อกในฟอร์ม (เรียกทีเดียว)
+func GetFormBlocksAnalytics(c *fiber.Ctx) error {
+	formOID, err := primitive.ObjectIDFromHex(c.Params("formId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid formId"})
+	}
+	items, err := submissionSvc.AggregateFormCounts(c.Context(), formOID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(items)
+}
+
+// --------- (ทางเลือก) endpoint สั้น ๆ ดึง latest ของฟอร์มเดียว ---------
+// GET /forms/:formId/submissions/latest
+func GetLatestSubmission(c *fiber.Ctx) error {
+	formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
+	}
+
+	subs, err := submissionSvc.GetSubmissionsByFormIDWithQuery(c.Context(), formID, 1, "latest")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if len(subs) == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No submissions"})
+	}
+	return c.JSON(subs[0])
 }

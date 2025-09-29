@@ -16,44 +16,73 @@ import (
 
 // CreateForm godoc
 // @Summary      Create a new form
-// @Description  รับข้อมูลฟอร์มจาก client และบันทึกลงฐานข้อมูล
+// @Description  รับข้อมูลฟอร์มจาก client และบันทึกลงฐานข้อมูล (คง id เดิมของ block/choice/row ถ้ามีส่งมา)
 // @Tags         forms
 // @Accept       json
 // @Produce      json
-// @Param        form  body  models.Form  true  "Form object"
+// @Param        form  body  FormIn  true  "Form payload (IDs as hex string)"
 // @Success      201   {object}  map[string]interface{}  "Form created successfully"
 // @Failure      400   {object}  map[string]interface{}  "Invalid input"
 // @Failure      500   {object}  map[string]interface{}  "Failed to insert form"
 // @Router       /forms [post]
 // @Security     ApiKeyAuth
 func CreateForm(c *fiber.Ctx) error {
-	var form models.Form
-
-	if err := c.BodyParser(&form); err != nil {
+	var in FormIn
+	if err := c.BodyParser(&in); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
+			"error": "Invalid input: " + err.Error(),
 		})
 	}
 
-	// สร้าง Form ID
-	form.ID = primitive.NewObjectID()
+	// ฟอร์มใหม่: สร้าง form.ID ใหม่เสมอ
+	form := models.Form{
+		ID:         primitive.NewObjectID(),
+		Title:      in.Title,
+		Description: in.Description,
+		IsOrigin:   in.IsOrigin,
+		Blocks:     make([]models.Block, 0, len(in.Blocks)),
+	}
 
-	// Loop ทุก block → set ID + formId
-	for i := range form.Blocks {
-		form.Blocks[i].ID = primitive.NewObjectID()
-		form.Blocks[i].FormID = form.ID
+	// map blocks
+	for _, b := range in.Blocks {
+		bid := mustOID(b.ID) // ถ้า b.ID เป็น hex valid → ใช้เดิม, ไม่งั้น gen ใหม่
 
-		// Loop ทุก choice → set ID + blockId
-		for j := range form.Blocks[i].Choices {
-			form.Blocks[i].Choices[j].ID = primitive.NewObjectID()
-			form.Blocks[i].Choices[j].BlockID = form.Blocks[i].ID
+		ob := models.Block{
+			ID:          bid,
+			Title:       b.Title,
+			Session:     b.Session,
+			Type:        b.Type,
+			Description: b.Description,
+			IsRequired:  b.IsRequired,
+			Sequence:    b.Sequence,
+			FormID:      form.ID, // ชี้กลับฟอร์มใหม่
+			Choices:     make([]models.Choice, 0, len(b.Choices)),
+			Rows:        make([]models.Row, 0, len(b.Rows)),
 		}
 
-		// Loop ทุก row → set ID + blockId
-		for j := range form.Blocks[i].Rows {
-			form.Blocks[i].Rows[j].ID = primitive.NewObjectID()
-			form.Blocks[i].Rows[j].BlockID = form.Blocks[i].ID
+		// map choices
+		for _, ch := range b.Choices {
+			cid := mustOID(ch.ID)
+			ob.Choices = append(ob.Choices, models.Choice{
+				ID:       cid,
+				Title:    ch.Title,
+				Sequence: ch.Sequence,
+				BlockID:  bid, // อ้างอิง block เดิม/ใหม่ตามข้างบน
+			})
 		}
+
+		// map rows (grid)
+		for _, rw := range b.Rows {
+			rid := mustOID(rw.ID)
+			ob.Rows = append(ob.Rows, models.Row{
+				ID:       rid,
+				Title:    rw.Title,
+				Sequence: rw.Sequence,
+				BlockID:  bid,
+			})
+		}
+
+		form.Blocks = append(form.Blocks, ob)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -72,7 +101,44 @@ func CreateForm(c *fiber.Ctx) error {
 		"form":       form,
 	})
 }
+/* ---------- DTO & helpers สำหรับ CreateForm ---------- */
 
+// payload ที่ฝั่ง FE ส่งมา ใช้ string id (hex) เพื่อคงไอดีเดิมได้
+type FormIn struct {
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	IsOrigin    bool       `json:"isOrigin"`
+	Blocks      []BlockIn  `json:"blocks"`
+}
+type BlockIn struct {
+	ID          string      `json:"id"` // hex string หรือว่าง
+	Title       string      `json:"title"`
+	Session     int         `json:"session"`
+	Type        string      `json:"type"`
+	Description string      `json:"description"`
+	IsRequired  bool        `json:"isRequired"`
+	Sequence    int         `json:"sequence"`
+	Choices     []ChoiceIn  `json:"choices"`
+	Rows        []RowIn     `json:"rows"`
+}
+type ChoiceIn struct {
+	ID       string `json:"id"` // hex string หรือว่าง
+	Title    string `json:"title"`
+	Sequence int    `json:"sequence"`
+}
+type RowIn struct {
+	ID       string `json:"id"` // hex string หรือว่าง
+	Title    string `json:"title"`
+	Sequence int    `json:"sequence"`
+}
+
+// ถ้า s เป็น hex valid → คืนค่าเดิม; ถ้าไม่ → gen ใหม่
+func mustOID(s string) primitive.ObjectID {
+	if oid, err := primitive.ObjectIDFromHex(s); err == nil {
+		return oid
+	}
+	return primitive.NewObjectID()
+}
 // GetAllForms godoc
 // @Summary      Get all forms
 // @Description  ดึงข้อมูลฟอร์มทั้งหมด

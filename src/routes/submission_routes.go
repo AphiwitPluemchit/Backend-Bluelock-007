@@ -8,11 +8,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func SubmissionRoutes(router fiber.Router, db *mongo.Database) {
-	// สร้าง service และ controller
-	// svc := submissionService.NewSubmissionService(db)
-	// ctrl := controllers.NewSubmissionController(svc)
-
+func SubmissionRoutes(router fiber.Router, _ *mongo.Database) {
+	// กลุ่ม /submissions (CRUD เดิม)
 	submissions := router.Group("/submissions")
 
 	// Create
@@ -20,8 +17,12 @@ func SubmissionRoutes(router fiber.Router, db *mongo.Database) {
 
 	// Read
 	submissions.Get("/:id", controllers.GetSubmission)                 // GET /submissions/:id
-	submissions.Get("/form/:formId", controllers.GetSubmissionsByForm) // GET /submissions/form/:formId
+	submissions.Get("/form/:formId", controllers.GetSubmissionsByForm) // GET /submissions/form/:formId (legacy)
 
-	// Delete
-	submissions.Delete("/:id", controllers.DeleteSubmission)
+
+	router.Get("/forms/:formId/submissions", controllers.GetSubmissionsByFormWithQuery)
+
+	// ✅ Analytics (แนะนำพาธระดับ root ให้ตรงกับ frontend)
+	router.Get("/analytics/forms/:formId/blocks", controllers.GetFormBlocksAnalytics)
+	router.Get("/analytics/forms/:formId/blocks/:blockId", controllers.GetBlockAnalytics)
 }
