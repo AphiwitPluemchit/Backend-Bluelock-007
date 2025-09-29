@@ -64,6 +64,7 @@ func GetFormByID(ctx context.Context, id string) (*models.Form, error) {
 }
 
 
+// UpdateForm updates an existing form by ID
 func UpdateForm(ctx context.Context, id string, form *models.Form) (*mongo.UpdateResult, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
