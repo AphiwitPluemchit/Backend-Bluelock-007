@@ -18,7 +18,6 @@ func init() {
 		"Programs",
 		"Program_Items",
 		"Admins",
-		"Check_In_Check_Out",
 		"Enrollments",
 		"Foods",
 		"Qr_Tokens",
@@ -38,7 +37,6 @@ func init() {
 	DB.ProgramCollection = DB.GetCollection(collection, "Programs")
 	DB.ProgramItemCollection = DB.GetCollection(collection, "Program_Items")
 	DB.AdminCollection = DB.GetCollection(collection, "Admins")
-	DB.CheckinCollection = DB.GetCollection(collection, "Check_In_Check_Out")
 	DB.EnrollmentCollection = DB.GetCollection(collection, "Enrollments")
 	DB.FoodCollection = DB.GetCollection(collection, "Foods")
 	DB.QrTokenCollection = DB.GetCollection(collection, "Qr_Tokens")

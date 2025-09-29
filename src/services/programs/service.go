@@ -566,21 +566,6 @@ func GetEnrollmentByProgramItemID(
 		}}},
 		{{Key: "$unwind", Value: "$student"}},
 		{{Key: "$lookup", Value: bson.M{
-			"from": "Check_In_Check_Out",
-			"let":  bson.M{"studentId": "$student._id", "programItemId": "$programItemId"},
-			"pipeline": mongo.Pipeline{
-				{{Key: "$match", Value: bson.M{
-					"$expr": bson.M{
-						"$and": bson.A{
-							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
-							bson.M{"$eq": bson.A{"$programItemId", "$$programItemId"}},
-						},
-					},
-				}}},
-			},
-			"as": "checkInOuts",
-		}}},
-		{{Key: "$lookup", Value: bson.M{
 			"from": "Enrollments",
 			"let":  bson.M{"studentId": "$student._id"},
 			"pipeline": mongo.Pipeline{
@@ -626,13 +611,14 @@ func GetEnrollmentByProgramItemID(
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: filter}})
 	}
 
-	// Project student fields + checkInOuts
+	// Project student fields + checkInOuts from enrollment.checkinoutRecord
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
-		"_id":              0,
-		"id":               "$student._id",
-		"code":             "$student.code",
-		"name":             "$student.name",
-		"engName":          "$student.engName",
+		"_id":     0,
+		"id":      "$student._id",
+		"code":    "$student.code",
+		"name":    "$student.name",
+		"engName": "$student.engName",
+		// keep student status
 		"status":           "$student.status",
 		"softSkill":        "$student.softSkill",
 		"hardSkill":        "$student.hardSkill",
@@ -640,7 +626,9 @@ func GetEnrollmentByProgramItemID(
 		"enrollmentId":     "$enrollment._id",
 		"food":             "$enrollment.food",
 		"registrationDate": "$enrollment.registrationDate",
-		"checkInOut":       "$checkInOuts",
+		"checkInOut":       "$enrollment.checkinoutRecord",
+		// attendance status will be computed later
+		"checkInStatus": nil,
 	}}})
 
 	// Count total before skip/limit
@@ -676,6 +664,51 @@ func GetEnrollmentByProgramItemID(
 	var results []bson.M
 	if err := cursor.All(ctx, &results); err != nil {
 		return nil, 0, err
+	}
+
+	// Compute attendance status ("ตรงเวลา" or "สาย") based on today's check-in vs programItem start time
+	// Load today's start time from ProgramItem.Dates
+	var programItem models.ProgramItem
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemID}).Decode(&programItem); err == nil {
+		loc, _ := time.LoadLocation("Asia/Bangkok")
+		today := time.Now().In(loc).Format("2006-01-02")
+		var start time.Time
+		hasStart := false
+		for _, d := range programItem.Dates {
+			if d.Date == today && d.Stime != "" {
+				if st, e := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc); e == nil {
+					start = st
+					hasStart = true
+					break
+				}
+			}
+		}
+		if hasStart {
+			for i := range results {
+				// checkInOut is array of records with fields: checkin, checkout, participation
+				arr, _ := results[i]["checkInOut"].(primitive.A)
+				status := ""
+				for _, v := range arr {
+					if m, ok := v.(bson.M); ok {
+						if t, ok2 := m["checkin"].(primitive.DateTime); ok2 {
+							tin := t.Time().In(loc)
+							if tin.Format("2006-01-02") == today {
+								// on-time window: within +/-15 minutes around start (per spec: over 15 minutes => late)
+								early := start.Add(-15 * time.Minute)
+								late := start.Add(15 * time.Minute)
+								if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
+									status = "ตรงเวลา"
+								} else {
+									status = "สาย"
+								}
+								break
+							}
+						}
+					}
+				}
+				results[i]["checkInStatus"] = status
+			}
+		}
 	}
 
 	return results, total, nil
@@ -723,24 +756,8 @@ func GetEnrollmentsByProgramID(
 			"as":           "student",
 		}}},
 		{{Key: "$unwind", Value: "$student"}},
-		// join checkInOuts ของแต่ละ enrollment (แยกตาม item)
-		{{Key: "$lookup", Value: bson.M{
-			"from": "Check_In_Check_Out",
-			"let":  bson.M{"studentId": "$student._id", "programItemId": "$programItemId"},
-			"pipeline": mongo.Pipeline{
-				{{Key: "$match", Value: bson.M{
-					"$expr": bson.M{
-						"$and": bson.A{
-							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
-							bson.M{"$eq": bson.A{"$programItemId", "$$programItemId"}},
-						},
-					},
-				}}},
-			},
-			"as": "checkInOuts",
-		}}},
 		// เลือกฟิลด์ที่ต้องใช้ (จาก enrollment ปัจจุบัน)
-		{{Key: "$project", Value: bson.M{
+		bson.D{{Key: "$project", Value: bson.M{
 			"_id":              0,
 			"studentId":        "$student._id",
 			"code":             "$student.code",
@@ -753,7 +770,14 @@ func GetEnrollmentsByProgramID(
 			"enrollmentId":     "$_id",
 			"food":             "$food",
 			"registrationDate": "$registrationDate",
-			"checkInOut":       "$checkInOuts",
+
+			// ✅ เอา record ตรง ๆ เป็นอาเรย์แบน (กัน null ด้วย)
+			"checkInOut": bson.M{
+				"$ifNull": bson.A{"$checkinoutRecord", bson.A{}},
+			},
+
+			// ✅ ให้ค่าเริ่มต้นเป็น null (เดี๋ยวค่อยไปคำนวณภายหลังถ้าจำเป็น)
+			"checkInStatus": nil,
 		}}},
 	}
 
@@ -785,50 +809,43 @@ func GetEnrollmentsByProgramID(
 
 	// 4) รวมเป็น "คนละ 1 แถว" (เด็กคนเดียวอาจลงหลาย item)
 	pipeline = append(pipeline,
+		// รวมเป็นคนละ 1 แถว
 		bson.D{{Key: "$group", Value: bson.M{
-			// ใช้ studentId เป็น _id เพื่อหลีกเลี่ยง non-accumulator field error
-			"_id": "$studentId",
-
-			// เก็บค่าจากเอกสารแรกในกลุ่ม
-			"studentId": bson.M{"$first": "$studentId"},
-			"code":      bson.M{"$first": "$code"},
-			"name":      bson.M{"$first": "$name"},
-			"engName":   bson.M{"$first": "$engName"},
-			"status":    bson.M{"$first": "$status"},
-			"softSkill": bson.M{"$first": "$softSkill"},
-			"hardSkill": bson.M{"$first": "$hardSkill"},
-			"major":     bson.M{"$first": "$major"},
-
-			// enrollment อาจต่างกันระหว่าง item
+			"_id":              "$studentId",
+			"studentId":        bson.M{"$first": "$studentId"},
+			"code":             bson.M{"$first": "$code"},
+			"name":             bson.M{"$first": "$name"},
+			"engName":          bson.M{"$first": "$engName"},
+			"status":           bson.M{"$first": "$status"},
+			"softSkill":        bson.M{"$first": "$softSkill"},
+			"hardSkill":        bson.M{"$first": "$hardSkill"},
+			"major":            bson.M{"$first": "$major"},
 			"food":             bson.M{"$first": "$food"},
 			"registrationDate": bson.M{"$min": "$registrationDate"},
+			"enrollmentId":     bson.M{"$first": "$enrollmentId"},
 
-			// รวม enrollmentId ทั้งหมด + เก็บตัวแรกไว้เผื่อใช้งาน
-			"enrollmentId": bson.M{"$first": "$enrollmentId"},
-
-			// รวมเช็คชื่อทุก item -> จะเป็น array ของ array
-			"checkInOutNested": bson.M{"$push": "$checkInOut"},
+			// ✅ push เป็นอาเรย์ของอาเรย์
+			"checkInOutNested": bson.M{
+				"$push": bson.M{"$ifNull": bson.A{"$checkInOut", bson.A{}}},
+			},
 		}}},
 
-		// flatten checkInOutNested ให้เป็น array เดียว
+		// ✅ flatten ให้เป็นอาเรย์เดียวของ {checkin, checkout, participation}
 		bson.D{{Key: "$addFields", Value: bson.M{
 			"checkInOut": bson.M{
 				"$reduce": bson.M{
-					"input":        "$checkInOutNested",
+					"input":        bson.M{"$ifNull": bson.A{"$checkInOutNested", bson.A{}}},
 					"initialValue": bson.A{},
-					"in": bson.M{
-						"$concatArrays": bson.A{"$$value", "$$this"},
-					},
+					"in":           bson.M{"$concatArrays": bson.A{"$$value", "$$this"}},
 				},
 			},
 		}}},
-		// map _id -> id เพื่อให้ออกเหมือน GetEnrollmentByProgramItemID
-		bson.D{{Key: "$addFields", Value: bson.M{
-			"id": "$_id",
-		}}},
+
+		// map _id -> id และตัดฟิลด์ช่วย
+		bson.D{{Key: "$addFields", Value: bson.M{"id": "$_id"}}},
 		bson.D{{Key: "$project", Value: bson.M{
+			"_id":              0,
 			"checkInOutNested": 0,
-			"_id":              0, // ไม่ต้องการ _id ในผลลัพธ์
 		}}},
 	)
 
@@ -898,10 +915,76 @@ func GetEnrollmentsByProgramID(
 		return nil, 0, err
 	}
 
-	// map ให้ออกมาเป็นเหมือนโครงสร้างเดิม
+	// Compute attendance status per student across program items for "today"
+	// Need programItem start time per record; fetch map of programItemID -> start time today
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	today := time.Now().In(loc).Format("2006-01-02")
+
+	// Build cache of programItemId to start time
+	startTimeByItem := map[string]time.Time{}
+	// helper to fetch start once
+	getStart := func(itemID primitive.ObjectID) (time.Time, bool) {
+		key := itemID.Hex()
+		if v, ok := startTimeByItem[key]; ok {
+			return v, true
+		}
+		var item models.ProgramItem
+		if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": itemID}).Decode(&item); err != nil {
+			return time.Time{}, false
+		}
+		for _, d := range item.Dates {
+			if d.Date == today && d.Stime != "" {
+				if st, e := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc); e == nil {
+					startTimeByItem[key] = st
+					return st, true
+				}
+			}
+		}
+		return time.Time{}, false
+	}
+
 	for i := range results {
-		results[i]["id"] = results[i]["studentId"]
-		delete(results[i], "studentId")
+		status := ""
+		if arr, ok := results[i]["checkInOut"].(primitive.A); ok {
+			for _, v := range arr {
+				m, ok := v.(bson.M)
+				if !ok {
+					continue
+				}
+
+				// ดึง programItemId และ record
+				itemID, _ := m["programItemId"].(primitive.ObjectID)
+				r, _ := m["r"].(bson.M)
+				if r == nil {
+					continue
+				}
+
+				if t, ok2 := r["checkin"].(primitive.DateTime); ok2 {
+					st, ok3 := getStart(itemID) // ตามฟังก์ชันเดิมของคุณ
+					if !ok3 {
+						continue
+					}
+
+					tin := t.Time().In(loc)
+					if tin.Format("2006-01-02") != today {
+						continue
+					}
+
+					early := st.Add(-15 * time.Minute)
+					late := st.Add(15 * time.Minute)
+					if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
+						status = "ตรงเวลา"
+					} else {
+						status = "สาย"
+					}
+					break
+				}
+			}
+		}
+		if status == "" {
+			status = "ยังไม่เช็คชื่อ"
+		}
+		results[i]["checkInStatus"] = status
 	}
 
 	return results, total, nil
