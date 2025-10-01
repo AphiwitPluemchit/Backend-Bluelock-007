@@ -28,6 +28,7 @@ func InitRoutes(app fiber.Router) {
 	certificateRoutes(app)
 	courseRoutes(app) //
 	SubmissionRoutes(app, db)
+	SetupSummaryReportsRoutes(app)
 
 	// Route เช็คว่า API ทำงานอยู่
 	app.Get("/", func(c *fiber.Ctx) error {

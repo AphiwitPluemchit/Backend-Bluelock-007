@@ -4,6 +4,7 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/programs"
+	"Backend-Bluelock-007/src/services/summary_reports"
 	"context"
 	"errors"
 	"fmt"
@@ -147,6 +148,16 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 		bson.M{"$inc": bson.M{"enrollmentcount": 1}},
 	); err != nil {
 		return fmt.Errorf("เพิ่ม enrollmentcount ไม่สำเร็จ: %w", err)
+	}
+
+	// 9) ✅ อัปเดต Summary Report - เพิ่ม Registered count สำหรับแต่ละ date ของ programItem
+	for _, date := range programItem.Dates {
+		err = summary_reports.UpdateRegisteredCount(programItemID, date.Date, 1)
+		if err != nil {
+			log.Printf("⚠️ Warning: Failed to update summary report registered count for date %s: %v", date.Date, err)
+			// Don't return error here, just log it - we don't want to fail enrollment
+			// if summary report update fails
+		}
 	}
 
 	return nil
@@ -364,6 +375,16 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 	)
 	if err != nil {
 		return fmt.Errorf("ลด enrollmentcount ไม่สำเร็จ: %w", err)
+	}
+
+	// ✅ อัปเดต Summary Report - ลด Registered count สำหรับแต่ละ date ของ programItem
+	for _, date := range programItem.Dates {
+		err = summary_reports.UpdateRegisteredCount(enrollment.ProgramItemID, date.Date, -1)
+		if err != nil {
+			log.Printf("⚠️ Warning: Failed to update summary report registered count for date %s: %v", date.Date, err)
+			// Don't return error here, just log it - we don't want to fail unenrollment
+			// if summary report update fails
+		}
 	}
 
 	return nil
@@ -1362,4 +1383,448 @@ func RegisterStudentsByCodes(ctx context.Context, programItemID primitive.Object
 	}
 
 	return res, nil
+}
+func GetEnrollmentByProgramItemID(
+	programItemID primitive.ObjectID,
+	pagination models.PaginationParams,
+	majors []string,
+	status []int,
+	studentYears []int,
+) ([]bson.M, int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Base aggregation pipeline
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"programItemId": programItemID}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "Students",
+			"localField":   "studentId",
+			"foreignField": "_id",
+			"as":           "student",
+		}}},
+		{{Key: "$unwind", Value: "$student"}},
+		{{Key: "$lookup", Value: bson.M{
+			"from": "Enrollments",
+			"let":  bson.M{"studentId": "$student._id"},
+			"pipeline": mongo.Pipeline{
+				{{Key: "$match", Value: bson.M{
+					"$expr": bson.M{
+						"$and": bson.A{
+							bson.M{"$eq": bson.A{"$studentId", "$$studentId"}},
+							bson.M{"$eq": bson.A{"$programItemId", programItemID}},
+						},
+					},
+				}}},
+			},
+			"as": "enrollment",
+		}}},
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$enrollment",
+			"preserveNullAndEmptyArrays": true,
+		}}},
+	}
+
+	// Filters
+	filter := bson.D{}
+	if len(majors) > 0 {
+		filter = append(filter, bson.E{Key: "student.major", Value: bson.M{"$in": majors}})
+	}
+	if len(status) > 0 {
+		filter = append(filter, bson.E{Key: "student.status", Value: bson.M{"$in": status}})
+	}
+	if len(studentYears) > 0 {
+		var regexFilters []bson.M
+		for _, year := range programs.GenerateStudentCodeFilter(studentYears) {
+			regexFilters = append(regexFilters, bson.M{"student.code": bson.M{"$regex": "^" + year, "$options": "i"}})
+		}
+		filter = append(filter, bson.E{Key: "$or", Value: regexFilters})
+	}
+	if pagination.Search != "" {
+		regex := bson.M{"$regex": pagination.Search, "$options": "i"}
+		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
+			bson.M{"student.code": regex},
+		}})
+	}
+	if len(filter) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: filter}})
+	}
+
+	// Project student fields + checkInOuts from enrollment.checkinoutRecord
+	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
+		"_id":     0,
+		"id":      "$student._id",
+		"code":    "$student.code",
+		"name":    "$student.name",
+		"engName": "$student.engName",
+		// keep student status
+		"status":           "$student.status",
+		"softSkill":        "$student.softSkill",
+		"hardSkill":        "$student.hardSkill",
+		"major":            "$student.major",
+		"enrollmentId":     "$enrollment._id",
+		"food":             "$enrollment.food",
+		"registrationDate": "$enrollment.registrationDate",
+		"checkInOut":       "$enrollment.checkinoutRecord",
+		// attendance status will be computed later
+		"checkInStatus": nil,
+	}}})
+
+	// Count total before skip/limit
+	countPipeline := append(pipeline, bson.D{{Key: "$count", Value: "total"}})
+	countCursor, err := DB.EnrollmentCollection.Aggregate(ctx, countPipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer countCursor.Close(ctx)
+
+	var total int64
+	if countCursor.Next(ctx) {
+		var countResult struct {
+			Total int64 `bson:"total"`
+		}
+		if err := countCursor.Decode(&countResult); err == nil {
+			total = countResult.Total
+		}
+	}
+
+	// Add pagination
+	pipeline = append(pipeline,
+		bson.D{{Key: "$skip", Value: (pagination.Page - 1) * pagination.Limit}},
+		bson.D{{Key: "$limit", Value: pagination.Limit}},
+	)
+
+	cursor, err := DB.EnrollmentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+
+	// Compute attendance status ("ตรงเวลา" or "สาย") based on today's check-in vs programItem start time
+	// Load today's start time from ProgramItem.Dates
+	var programItem models.ProgramItem
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemID}).Decode(&programItem); err == nil {
+		loc, _ := time.LoadLocation("Asia/Bangkok")
+		today := time.Now().In(loc).Format("2006-01-02")
+		var start time.Time
+		hasStart := false
+		for _, d := range programItem.Dates {
+			if d.Date == today && d.Stime != "" {
+				if st, e := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc); e == nil {
+					start = st
+					hasStart = true
+					break
+				}
+			}
+		}
+		if hasStart {
+			for i := range results {
+				// checkInOut is array of records with fields: checkin, checkout, participation
+				arr, _ := results[i]["checkInOut"].(primitive.A)
+				status := ""
+				for _, v := range arr {
+					if m, ok := v.(bson.M); ok {
+						if t, ok2 := m["checkin"].(primitive.DateTime); ok2 {
+							tin := t.Time().In(loc)
+							if tin.Format("2006-01-02") == today {
+								// on-time window: within +/-15 minutes around start (per spec: over 15 minutes => late)
+								early := start.Add(-15 * time.Minute)
+								late := start.Add(15 * time.Minute)
+								if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
+									status = "ตรงเวลา"
+								} else {
+									status = "สาย"
+								}
+								break
+							}
+						}
+					}
+				}
+				results[i]["checkInStatus"] = status
+			}
+		}
+	}
+
+	return results, total, nil
+}
+func GetEnrollmentsByProgramID(
+	programID primitive.ObjectID,
+	pagination models.PaginationParams,
+	majors []string,
+	status []int,
+	studentYears []int,
+) ([]bson.M, int64, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// 1) หา programItemIds ทั้งหมดของ program นี้
+	itemCur, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID}, options.Find().SetProjection(bson.M{"_id": 1}))
+	if err != nil {
+		return nil, 0, err
+	}
+	defer itemCur.Close(ctx)
+
+	var itemIDs []primitive.ObjectID
+	for itemCur.Next(ctx) {
+		var v struct {
+			ID primitive.ObjectID `bson:"_id"`
+		}
+		if err := itemCur.Decode(&v); err == nil {
+			itemIDs = append(itemIDs, v.ID)
+		}
+	}
+	if len(itemIDs) == 0 {
+		// ไม่มี item ใน program นี้
+		return []bson.M{}, 0, nil
+	}
+
+	// 2) สร้าง pipeline
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"programItemId": bson.M{"$in": itemIDs}}}},
+		// join student
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "Students",
+			"localField":   "studentId",
+			"foreignField": "_id",
+			"as":           "student",
+		}}},
+		{{Key: "$unwind", Value: "$student"}},
+		// เลือกฟิลด์ที่ต้องใช้ (จาก enrollment ปัจจุบัน)
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id":              0,
+			"studentId":        "$student._id",
+			"code":             "$student.code",
+			"name":             "$student.name",
+			"engName":          "$student.engName",
+			"status":           "$student.status",
+			"softSkill":        "$student.softSkill",
+			"hardSkill":        "$student.hardSkill",
+			"major":            "$student.major",
+			"enrollmentId":     "$_id",
+			"food":             "$food",
+			"registrationDate": "$registrationDate",
+
+			// ✅ เอา record ตรง ๆ เป็นอาเรย์แบน (กัน null ด้วย)
+			"checkInOut": bson.M{
+				"$ifNull": bson.A{"$checkinoutRecord", bson.A{}},
+			},
+
+			// ✅ ให้ค่าเริ่มต้นเป็น null (เดี๋ยวค่อยไปคำนวณภายหลังถ้าจำเป็น)
+			"checkInStatus": nil,
+		}}},
+	}
+
+	// 3) ฟิลเตอร์ (ทำหลัง $project เพื่ออ้าง student.xxx ได้ง่าย)
+	filter := bson.D{}
+	if len(majors) > 0 {
+		filter = append(filter, bson.E{Key: "major", Value: bson.M{"$in": majors}})
+	}
+	if len(status) > 0 {
+		filter = append(filter, bson.E{Key: "status", Value: bson.M{"$in": status}})
+	}
+	if len(studentYears) > 0 {
+		var regexFilters []bson.M
+		for _, year := range programs.GenerateStudentCodeFilter(studentYears) {
+			regexFilters = append(regexFilters, bson.M{"code": bson.M{"$regex": "^" + year, "$options": "i"}})
+		}
+		filter = append(filter, bson.E{Key: "$or", Value: regexFilters})
+	}
+	if s := strings.TrimSpace(pagination.Search); s != "" {
+		regex := bson.M{"$regex": s, "$options": "i"}
+		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
+			bson.M{"code": regex},
+			bson.M{"name": regex},
+		}})
+	}
+	if len(filter) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: filter}})
+	}
+
+	// 4) รวมเป็น "คนละ 1 แถว" (เด็กคนเดียวอาจลงหลาย item)
+	pipeline = append(pipeline,
+		// รวมเป็นคนละ 1 แถว
+		bson.D{{Key: "$group", Value: bson.M{
+			"_id":              "$studentId",
+			"studentId":        bson.M{"$first": "$studentId"},
+			"code":             bson.M{"$first": "$code"},
+			"name":             bson.M{"$first": "$name"},
+			"engName":          bson.M{"$first": "$engName"},
+			"status":           bson.M{"$first": "$status"},
+			"softSkill":        bson.M{"$first": "$softSkill"},
+			"hardSkill":        bson.M{"$first": "$hardSkill"},
+			"major":            bson.M{"$first": "$major"},
+			"food":             bson.M{"$first": "$food"},
+			"registrationDate": bson.M{"$min": "$registrationDate"},
+			"enrollmentId":     bson.M{"$first": "$enrollmentId"},
+
+			// ✅ push เป็นอาเรย์ของอาเรย์
+			"checkInOutNested": bson.M{
+				"$push": bson.M{"$ifNull": bson.A{"$checkInOut", bson.A{}}},
+			},
+		}}},
+
+		// ✅ flatten ให้เป็นอาเรย์เดียวของ {checkin, checkout, participation}
+		bson.D{{Key: "$addFields", Value: bson.M{
+			"checkInOut": bson.M{
+				"$reduce": bson.M{
+					"input":        bson.M{"$ifNull": bson.A{"$checkInOutNested", bson.A{}}},
+					"initialValue": bson.A{},
+					"in":           bson.M{"$concatArrays": bson.A{"$$value", "$$this"}},
+				},
+			},
+		}}},
+
+		// map _id -> id และตัดฟิลด์ช่วย
+		bson.D{{Key: "$addFields", Value: bson.M{"id": "$_id"}}},
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id":              0,
+			"checkInOutNested": 0,
+		}}},
+	)
+
+	// 5) จัดเรียง (sort ได้ตาม field ที่เพิ่ง group มา)
+	sortDoc := bson.D{}
+	order := 1
+	if strings.ToLower(pagination.Order) == "desc" {
+		order = -1
+	}
+	switch pagination.SortBy {
+	case "code":
+		sortDoc = append(sortDoc, bson.E{Key: "code", Value: order})
+	case "name":
+		sortDoc = append(sortDoc, bson.E{Key: "name", Value: order})
+	case "major":
+		sortDoc = append(sortDoc, bson.E{Key: "major", Value: order})
+	case "status":
+		sortDoc = append(sortDoc, bson.E{Key: "status", Value: order})
+	case "registrationDate":
+		sortDoc = append(sortDoc, bson.E{Key: "registrationDate", Value: order})
+	default:
+		sortDoc = append(sortDoc, bson.E{Key: "code", Value: order})
+	}
+	if len(sortDoc) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: sortDoc}})
+	}
+
+	// 6) นับก่อน skip/limit
+	countPipeline := append(append(mongo.Pipeline{}, pipeline...), bson.D{{Key: "$count", Value: "total"}})
+	countCursor, err := DB.EnrollmentCollection.Aggregate(ctx, countPipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer countCursor.Close(ctx)
+
+	var total int64
+	if countCursor.Next(ctx) {
+		var c struct {
+			Total int64 `bson:"total"`
+		}
+		if err := countCursor.Decode(&c); err == nil {
+			total = c.Total
+		}
+	}
+
+	// 7) ใส่ pagination
+	if pagination.Page <= 0 {
+		pagination.Page = 1
+	}
+	if pagination.Limit <= 0 {
+		pagination.Limit = 10
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$skip", Value: (pagination.Page - 1) * pagination.Limit}},
+		bson.D{{Key: "$limit", Value: pagination.Limit}},
+	)
+
+	// 8) รัน aggregate
+	cursor, err := DB.EnrollmentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+
+	// Compute attendance status per student across program items for "today"
+	// Need programItem start time per record; fetch map of programItemID -> start time today
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	today := time.Now().In(loc).Format("2006-01-02")
+
+	// Build cache of programItemId to start time
+	startTimeByItem := map[string]time.Time{}
+	// helper to fetch start once
+	getStart := func(itemID primitive.ObjectID) (time.Time, bool) {
+		key := itemID.Hex()
+		if v, ok := startTimeByItem[key]; ok {
+			return v, true
+		}
+		var item models.ProgramItem
+		if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": itemID}).Decode(&item); err != nil {
+			return time.Time{}, false
+		}
+		for _, d := range item.Dates {
+			if d.Date == today && d.Stime != "" {
+				if st, e := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc); e == nil {
+					startTimeByItem[key] = st
+					return st, true
+				}
+			}
+		}
+		return time.Time{}, false
+	}
+
+	for i := range results {
+		status := ""
+		if arr, ok := results[i]["checkInOut"].(primitive.A); ok {
+			for _, v := range arr {
+				m, ok := v.(bson.M)
+				if !ok {
+					continue
+				}
+
+				// ดึง programItemId และ record
+				itemID, _ := m["programItemId"].(primitive.ObjectID)
+				r, _ := m["r"].(bson.M)
+				if r == nil {
+					continue
+				}
+
+				if t, ok2 := r["checkin"].(primitive.DateTime); ok2 {
+					st, ok3 := getStart(itemID) // ตามฟังก์ชันเดิมของคุณ
+					if !ok3 {
+						continue
+					}
+
+					tin := t.Time().In(loc)
+					if tin.Format("2006-01-02") != today {
+						continue
+					}
+
+					early := st.Add(-15 * time.Minute)
+					late := st.Add(15 * time.Minute)
+					if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
+						status = "ตรงเวลา"
+					} else {
+						status = "สาย"
+					}
+					break
+				}
+			}
+		}
+		if status == "" {
+			status = "ยังไม่เช็คชื่อ"
+		}
+		results[i]["checkInStatus"] = status
+	}
+
+	return results, total, nil
 }

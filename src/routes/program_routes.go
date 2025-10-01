@@ -20,9 +20,5 @@ func programRoutes(router fiber.Router) {
 	programRoutes.Delete("/:id", controllers.DeleteProgram) // ลบผู้ใช้
 	programRoutes.Get("/:id/enrollment-summary", controllers.GetEnrollmentSummaryByProgramID)
 
-	// ดูนิสิตที่ลงทะเบียน
-	programRoutes.Get("/programItems/:id/enrollments", controllers.GetEnrollmentByProgramItemID) //programItems enrollments
-	programRoutes.Get("/:id/enrollments", controllers.GetEnrollmentsByProgramID)                 //program enrollments
-
 	programRoutes.Get("/calendar/:month/:year", controllers.GetAllProgramCalendar)
 }

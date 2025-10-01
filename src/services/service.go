@@ -30,6 +30,7 @@ func init() {
 		"Courses",
 		"Upload_Certificates",
 		"Hour_Change_Histories",
+		"View_Summary_Check_In_Out_Reports",
 	}); err != nil {
 		log.Fatal("Failed ensuring collections:", err)
 	}
@@ -48,6 +49,7 @@ func init() {
 	DB.CourseCollection = DB.GetCollection(collection, "Courses")
 	DB.UploadCertificateCollection = DB.GetCollection(collection, "Upload_Certificates")
 	DB.HourChangeHistoryCollection = DB.GetCollection(collection, "Hour_Change_Histories")
+	DB.SummaryCheckInOutReportsCollection = DB.GetCollection(collection, "View_Summary_Check_In_Out_Reports")
 
 	if DB.RedisURI != "" {
 		DB.InitAsynq()

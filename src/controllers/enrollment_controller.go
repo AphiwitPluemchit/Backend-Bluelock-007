@@ -370,3 +370,128 @@ func GetEnrollmentsHistoryByStudent(c *fiber.Ctx) error {
 
 	return c.JSON(status)
 }
+
+func GetEnrollmentByProgramItemID(c *fiber.Ctx) error {
+	programItemID := c.Params("id")
+	itemID, err := primitive.ObjectIDFromHex(programItemID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
+	}
+
+	// อ่านค่าพารามิเตอร์การแบ่งหน้า
+	pagination := models.DefaultPagination()
+	if err := c.QueryParser(&pagination); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
+	}
+	log.Println(pagination)
+	// รับค่า query param
+	studentMajors := c.Query("major")
+	studentStatus := c.Query("studentStatus")
+	studentYears := c.Query("studentYear")
+
+	var majorFilter []string
+	if studentMajors != "" {
+		majorFilter = strings.Split(studentMajors, ",")
+	}
+
+	var statusFilter []int
+	if studentStatus != "" {
+		statusValues := strings.Split(studentStatus, ",")
+		for _, val := range statusValues {
+			if num, err := strconv.Atoi(val); err == nil {
+				statusFilter = append(statusFilter, num)
+			}
+		}
+	}
+
+	var studentYearsFilter []int
+	if studentYears != "" {
+		studentYearsValues := strings.Split(studentYears, ",")
+		for _, val := range studentYearsValues {
+			if num, err := strconv.Atoi(val); err == nil {
+				studentYearsFilter = append(studentYearsFilter, num)
+			}
+		}
+	}
+	log.Println(majorFilter)
+	log.Println(statusFilter)
+	log.Println(studentYearsFilter)
+	student, total, err := enrollments.GetEnrollmentByProgramItemID(itemID, pagination, majorFilter, statusFilter, studentYearsFilter)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":   "ProgramItem not found",
+			"message": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": student,
+		"meta": fiber.Map{
+			"currentPage": pagination.Page,
+			"perPage":     pagination.Limit,
+			"total":       total,
+			"totalPages":  (total + int64(pagination.Limit) - 1) / int64(pagination.Limit),
+		},
+	})
+}
+
+// GET /enrollments/by-program/:id
+func GetEnrollmentsByProgramID(c *fiber.Ctx) error {
+	programID := c.Params("id")
+	aID, err := primitive.ObjectIDFromHex(programID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
+	}
+
+	// อ่าน pagination
+	pagination := models.DefaultPagination()
+	if err := c.QueryParser(&pagination); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
+	}
+
+	// ฟิลเตอร์
+	studentMajors := c.Query("major")
+	studentStatus := c.Query("studentStatus")
+	studentYears := c.Query("studentYear")
+
+	var majorFilter []string
+	if studentMajors != "" {
+		majorFilter = strings.Split(studentMajors, ",")
+	}
+
+	var statusFilter []int
+	if studentStatus != "" {
+		for _, v := range strings.Split(studentStatus, ",") {
+			if num, err := strconv.Atoi(v); err == nil {
+				statusFilter = append(statusFilter, num)
+			}
+		}
+	}
+
+	var studentYearsFilter []int
+	if studentYears != "" {
+		for _, v := range strings.Split(studentYears, ",") {
+			if num, err := strconv.Atoi(v); err == nil {
+				studentYearsFilter = append(studentYearsFilter, num)
+			}
+		}
+	}
+
+	students, total, err := enrollments.GetEnrollmentsByProgramID(aID, pagination, majorFilter, statusFilter, studentYearsFilter)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":   "Program not found or no program items",
+			"message": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": students,
+		"meta": fiber.Map{
+			"currentPage": pagination.Page,
+			"perPage":     pagination.Limit,
+			"total":       total,
+			"totalPages":  (total + int64(pagination.Limit) - 1) / int64(pagination.Limit),
+		},
+	})
+}
