@@ -69,23 +69,35 @@ services:
         condition: service_healthy
     profiles: ["development"]
 
-  # Golang backend service
-  backend:
+  # Golang backend service for development
+  backend-dev:
     <<: *common
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bluelock-backend
+    container_name: bluelock-backend-dev
     ports:
       - "8765:8888"
     volumes:
       - ./uploads:/app/uploads
-      - ./.env:/app/.env
-    # environment:
-    #   - MONGO_URI=mongodb+srv://BluelockDB:BluelockDB@cluster0.m60i72z.mongodb.net/
-    #   - REDIS_URI=redis:6379
-    #   - APP_URI=8888
-    #   - ALLOWED_ORIGINS=*
+      - ./.env.dev:/app/.env # ใช้ .env.dev สำหรับ development
+    depends_on:
+      redis-dev:
+        condition: service_healthy
+    profiles: ["development"]
+
+  # Golang backend service for production
+  backend-prod:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: bluelock-backend-prod
+    ports:
+      - "8765:8888"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./.env.prod:/app/.env # ใช้ .env.prod สำหรับ production
     depends_on:
       redis:
         condition: service_healthy
@@ -147,3 +159,12 @@ volumes:
 # Usage:
 # Development: docker compose --profile development up -d
 # Production:  docker compose --profile production up -d
+#
+# Environment Files:
+# - .env.dev: Development environment variables
+# - .env.prod: Production environment variables
+# - .env.example: Template for environment variables
+#
+# Services by Profile:
+# Development: redis-dev, asynqmon-dev, backend-dev, ocr
+# Production: redis, asynqmon, backend-prod, ocr-prod
