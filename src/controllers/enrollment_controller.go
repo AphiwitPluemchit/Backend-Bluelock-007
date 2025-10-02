@@ -384,7 +384,9 @@ func GetEnrollmentByProgramItemID(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid pagination parameters"})
 	}
 	log.Println(pagination)
+
 	// รับค่า query param
+	dateStr := c.Query("date") // รูปแบบ 2006-01-02
 	studentMajors := c.Query("major")
 	studentStatus := c.Query("studentStatus")
 	studentYears := c.Query("studentYear")
@@ -413,10 +415,14 @@ func GetEnrollmentByProgramItemID(c *fiber.Ctx) error {
 			}
 		}
 	}
+	if dateStr == "" {
+		dateStr = c.Get("date")
+	}
 	log.Println(majorFilter)
 	log.Println(statusFilter)
 	log.Println(studentYearsFilter)
-	student, total, err := enrollments.GetEnrollmentByProgramItemID(itemID, pagination, majorFilter, statusFilter, studentYearsFilter)
+	log.Println(dateStr)
+	student, total, err := enrollments.GetEnrollmentByProgramItemID(itemID, pagination, majorFilter, statusFilter, studentYearsFilter, dateStr)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error":   "ProgramItem not found",
@@ -450,6 +456,7 @@ func GetEnrollmentsByProgramID(c *fiber.Ctx) error {
 	}
 
 	// ฟิลเตอร์
+	dateStr := c.Query("date")
 	studentMajors := c.Query("major")
 	studentStatus := c.Query("studentStatus")
 	studentYears := c.Query("studentYear")
@@ -477,7 +484,11 @@ func GetEnrollmentsByProgramID(c *fiber.Ctx) error {
 		}
 	}
 
-	students, total, err := enrollments.GetEnrollmentsByProgramID(aID, pagination, majorFilter, statusFilter, studentYearsFilter)
+	if dateStr == "" {
+		dateStr = c.Get("date")
+	}
+
+	students, total, err := enrollments.GetEnrollmentsByProgramID(aID, pagination, majorFilter, statusFilter, studentYearsFilter, dateStr)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error":   "Program not found or no program items",
