@@ -734,6 +734,7 @@ func GetEnrollmentByProgramItemID(
 		"enrollmentId":     "$enrollment._id",
 		"food":             "$enrollment.food",
 		"registrationDate": "$enrollment.registrationDate",
+		"checkInStatus":    nil,
 		"checkInOut": bson.M{
 			"$map": bson.M{
 				"input": bson.M{"$ifNull": bson.A{"$enrollment.checkinoutRecord", bson.A{}}},
@@ -741,13 +742,35 @@ func GetEnrollmentByProgramItemID(
 				"in": bson.M{
 					"programItemId": "$programItemId",
 					"r":             "$$r",
+					// ⬇️ เพิ่มฟิลด์เวลาแบบไทย
+					"checkinLocal": bson.M{
+						"$cond": bson.A{
+							bson.M{"$ne": bson.A{"$$r.checkin", nil}},
+							bson.M{"$dateToString": bson.M{
+								"format":   "%Y-%m-%dT%H:%M:%S%z",
+								"date":     "$$r.checkin",
+								"timezone": "Asia/Bangkok",
+							}},
+							nil,
+						},
+					},
+					"checkoutLocal": bson.M{
+						"$cond": bson.A{
+							bson.M{"$ne": bson.A{"$$r.checkout", nil}},
+							bson.M{"$dateToString": bson.M{
+								"format":   "%Y-%m-%dT%H:%M:%S%z",
+								"date":     "$$r.checkout",
+								"timezone": "Asia/Bangkok",
+							}},
+							nil,
+						},
+					},
 				},
 			},
 		},
-		"checkInStatus": nil,
 	}}})
 
-	// 4) กรองรายวันด้วย timezone: "UTC" (เหมือนอีกตัว)
+	// 4) กรองรายวันด้วย timezone: "Asia/Bangkok" (เหมือนอีกตัว)
 	if dateStr != "" {
 		pipeline = append(pipeline, bson.D{{Key: "$addFields", Value: bson.M{
 			"checkInOut": bson.M{
@@ -758,7 +781,7 @@ func GetEnrollmentByProgramItemID(
 						bson.M{"$dateToString": bson.M{
 							"format":   "%Y-%m-%d",
 							"date":     bson.M{"$ifNull": bson.A{"$$x.r.checkin", "$$x.r.checkout"}},
-							"timezone": "UTC",
+							"timezone": "Asia/Bangkok",
 						}},
 						dateStr,
 					}},
@@ -940,18 +963,40 @@ func GetEnrollmentsByProgramID(
 			"enrollmentId":     "$_id",
 			"food":             "$food",
 			"registrationDate": "$registrationDate",
+			"checkInStatus":    nil, // คำนวณภายหลัง
 			"checkInOut": bson.M{
 				"$map": bson.M{
-					"input": bson.M{"$ifNull": bson.A{"$checkinoutRecord", bson.A{}}},
+					"input": bson.M{"$ifNull": bson.A{"$enrollment.checkinoutRecord", bson.A{}}},
 					"as":    "r",
 					"in": bson.M{
 						"programItemId": "$programItemId",
 						"r":             "$$r",
+						// ⬇️ เพิ่มฟิลด์เวลาแบบไทย
+						"checkinLocal": bson.M{
+							"$cond": bson.A{
+								bson.M{"$ne": bson.A{"$$r.checkin", nil}},
+								bson.M{"$dateToString": bson.M{
+									"format":   "%Y-%m-%dT%H:%M:%S%z",
+									"date":     "$$r.checkin",
+									"timezone": "Asia/Bangkok",
+								}},
+								nil,
+							},
+						},
+						"checkoutLocal": bson.M{
+							"$cond": bson.A{
+								bson.M{"$ne": bson.A{"$$r.checkout", nil}},
+								bson.M{"$dateToString": bson.M{
+									"format":   "%Y-%m-%dT%H:%M:%S%z",
+									"date":     "$$r.checkout",
+									"timezone": "Asia/Bangkok",
+								}},
+								nil,
+							},
+						},
 					},
 				},
 			},
-
-			"checkInStatus": nil, // คำนวณภายหลัง
 		}}},
 	}
 
@@ -1027,7 +1072,7 @@ func GetEnrollmentsByProgramID(
 						bson.M{"$dateToString": bson.M{
 							"format":   "%Y-%m-%d",
 							"date":     bson.M{"$ifNull": bson.A{"$$x.r.checkin", "$$x.r.checkout"}},
-							"timezone": "UTC", // << เปลี่ยนเป็น UTC
+							"timezone": "Asia/Bangkok",
 						}},
 						dateStr,
 					}},
