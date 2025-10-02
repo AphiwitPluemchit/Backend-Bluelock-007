@@ -22,3 +22,30 @@ type SuccessResponse struct {
 	Message string `json:"message"`
 	Data    any    `json:"data"`
 }
+
+type BulkEnrollItem struct {
+	StudentCode string  `json:"studentCode"`
+	Food        *string `json:"food"`
+}
+
+type BulkEnrollRequest struct {
+	ProgramItemID string           `json:"programItemId"`
+	Students      []BulkEnrollItem `json:"students"`
+}
+
+type BulkEnrollResult struct {
+	ProgramItemID  string                  `json:"programItemId"`
+	TotalRequested int                     `json:"totalRequested"`
+	Success        []BulkEnrollSuccessItem `json:"success"`
+	Failed         []BulkEnrollFailedItem  `json:"failed"`
+}
+
+type BulkEnrollSuccessItem struct {
+	StudentCode string `json:"studentCode"`
+	StudentID   string `json:"studentId"`
+	Message     string `json:"message"`
+}
+type BulkEnrollFailedItem struct {
+	StudentCode string `json:"studentCode"`
+	Reason      string `json:"reason"`
+}

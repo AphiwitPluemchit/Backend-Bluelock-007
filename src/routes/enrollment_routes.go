@@ -9,10 +9,10 @@ import (
 // EnrollmentRoutes กำหนดเส้นทางสำหรับ Enrollment API
 func enrollmentRoutes(router fiber.Router) {
 	enrollmentRoutes := router.Group("/enrollments")
-	enrollmentRoutes.Post("/", controllers.CreateEnrollment) // ✅ ลงทะเบียน
-	// enrollmentRoutes.Post("/many", controllers.CreateBulkEnrollment)                                                     // ✅ ลงทะเบียนหลายคน
+	enrollmentRoutes.Post("/", controllers.RegisterStudent) // ✅ ลงทะเบียน
+	// enrollmentRoutes.Post("/many", controllers.CreateBulkEnrollment)       // ✅ ลงทะเบียนหลายคน                                              // ✅ ลงทะเบียนหลายคน
 	enrollmentRoutes.Get("/student/:studentId", controllers.GetEnrollmentsByStudent) // ✅ ดูกิจกรรมที่ Student ลงทะเบียนไว้
-	enrollmentRoutes.Delete("/:enrollmentId", controllers.DeleteEnrollment)          // ✅ ยกเลิกลงทะเบียน
+	enrollmentRoutes.Delete("/:enrollmentId", controllers.UnregisterStudent)         // ✅ ยกเลิกลงทะเบียน
 	// enrollmentRoutes.Get("/program/:programId", controllers.GetStudentsByProgram)                                        // ✅ Admin ดูนักศึกษาที่ลงทะเบียน
 	enrollmentRoutes.Get("/student/:studentId/program/:programId/check", controllers.CheckEnrollmentByStudentAndProgram) // ✅ ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
 
