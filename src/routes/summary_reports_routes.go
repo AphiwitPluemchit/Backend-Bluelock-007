@@ -2,6 +2,7 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
+	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -10,12 +11,13 @@ import (
 func SetupSummaryReportsRoutes(app fiber.Router) {
 	// สร้าง group สำหรับ summary reports routes
 	summaryReportsGroup := app.Group("/summary-report")
+	summaryReportsGroup.Use(middleware.AuthJWT)
 
 	// GET /api/summary-reports - ดึงข้อมูล summary reports ทั้งหมด
 	summaryReportsGroup.Get("/", controllers.GetAllSummaryReports)
 
 	// GET /api/summary-reports/:programId - ดึงข้อมูล summary reports ทั้งหมดของ program
-	summaryReportsGroup.Get("/:programId", controllers.GetSummaryReportByProgramID)
+	// summaryReportsGroup.Get("/:programId", controllers.GetSummaryReportByProgramID)
 
 	// GET /api/summary-reports/:programId/:date - ดึงข้อมูล summary report ของ program และ date ที่ระบุ
 	summaryReportsGroup.Get("/:programId/:date", controllers.GetSummaryReportByProgramIDAndDate)
