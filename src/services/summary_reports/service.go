@@ -241,7 +241,7 @@ func GetSummaryReport(programID primitive.ObjectID) ([]models.Summary_Check_In_O
 func GetSummaryReportByDate(programID primitive.ObjectID, date string) (*models.Summary_Check_In_Out_Reports, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
+	EnsureSummaryReportExistsForDate(programID, date)
 	var summary models.Summary_Check_In_Out_Reports
 	filter := bson.M{
 		"programId": programID,
@@ -298,23 +298,23 @@ func DeleteSummaryReport(programID primitive.ObjectID) error {
 }
 
 // EnsureSummaryReportExists ตรวจสอบและสร้าง summary report ถ้ายังไม่มี
-func EnsureSummaryReportExists(programID primitive.ObjectID) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+// func EnsureSummaryReportExists(programID primitive.ObjectID) error {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// 	defer cancel()
 
-	// ตรวจสอบว่ามี summary report อยู่แล้วหรือไม่
-	count, err := DB.SummaryCheckInOutReportsCollection.CountDocuments(ctx, bson.M{"programId": programID})
-	if err != nil {
-		return fmt.Errorf("failed to check existing summary report: %w", err)
-	}
+// 	// ตรวจสอบว่ามี summary report อยู่แล้วหรือไม่
+// 	count, err := DB.SummaryCheckInOutReportsCollection.CountDocuments(ctx, bson.M{"programId": programID})
+// 	if err != nil {
+// 		return fmt.Errorf("failed to check existing summary report: %w", err)
+// 	}
 
-	// ถ้าไม่มี ให้สร้างใหม่
-	if count == 0 {
-		return CreateSummaryReport(programID)
-	}
+// 	// ถ้าไม่มี ให้สร้างใหม่
+// 	if count == 0 {
+// 		return CreateSummaryReport(programID)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // EnsureSummaryReportExistsForDate ตรวจสอบและสร้าง summary report สำหรับ date ที่ระบุถ้ายังไม่มี
 func EnsureSummaryReportExistsForDate(programID primitive.ObjectID, date string) error {
