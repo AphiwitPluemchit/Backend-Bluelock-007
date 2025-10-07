@@ -653,10 +653,14 @@ func GetEnrollmentId(studentID, programItemID primitive.ObjectID) (primitive.Obj
 }
 
 const (
-	tzBangkok    = "Asia/Bangkok"
-	fmtDay       = "2006-01-02"
-	fmtISOOffset = "2006-01-02T15:04:05-0700"
+	tzBangkok = "Asia/Bangkok"
+	fmtDay    = "2006-01-02"
+	// fmtISOOffset = "2006-01-02T15:04:05-0700"
+
+	// mongoFmtDay       = "%Y-%m-%d"
+	mongoFmtISOOffset = "%Y-%m-%dT%H:%M:%S%z" // จะได้ +0700 (ไม่มี :)
 )
+const ()
 
 func bangkok() *time.Location {
 	loc, _ := time.LoadLocation(tzBangkok)
@@ -771,16 +775,26 @@ func GetEnrollmentByProgramItemID(
 			"input": "$rawCheckInOut",
 			"as":    "r",
 			"in": bson.M{
+				// GetEnrollmentByProgramItemID
 				"checkin": bson.M{"$cond": bson.A{
 					bson.M{"$ne": bson.A{"$$r.checkin", nil}},
-					bson.M{"$dateToString": bson.M{"format": fmtISOOffset, "date": "$$r.checkin", "timezone": tzBangkok}},
+					bson.M{"$dateToString": bson.M{
+						"format":   mongoFmtISOOffset, // <<-- เปลี่ยนมาใช้ของ Mongo
+						"date":     "$$r.checkin",
+						"timezone": tzBangkok,
+					}},
 					nil,
 				}},
 				"checkout": bson.M{"$cond": bson.A{
 					bson.M{"$ne": bson.A{"$$r.checkout", nil}},
-					bson.M{"$dateToString": bson.M{"format": fmtISOOffset, "date": "$$r.checkout", "timezone": tzBangkok}},
+					bson.M{"$dateToString": bson.M{
+						"format":   mongoFmtISOOffset, // <<-- เช่นกัน
+						"date":     "$$r.checkout",
+						"timezone": tzBangkok,
+					}},
 					nil,
 				}},
+
 				"participation": "$$r.participation",
 			},
 		}},
@@ -1032,16 +1046,26 @@ func GetEnrollmentsByProgramID(
 				"input": "$rawCheckInOut",
 				"as":    "x",
 				"in": bson.M{
+					// GetEnrollmentsByProgramID
 					"checkin": bson.M{"$cond": bson.A{
 						bson.M{"$ne": bson.A{"$$x.r.checkin", nil}},
-						bson.M{"$dateToString": bson.M{"format": fmtISOOffset, "date": "$$x.r.checkin", "timezone": tzBangkok}},
+						bson.M{"$dateToString": bson.M{
+							"format":   mongoFmtISOOffset,
+							"date":     "$$x.r.checkin",
+							"timezone": tzBangkok,
+						}},
 						nil,
 					}},
 					"checkout": bson.M{"$cond": bson.A{
 						bson.M{"$ne": bson.A{"$$x.r.checkout", nil}},
-						bson.M{"$dateToString": bson.M{"format": fmtISOOffset, "date": "$$x.r.checkout", "timezone": tzBangkok}},
+						bson.M{"$dateToString": bson.M{
+							"format":   mongoFmtISOOffset,
+							"date":     "$$x.r.checkout",
+							"timezone": tzBangkok,
+						}},
 						nil,
 					}},
+
 					"participation": "$$x.r.participation",
 				},
 			},
