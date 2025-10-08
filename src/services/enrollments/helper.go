@@ -169,8 +169,8 @@ func isLateCheckin(item *models.ProgramItem, t time.Time, loc *time.Location) bo
 	// ไม่พบเวลาเริ่มของวันนั้น: นับเป็น late
 	return true
 }
+
 func participationFor(item *models.ProgramItem, cin, cout *time.Time, loc *time.Location) *string {
-	// เลือกวันจาก cin ถ้ามี ไม่งั้นลอง cout
 	day := ""
 	if cin != nil {
 		day = cin.In(loc).Format(fmtDay)
@@ -181,19 +181,20 @@ func participationFor(item *models.ProgramItem, cin, cout *time.Time, loc *time.
 
 	st, ok := startTimeForDate(item, day, loc)
 	if !ok {
-		// ไม่มีเวลาเริ่มของวันนั้น = ไม่นับเป็นตรงเวลา
-		if cin != nil && cout == nil {
-			s := "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
-			return &s
+		var label string
+		switch {
+		case cin != nil && cout == nil:
+			label = "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
+		case cin == nil && cout != nil:
+			label = "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
+		case cin != nil && cout != nil:
+			label = "เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์ (ไม่พบเวลาเริ่ม)"
 		}
-		if cin == nil && cout != nil {
-			s := "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
-			return &s
+		if label != "" {
+			log.Printf("[participationFor] noStartTime day=%s cin=%v cout=%v -> participation=%q", day, cin, cout, label)
+			return &label
 		}
-		if cin != nil && cout != nil {
-			s := "เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์ (ไม่พบเวลาเริ่ม)"
-			return &s
-		}
+		log.Printf("[participationFor] noStartTime day=%s cin=%v cout=%v -> participation=nil", day, cin, cout)
 		return nil
 	}
 
@@ -203,25 +204,37 @@ func participationFor(item *models.ProgramItem, cin, cout *time.Time, loc *time.
 		return (t.Equal(early) || t.After(early)) && (t.Before(late) || t.Equal(late))
 	}
 
+	var label string
 	switch {
 	case cin != nil && cout != nil:
 		if onTime(cin.In(loc)) && cout.In(loc).After(st) {
-			s := "เช็คอิน/เช็คเอาท์ตรงเวลา"
-			return &s
+			label = "เช็คอิน/เช็คเอาท์ตรงเวลา"
+		} else {
+			label = "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา"
 		}
-		s := "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา"
-		return &s
 	case cin != nil && cout == nil:
 		if onTime(cin.In(loc)) {
-			s := "เช็คอินแล้ว (รอเช็คเอาท์)"
-			return &s
+			label = "เช็คอินแล้ว (รอเช็คเอาท์)"
+		} else {
+			label = "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
 		}
-		s := "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
-		return &s
 	case cin == nil && cout != nil:
-		s := "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
-		return &s
+		label = "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
 	default:
+		log.Printf("[participationFor] st=%v day=%s cin=%v cout=%v -> participation=nil", st, day, cin, cout)
 		return nil
 	}
+
+	log.Printf("[participationFor] st=%v early=%v late=%v day=%s cin=%v cout=%v -> participation=%q",
+		st, early, late, day, cin, cout, label)
+	return &label
+}
+
+func dateExistsInItem(item *models.ProgramItem, day string) bool {
+	for _, d := range item.Dates {
+		if d.Date == day {
+			return true
+		}
+	}
+	return false
 }

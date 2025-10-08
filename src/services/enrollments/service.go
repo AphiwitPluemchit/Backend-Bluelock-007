@@ -326,15 +326,19 @@ func GetEnrollmentById(enrollmentID primitive.ObjectID) (*models.Enrollment, err
 	return &enrollment, nil
 }
 
+// enrollments/service.go
+
 func UpdateEnrollmentCheckinoutByRecordID(
 	ctx context.Context,
 	enrollmentID primitive.ObjectID,
 	recordID primitive.ObjectID,
-	checkin *time.Time,
-	checkout *time.Time,
+	checkinProvided bool, // ส่งฟิลด์นี้มาหรือไม่ (tri-state)
+	checkin *time.Time, // อาจเป็น nil = ต้องการล้างค่า
+	checkoutProvided bool, // ส่งฟิลด์นี้มาหรือไม่ (tri-state)
+	checkout *time.Time, // อาจเป็น nil = ต้องการล้างค่า
 ) (*models.Enrollment, error) {
 
-	// --- โหลดปัจจุบัน (หา old values) ---
+	// ---------- LOAD CURRENT ----------
 	var current models.Enrollment
 	if err := DB.EnrollmentCollection.FindOne(ctx, bson.M{"_id": enrollmentID}).Decode(&current); err != nil {
 		return nil, err
@@ -352,8 +356,11 @@ func UpdateEnrollmentCheckinoutByRecordID(
 			}
 		}
 	}
+	if targetRec == nil {
+		return nil, fmt.Errorf("record not found")
+	}
 
-	// --- โหลด ProgramItem เพื่ออ้างอิงเวลาเริ่ม ---
+	// ---------- LOAD PROGRAM ITEM ----------
 	var item models.ProgramItem
 	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": current.ProgramItemID}).Decode(&item); err != nil {
 		return nil, err
@@ -361,34 +368,76 @@ func UpdateEnrollmentCheckinoutByRecordID(
 	loc := bangkok()
 	programID := item.ProgramID
 
-	// --- คำนวณค่าที่จะเป็นผลลัพธ์หลังอัปเดต (effective values) ---
+	log.Printf("[upd] enrollmentID=%s recordID=%s programItemID=%s programID=%s tz=Asia/Bangkok",
+		enrollmentID.Hex(), recordID.Hex(), current.ProgramItemID.Hex(), programID.Hex(),
+	)
+	log.Printf("[upd] oldCin=%v oldCout=%v oldPart=%q",
+		oldCin, oldCout,
+		func() string {
+			if targetRec != nil && targetRec.Participation != nil {
+				return *targetRec.Participation
+			}
+			return ""
+		}(),
+	)
+
+	// ---------- EFFECTIVE VALUES (tri-state) ----------
 	effCin := oldCin
 	effCout := oldCout
-	if checkin != nil {
-		effCin = checkin
-	} // nil หมายถึงต้องการ set null (ล้างค่า)
-	if checkout != nil {
-		effCout = checkout
+	if checkinProvided {
+		effCin = checkin // may be nil (clear)
+	}
+	if checkoutProvided {
+		effCout = checkout // may be nil (clear)
+	}
+	log.Printf("[upd] effective cin=%v cout=%v", effCin, effCout)
+
+	// ---------- VALIDATION: date must exist in Program_Items ----------
+	if effCin != nil {
+		day := effCin.In(loc).Format(fmtDay)
+		if !dateExistsInItem(&item, day) {
+			return nil, fmt.Errorf("ไม่อนุญาตตั้งค่า checkin: %s ไม่อยู่ในตารางกิจกรรม", day)
+		}
+		log.Printf("[upd] cin.day=%s isInProgramDates=true", day)
+	}
+	if effCout != nil {
+		day := effCout.In(loc).Format(fmtDay)
+		if !dateExistsInItem(&item, day) {
+			return nil, fmt.Errorf("ไม่อนุญาตตั้งค่า checkout: %s ไม่อยู่ในตารางกิจกรรม", day)
+		}
+		log.Printf("[upd] cout.day=%s isInProgramDates=true", day)
 	}
 
-	// สร้างข้อความ participation ใหม่จาก effCin/effCout
+	// ---------- PARTICIPATION (single source of truth) ----------
 	part := participationFor(&item, effCin, effCout, loc)
+	if part != nil {
+		log.Printf("[upd] newParticipation=%q", *part)
+	} else {
+		log.Printf("[upd] newParticipation=nil")
+	}
 
-	// --- เตรียม $set ---
+	// ---------- BUILD $set ----------
 	setFields := bson.M{}
-	if checkin != nil {
-		setFields["checkinoutRecord.$[el].checkin"] = checkin
+	if checkinProvided {
+		setFields["checkinoutRecord.$[el].checkin"] = checkin // allow nil to clear
 	}
-	if checkout != nil {
-		setFields["checkinoutRecord.$[el].checkout"] = checkout
+	if checkoutProvided {
+		setFields["checkinoutRecord.$[el].checkout"] = checkout // allow nil to clear
 	}
-	setFields["checkinoutRecord.$[el].participation"] = part // << ใส่ตรงนี้
-
 	if len(setFields) == 0 {
 		return nil, fmt.Errorf("no fields to update")
 	}
+	setFields["checkinoutRecord.$[el].participation"] = part
 
-	// --- อัปเดตเอกสาร (คืนค่า After) ---
+	log.Printf("[upd] setFields keys=%v", func() []string {
+		keys := make([]string, 0, len(setFields))
+		for k := range setFields {
+			keys = append(keys, k)
+		}
+		return keys
+	}())
+
+	// ---------- DB UPDATE ----------
 	filter := bson.M{"_id": enrollmentID}
 	update := bson.M{"$set": setFields}
 	opts := options.FindOneAndUpdate().
@@ -403,40 +452,148 @@ func UpdateEnrollmentCheckinoutByRecordID(
 	if err := res.Decode(&updated); err != nil {
 		return nil, err
 	}
+	log.Printf("[upd] updated OK enrollmentID=%s", enrollmentID.Hex())
 
-	// --- ปรับสรุป Summary (ลบเก่า + เติมใหม่) ---
-	// ลบยอดเก่า (ใช้สถานะเก่าให้ถูกช่อง)
-	if oldCin != nil && targetRec != nil {
-		oldDay := oldCin.In(loc).Format(fmtDay)
-		late := isLateCheckin(&item, oldCin.In(loc), loc)
-		if targetRec.Participation != nil {
-			p := *targetRec.Participation
-			if strings.Contains(p, "ตรงเวลา") {
-				late = false
-			}
-			if strings.Contains(p, "สาย") || strings.Contains(p, "ไม่เข้าเกณฑ์") {
-				late = true
-			}
+	// ---------- SUMMARY ADJUSTMENT ----------
+	isLateFromParticipation := func(p *string) bool {
+		if p == nil {
+			return false
 		}
-		_ = summary_reports.AdjustCheckinCount(programID, oldDay, -1, late)
-		_ = summary_reports.RecalculateNotParticipating(programID, oldDay)
+		s := strings.TrimSpace(*p)
+
+		// 1) จับ "ไม่ตรงเวลา" และเคสที่ไม่เข้าเกณฑ์ให้เป็น late ก่อน (ต้องมาก่อนคำว่า "ตรงเวลา")
+		if strings.Contains(s, "ไม่ตรงเวลา") ||
+			strings.Contains(s, "เวลาไม่เข้าเกณฑ์") ||
+			strings.Contains(s, "ไม่พบเวลาเริ่ม") ||
+			strings.Contains(s, "เช็คเอาท์อย่างเดียว") ||
+			strings.Contains(s, "สาย") {
+			return true
+		}
+
+		// 2) on-time เท่าที่ยอมรับ (เฉพาะข้อความที่ตรง)
+		if s == "เช็คอิน/เช็คเอาท์ตรงเวลา" ||
+			strings.Contains(s, "รอเช็คเอาท์") { // "เช็คอินแล้ว (รอเช็คเอาท์)"
+			return false
+		}
+
+		// 3) เผื่อข้อความอื่น ๆ ที่ยังไม่รู้จัก: ถือว่าไม่ late ไว้ก่อน
+		return false
+	}
+
+	var oldCinDay, newCinDay, oldCoutDay, newCoutDay string
+	if oldCin != nil {
+		oldCinDay = oldCin.In(loc).Format(fmtDay)
+	}
+	if effCin != nil {
+		newCinDay = effCin.In(loc).Format(fmtDay)
 	}
 	if oldCout != nil {
-		oldDay := oldCout.In(loc).Format(fmtDay)
-		_ = summary_reports.AdjustCheckoutCount(programID, oldDay, -1)
-	}
-
-	// เติมยอดใหม่ (อิง effCin/effCout)
-	if effCin != nil {
-		newDay := effCin.In(loc).Format(fmtDay)
-		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newDay)
-		_ = summary_reports.AdjustCheckinCount(programID, newDay, 1, isLateCheckin(&item, effCin.In(loc), loc))
-		_ = summary_reports.RecalculateNotParticipating(programID, newDay)
+		oldCoutDay = oldCout.In(loc).Format(fmtDay)
 	}
 	if effCout != nil {
-		newDay := effCout.In(loc).Format(fmtDay)
-		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newDay)
-		_ = summary_reports.AdjustCheckoutCount(programID, newDay, 1)
+		newCoutDay = effCout.In(loc).Format(fmtDay)
+	}
+	log.Printf("[sum] days oldCinDay=%s newCinDay=%s oldCoutDay=%s newCoutDay=%s",
+		oldCinDay, newCinDay, oldCoutDay, newCoutDay,
+	)
+
+	oldCinLate := isLateFromParticipation(func() *string {
+		if targetRec != nil {
+			return targetRec.Participation
+		}
+		return nil
+	}())
+	newCinLate := isLateFromParticipation(part)
+	log.Printf("[sum] cin late: old=%t new=%t", oldCinLate, newCinLate)
+
+	// -------- Check-in --------
+	switch {
+	case oldCin != nil && effCin != nil && oldCinDay == newCinDay:
+		log.Printf("[sum] cin same-day change oldLate=%t newLate=%t day=%s", oldCinLate, newCinLate, newCinDay)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newCinDay)
+		if oldCinLate != newCinLate {
+			log.Printf("[sum] cin moveBucket day=%s fromLate=%t toLate=%t (-1,+1)", newCinDay, oldCinLate, newCinLate)
+			if err := summary_reports.AdjustCheckinCount(programID, newCinDay, -1, oldCinLate); err != nil {
+				log.Printf("[sum][ERR] AdjustCheckinCount -1 day=%s late=%t err=%v", newCinDay, oldCinLate, err)
+			}
+			if err := summary_reports.AdjustCheckinCount(programID, newCinDay, 1, newCinLate); err != nil {
+				log.Printf("[sum][ERR] AdjustCheckinCount +1 day=%s late=%t err=%v", newCinDay, newCinLate, err)
+			}
+			if err := summary_reports.RecalculateNotParticipating(programID, newCinDay); err != nil {
+				log.Printf("[sum][ERR] RecalcNotParticipating day=%s err=%v", newCinDay, err)
+			}
+		} else {
+			log.Printf("[sum] cin same-day noBucketChange")
+		}
+
+	case oldCin != nil && effCin == nil:
+		log.Printf("[sum] cin clear day=%s late=%t (-1)", oldCinDay, oldCinLate)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, oldCinDay)
+		if err := summary_reports.AdjustCheckinCount(programID, oldCinDay, -1, oldCinLate); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckinCount -1 day=%s late=%t err=%v", oldCinDay, oldCinLate, err)
+		}
+		if err := summary_reports.RecalculateNotParticipating(programID, oldCinDay); err != nil {
+			log.Printf("[sum][ERR] RecalcNotParticipating day=%s err=%v", oldCinDay, err)
+		}
+
+	case oldCin == nil && effCin != nil:
+		log.Printf("[sum] cin add day=%s late=%t (+1)", newCinDay, newCinLate)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newCinDay)
+		if err := summary_reports.AdjustCheckinCount(programID, newCinDay, 1, newCinLate); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckinCount +1 day=%s late=%t err=%v", newCinDay, newCinLate, err)
+		}
+		if err := summary_reports.RecalculateNotParticipating(programID, newCinDay); err != nil {
+			log.Printf("[sum][ERR] RecalcNotParticipating day=%s err=%v", newCinDay, err)
+		}
+
+	case oldCin != nil && effCin != nil && oldCinDay != newCinDay:
+		log.Printf("[sum] cin moveDay from=%s(late=%t) to=%s(late=%t) (-1,+1)", oldCinDay, oldCinLate, newCinDay, newCinLate)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, oldCinDay)
+		if err := summary_reports.AdjustCheckinCount(programID, oldCinDay, -1, oldCinLate); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckinCount -1 day=%s late=%t err=%v", oldCinDay, oldCinLate, err)
+		}
+		if err := summary_reports.RecalculateNotParticipating(programID, oldCinDay); err != nil {
+			log.Printf("[sum][ERR] RecalcNotParticipating day=%s err=%v", oldCinDay, err)
+		}
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newCinDay)
+		if err := summary_reports.AdjustCheckinCount(programID, newCinDay, 1, newCinLate); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckinCount +1 day=%s late=%t err=%v", newCinDay, newCinLate, err)
+		}
+		if err := summary_reports.RecalculateNotParticipating(programID, newCinDay); err != nil {
+			log.Printf("[sum][ERR] RecalcNotParticipating day=%s err=%v", newCinDay, err)
+		}
+	}
+
+	// -------- Check-out (no late bucket) --------
+	switch {
+	case oldCout != nil && effCout != nil && oldCoutDay == newCoutDay:
+		log.Printf("[sum] cout same-day change day=%s (no bucket change)", newCoutDay)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newCoutDay)
+
+	case oldCout != nil && effCout == nil:
+		log.Printf("[sum] cout clear day=%s (-1)", oldCoutDay)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, oldCoutDay)
+		if err := summary_reports.AdjustCheckoutCount(programID, oldCoutDay, -1); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckoutCount -1 day=%s err=%v", oldCoutDay, err)
+		}
+
+	case oldCout == nil && effCout != nil:
+		log.Printf("[sum] cout add day=%s (+1)", newCoutDay)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newCoutDay)
+		if err := summary_reports.AdjustCheckoutCount(programID, newCoutDay, 1); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckoutCount +1 day=%s err=%v", newCoutDay, err)
+		}
+
+	case oldCout != nil && effCout != nil && oldCoutDay != newCoutDay:
+		log.Printf("[sum] cout moveDay from=%s to=%s (-1,+1)", oldCoutDay, newCoutDay)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, oldCoutDay)
+		if err := summary_reports.AdjustCheckoutCount(programID, oldCoutDay, -1); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckoutCount -1 day=%s err=%v", oldCoutDay, err)
+		}
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newCoutDay)
+		if err := summary_reports.AdjustCheckoutCount(programID, newCoutDay, 1); err != nil {
+			log.Printf("[sum][ERR] AdjustCheckoutCount +1 day=%s err=%v", newCoutDay, err)
+		}
 	}
 
 	return &updated, nil

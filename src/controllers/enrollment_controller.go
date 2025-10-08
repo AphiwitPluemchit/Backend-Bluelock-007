@@ -3,6 +3,7 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/enrollments"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // ✅Student ดูกิจกรรมที่ลงทะเบียนไปแล้ว
@@ -133,62 +135,65 @@ func UpdateEnrollmentCheckinout(c *fiber.Ctx) error {
 	}
 
 	type payload struct {
-		RecordID string  `json:"recordId"`          // ต้องส่งมา
-		Checkin  *string `json:"checkin,omitempty"` // RFC3339 หรือ null
-		Checkout *string `json:"checkout,omitempty"`
+		RecordID string  `json:"recordId"`           // required
+		Checkin  *string `json:"checkin,omitempty"`  // RFC3339 กับ timezone (+07:00) หรือ null หรือไม่ส่ง
+		Checkout *string `json:"checkout,omitempty"` // เหมือนกัน
 	}
-
 	var req payload
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid JSON body"})
 	}
-	if req.RecordID == "" {
+	if strings.TrimSpace(req.RecordID) == "" {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "recordId is required"})
 	}
-	if req.Checkin == nil && req.Checkout == nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "At least one of checkin/checkout must be provided"})
-	}
-
 	recordID, err := primitive.ObjectIDFromHex(req.RecordID)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid recordId format"})
 	}
 
+	// tri-state flags
+	checkinProvided := req.Checkin != nil
+	checkoutProvided := req.Checkout != nil
+
 	parseTimePtr := func(s *string) (*time.Time, error) {
-		if s == nil {
-			return nil, nil // ตั้งใจเซ็ตเป็น null
+		if s == nil { // ผู้ใช้ตั้งใจล้างค่า
+			return nil, nil
 		}
+		// รับ RFC3339 มี timezone เท่านั้น (แนะนำให้ FE ส่ง +07:00)
 		t, err := time.Parse(time.RFC3339, *s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid time format (RFC3339 required)")
+			return nil, fmt.Errorf("invalid time format (RFC3339 with timezone required)")
 		}
 		return &t, nil
 	}
 
-	var checkinPtr, checkoutPtr *time.Time
-	if req.Checkin != nil {
-		checkinPtr, err = parseTimePtr(req.Checkin)
-		if err != nil {
+	var cinPtr, coutPtr *time.Time
+	if checkinProvided {
+		if cinPtr, err = parseTimePtr(req.Checkin); err != nil {
 			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid checkin: " + err.Error()})
 		}
 	}
-	if req.Checkout != nil {
-		checkoutPtr, err = parseTimePtr(req.Checkout)
-		if err != nil {
+	if checkoutProvided {
+		if coutPtr, err = parseTimePtr(req.Checkout); err != nil {
 			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid checkout: " + err.Error()})
 		}
+	}
+	if !checkinProvided && !checkoutProvided {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "At least one of checkin/checkout must be provided"})
 	}
 
 	updated, err := enrollments.UpdateEnrollmentCheckinoutByRecordID(
 		c.Context(),
 		enrollmentID,
 		recordID,
-		checkinPtr,
-		checkoutPtr,
+		checkinProvided, cinPtr,
+		checkoutProvided, coutPtr,
 	)
 	if err != nil {
-		// ถ้าไม่เจอ element ตาม recordId จะได้ ErrNoDocuments
-		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Enrollment or record not found"})
+		}
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(updated)
