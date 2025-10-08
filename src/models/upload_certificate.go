@@ -14,7 +14,9 @@ type UploadCertificate struct {
 	Course          *Course            `json:"course"`
 	Url             string             `bson:"url" json:"url"`
 	NameMatch       int                `bson:"nameMatch" json:"nameMatch"`
+	NameEngMatch    int                `bson:"nameEngMatch" json:"nameEngMatch"`
 	CourseMatch     int                `bson:"courseMatch" json:"courseMatch"`
+	CourseEngMatch  int                `bson:"courseEngMatch" json:"courseEngMatch"`
 	Status          StatusType         `bson:"status" json:"status" default:"pending" enum:"pending,approved,rejected"`
 	Remark          string             `bson:"remark" json:"remark"`
 	IsDuplicate     bool               `bson:"isDuplicate" json:"isDuplicate" default:"false"`
