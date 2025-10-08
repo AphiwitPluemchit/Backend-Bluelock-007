@@ -12,7 +12,6 @@ type Course struct {
 	Issuer       string             `json:"issuer" bson:"issuer" example:"Computer Science Department"`
 	Type         string             `json:"type" bson:"type" example:"lms" enums:"lms,buumooc,thaimooc"`
 	Hour         int                `json:"hour" bson:"hour" example:"4"`
-	IsThaiFormat bool               `json:"isThaiFormat" bson:"isThaiFormat" example:"true"`
 	IsHardSkill  bool               `json:"isHardSkill" bson:"isHardSkill" example:"true"` // true = hard skill, false = soft skill
 	IsActive     bool               `json:"isActive" bson:"isActive" example:"true"`
 }
