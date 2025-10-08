@@ -804,7 +804,7 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 		if targetIdx >= 0 {
 			records[targetIdx].Checkin = &t
 		} else {
-			records = append(records, models.CheckinoutRecord{Checkin: &t})
+			records = append(records, models.CheckinoutRecord{ID: primitive.NewObjectID(), Checkin: &t})
 			targetIdx = len(records) - 1
 		}
 
@@ -818,7 +818,7 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 		} else {
 			// อนุญาต checkout-only
 			t := now
-			records = append(records, models.CheckinoutRecord{Checkout: &t})
+			records = append(records, models.CheckinoutRecord{ID: primitive.NewObjectID(), Checkout: &t})
 			targetIdx = len(records) - 1
 		}
 

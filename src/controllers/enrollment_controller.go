@@ -3,10 +3,12 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/enrollments"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -109,6 +111,87 @@ func RegisterStudent(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Enrollment successful"})
+}
+func GetEnrollmentById(c *fiber.Ctx) error {
+	enrollmentID, err := primitive.ObjectIDFromHex(c.Params("enrollmentId"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid enrollmentId format"})
+	}
+	log.Println(enrollmentID)
+	enrollment, err := enrollments.GetEnrollmentById(enrollmentID)
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Enrollment not found"})
+	}
+
+	return c.JSON(enrollment)
+}
+
+func UpdateEnrollmentCheckinout(c *fiber.Ctx) error {
+	enrollmentID, err := primitive.ObjectIDFromHex(c.Params("enrollmentId"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid enrollmentId format"})
+	}
+
+	type payload struct {
+		RecordID string  `json:"recordId"`          // ต้องส่งมา
+		Checkin  *string `json:"checkin,omitempty"` // RFC3339 หรือ null
+		Checkout *string `json:"checkout,omitempty"`
+	}
+
+	var req payload
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid JSON body"})
+	}
+	if req.RecordID == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "recordId is required"})
+	}
+	if req.Checkin == nil && req.Checkout == nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "At least one of checkin/checkout must be provided"})
+	}
+
+	recordID, err := primitive.ObjectIDFromHex(req.RecordID)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid recordId format"})
+	}
+
+	parseTimePtr := func(s *string) (*time.Time, error) {
+		if s == nil {
+			return nil, nil // ตั้งใจเซ็ตเป็น null
+		}
+		t, err := time.Parse(time.RFC3339, *s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid time format (RFC3339 required)")
+		}
+		return &t, nil
+	}
+
+	var checkinPtr, checkoutPtr *time.Time
+	if req.Checkin != nil {
+		checkinPtr, err = parseTimePtr(req.Checkin)
+		if err != nil {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid checkin: " + err.Error()})
+		}
+	}
+	if req.Checkout != nil {
+		checkoutPtr, err = parseTimePtr(req.Checkout)
+		if err != nil {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid checkout: " + err.Error()})
+		}
+	}
+
+	updated, err := enrollments.UpdateEnrollmentCheckinoutByRecordID(
+		c.Context(),
+		enrollmentID,
+		recordID,
+		checkinPtr,
+		checkoutPtr,
+	)
+	if err != nil {
+		// ถ้าไม่เจอ element ตาม recordId จะได้ ErrNoDocuments
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(updated)
 }
 
 // Student ยกเลิกการลงทะเบียน

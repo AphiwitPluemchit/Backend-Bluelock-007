@@ -12,7 +12,9 @@ func enrollmentRoutes(router fiber.Router) {
 	enrollmentRoutes.Post("/", controllers.RegisterStudent) // ✅ ลงทะเบียน
 	// enrollmentRoutes.Post("/many", controllers.CreateBulkEnrollment)       // ✅ ลงทะเบียนหลายคน                                              // ✅ ลงทะเบียนหลายคน
 	enrollmentRoutes.Get("/student/:studentId", controllers.GetEnrollmentsByStudent) // ✅ ดูกิจกรรมที่ Student ลงทะเบียนไว้
-	enrollmentRoutes.Delete("/:enrollmentId", controllers.UnregisterStudent)         // ✅ ยกเลิกลงทะเบียน
+	enrollmentRoutes.Get("/:enrollmentId", controllers.GetEnrollmentById)
+	enrollmentRoutes.Patch("/:enrollmentId/checkinout", controllers.UpdateEnrollmentCheckinout)
+	enrollmentRoutes.Delete("/:enrollmentId", controllers.UnregisterStudent) // ✅ ยกเลิกลงทะเบียน
 	// enrollmentRoutes.Get("/program/:programId", controllers.GetStudentsByProgram)                                        // ✅ Admin ดูนักศึกษาที่ลงทะเบียน
 	enrollmentRoutes.Get("/student/:studentId/program/:programId/check", controllers.CheckEnrollmentByStudentAndProgram) // ✅ ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
 

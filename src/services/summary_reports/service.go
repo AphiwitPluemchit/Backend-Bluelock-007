@@ -179,6 +179,62 @@ func UpdateCheckoutCount(programID primitive.ObjectID, date string) error {
 	return nil
 }
 
+// AdjustCheckinCount ปรับจำนวนการเช็คอิน (+/-) แยกสาย/ตรงเวลา สำหรับ date ที่ระบุ
+func AdjustCheckinCount(programID primitive.ObjectID, date string, delta int, isLate bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"programId": programID,
+		"date":      date,
+	}
+
+	var update bson.M
+	if isLate {
+		update = bson.M{"$inc": bson.M{"checkinLate": delta}}
+	} else {
+		update = bson.M{"$inc": bson.M{"checkin": delta}}
+	}
+
+	result, err := DB.SummaryCheckInOutReportsCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to adjust checkin count: %w", err)
+	}
+
+	if result.ModifiedCount == 0 {
+		return errors.New("summary report not found for this program and date")
+	}
+
+	// ปรับ NotParticipating ใหม่
+	if err := RecalculateNotParticipating(programID, date); err != nil {
+		log.Printf("⚠️ Warning: Failed to recalculate NotParticipating: %v", err)
+	}
+	return nil
+}
+
+// AdjustCheckoutCount ปรับจำนวนการเช็คเอาท์ (+/-) สำหรับ date ที่ระบุ
+func AdjustCheckoutCount(programID primitive.ObjectID, date string, delta int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"programId": programID,
+		"date":      date,
+	}
+	update := bson.M{"$inc": bson.M{"checkout": delta}}
+
+	result, err := DB.SummaryCheckInOutReportsCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to adjust checkout count: %w", err)
+	}
+
+	if result.ModifiedCount == 0 {
+		return errors.New("summary report not found for this program and date")
+	}
+
+	return nil
+}
+
 // RecalculateNotParticipating คำนวณ NotParticipating ใหม่สำหรับ date ที่ระบุ
 // NotParticipating = Registered - (Checkin + CheckinLate)
 func RecalculateNotParticipating(programID primitive.ObjectID, date string) error {

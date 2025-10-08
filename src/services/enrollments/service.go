@@ -313,6 +313,135 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 	return nil
 }
 
+func GetEnrollmentById(enrollmentID primitive.ObjectID) (*models.Enrollment, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var enrollment models.Enrollment
+	err := DB.EnrollmentCollection.FindOne(ctx, bson.M{"_id": enrollmentID}).Decode(&enrollment)
+	if err != nil {
+		return nil, err
+	}
+
+	return &enrollment, nil
+}
+
+func UpdateEnrollmentCheckinoutByRecordID(
+	ctx context.Context,
+	enrollmentID primitive.ObjectID,
+	recordID primitive.ObjectID,
+	checkin *time.Time,
+	checkout *time.Time,
+) (*models.Enrollment, error) {
+
+	// --- โหลดปัจจุบัน (หา old values) ---
+	var current models.Enrollment
+	if err := DB.EnrollmentCollection.FindOne(ctx, bson.M{"_id": enrollmentID}).Decode(&current); err != nil {
+		return nil, err
+	}
+
+	var oldCin, oldCout *time.Time
+	var targetRec *models.CheckinoutRecord
+	if current.CheckinoutRecord != nil {
+		for i := range *current.CheckinoutRecord {
+			r := &(*current.CheckinoutRecord)[i]
+			if r.ID == recordID {
+				oldCin, oldCout = r.Checkin, r.Checkout
+				targetRec = r
+				break
+			}
+		}
+	}
+
+	// --- โหลด ProgramItem เพื่ออ้างอิงเวลาเริ่ม ---
+	var item models.ProgramItem
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": current.ProgramItemID}).Decode(&item); err != nil {
+		return nil, err
+	}
+	loc := bangkok()
+	programID := item.ProgramID
+
+	// --- คำนวณค่าที่จะเป็นผลลัพธ์หลังอัปเดต (effective values) ---
+	effCin := oldCin
+	effCout := oldCout
+	if checkin != nil {
+		effCin = checkin
+	} // nil หมายถึงต้องการ set null (ล้างค่า)
+	if checkout != nil {
+		effCout = checkout
+	}
+
+	// สร้างข้อความ participation ใหม่จาก effCin/effCout
+	part := participationFor(&item, effCin, effCout, loc)
+
+	// --- เตรียม $set ---
+	setFields := bson.M{}
+	if checkin != nil {
+		setFields["checkinoutRecord.$[el].checkin"] = checkin
+	}
+	if checkout != nil {
+		setFields["checkinoutRecord.$[el].checkout"] = checkout
+	}
+	setFields["checkinoutRecord.$[el].participation"] = part // << ใส่ตรงนี้
+
+	if len(setFields) == 0 {
+		return nil, fmt.Errorf("no fields to update")
+	}
+
+	// --- อัปเดตเอกสาร (คืนค่า After) ---
+	filter := bson.M{"_id": enrollmentID}
+	update := bson.M{"$set": setFields}
+	opts := options.FindOneAndUpdate().
+		SetReturnDocument(options.After).
+		SetArrayFilters(options.ArrayFilters{Filters: []interface{}{bson.M{"el._id": recordID}}})
+
+	var updated models.Enrollment
+	res := DB.EnrollmentCollection.FindOneAndUpdate(ctx, filter, update, opts)
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	if err := res.Decode(&updated); err != nil {
+		return nil, err
+	}
+
+	// --- ปรับสรุป Summary (ลบเก่า + เติมใหม่) ---
+	// ลบยอดเก่า (ใช้สถานะเก่าให้ถูกช่อง)
+	if oldCin != nil && targetRec != nil {
+		oldDay := oldCin.In(loc).Format(fmtDay)
+		late := isLateCheckin(&item, oldCin.In(loc), loc)
+		if targetRec.Participation != nil {
+			p := *targetRec.Participation
+			if strings.Contains(p, "ตรงเวลา") {
+				late = false
+			}
+			if strings.Contains(p, "สาย") || strings.Contains(p, "ไม่เข้าเกณฑ์") {
+				late = true
+			}
+		}
+		_ = summary_reports.AdjustCheckinCount(programID, oldDay, -1, late)
+		_ = summary_reports.RecalculateNotParticipating(programID, oldDay)
+	}
+	if oldCout != nil {
+		oldDay := oldCout.In(loc).Format(fmtDay)
+		_ = summary_reports.AdjustCheckoutCount(programID, oldDay, -1)
+	}
+
+	// เติมยอดใหม่ (อิง effCin/effCout)
+	if effCin != nil {
+		newDay := effCin.In(loc).Format(fmtDay)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newDay)
+		_ = summary_reports.AdjustCheckinCount(programID, newDay, 1, isLateCheckin(&item, effCin.In(loc), loc))
+		_ = summary_reports.RecalculateNotParticipating(programID, newDay)
+	}
+	if effCout != nil {
+		newDay := effCout.In(loc).Format(fmtDay)
+		_ = summary_reports.EnsureSummaryReportExistsForDate(programID, newDay)
+		_ = summary_reports.AdjustCheckoutCount(programID, newDay, 1)
+	}
+
+	return &updated, nil
+}
+
 // ยกเลิกการลงทะเบียน
 func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -650,21 +779,6 @@ func GetEnrollmentId(studentID, programItemID primitive.ObjectID) (primitive.Obj
 	}
 
 	return res.ID, nil
-}
-
-const (
-	tzBangkok = "Asia/Bangkok"
-	fmtDay    = "2006-01-02"
-	// fmtISOOffset = "2006-01-02T15:04:05-0700"
-
-	// mongoFmtDay       = "%Y-%m-%d"
-	mongoFmtISOOffset = "%Y-%m-%dT%H:%M:%S%z" // จะได้ +0700 (ไม่มี :)
-)
-const ()
-
-func bangkok() *time.Location {
-	loc, _ := time.LoadLocation(tzBangkok)
-	return loc
 }
 
 func GetEnrollmentByProgramItemID(
