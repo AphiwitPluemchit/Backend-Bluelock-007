@@ -1046,11 +1046,11 @@ func GetEnrollmentByProgramItemID(
 			"input": "$rawCheckInOut",
 			"as":    "r",
 			"in": bson.M{
-				// GetEnrollmentByProgramItemID
+				"id": "$$r._id", // <<< เพิ่มบรรทัดนี้
 				"checkin": bson.M{"$cond": bson.A{
 					bson.M{"$ne": bson.A{"$$r.checkin", nil}},
 					bson.M{"$dateToString": bson.M{
-						"format":   mongoFmtISOOffset, // <<-- เปลี่ยนมาใช้ของ Mongo
+						"format":   mongoFmtISOOffset,
 						"date":     "$$r.checkin",
 						"timezone": tzBangkok,
 					}},
@@ -1059,13 +1059,12 @@ func GetEnrollmentByProgramItemID(
 				"checkout": bson.M{"$cond": bson.A{
 					bson.M{"$ne": bson.A{"$$r.checkout", nil}},
 					bson.M{"$dateToString": bson.M{
-						"format":   mongoFmtISOOffset, // <<-- เช่นกัน
+						"format":   mongoFmtISOOffset,
 						"date":     "$$r.checkout",
 						"timezone": tzBangkok,
 					}},
 					nil,
 				}},
-
 				"participation": "$$r.participation",
 			},
 		}},
@@ -1111,55 +1110,55 @@ func GetEnrollmentByProgramItemID(
 	}
 
 	// 8) คำนวณ checkInStatus แบบเดิม (±15 นาที) อิง ProgramItem
-	loc := bangkok()
-	target := dateStr
-	if target == "" {
-		target = time.Now().In(loc).Format(fmtDay)
-	}
+	// loc := bangkok()
+	// target := dateStr
+	// if target == "" {
+	// 	target = time.Now().In(loc).Format(fmtDay)
+	// }
 
-	var item models.ProgramItem
-	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemID}).Decode(&item); err == nil {
-		var start time.Time
-		ok := false
-		for _, d := range item.Dates {
-			if d.Date == target && d.Stime != "" {
-				if st, e := time.ParseInLocation(fmtDay+" 15:04", d.Date+" "+d.Stime, loc); e == nil {
-					start, ok = st, true
-					break
-				}
-			}
-		}
+	// var item models.ProgramItem
+	// if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemID}).Decode(&item); err == nil {
+	// 	var start time.Time
+	// 	ok := false
+	// 	for _, d := range item.Dates {
+	// 		if d.Date == target && d.Stime != "" {
+	// 			if st, e := time.ParseInLocation(fmtDay+" 15:04", d.Date+" "+d.Stime, loc); e == nil {
+	// 				start, ok = st, true
+	// 				break
+	// 			}
+	// 		}
+	// 	}
 
-		for i := range results {
-			statusTxt := "ยังไม่เช็คชื่อ"
+	// 	for i := range results {
+	// 		statusTxt := "ยังไม่เช็คชื่อ"
 
-			if ok {
-				if arr, okArr := results[i]["rawCheckInOut"].(primitive.A); okArr {
-					for _, v := range arr {
-						if r, okR := v.(bson.M); okR {
-							if dt, okDT := r["checkin"].(primitive.DateTime); okDT {
-								tin := dt.Time().In(loc)
-								if tin.Format(fmtDay) != target {
-									continue
-								}
-								early := start.Add(-15 * time.Minute)
-								late := start.Add(15 * time.Minute)
-								if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
-									statusTxt = "ตรงเวลา"
-								} else {
-									statusTxt = "สาย"
-								}
-								break
-							}
-						}
-					}
-				}
-			}
+	// 		if ok {
+	// 			if arr, okArr := results[i]["rawCheckInOut"].(primitive.A); okArr {
+	// 				for _, v := range arr {
+	// 					if r, okR := v.(bson.M); okR {
+	// 						if dt, okDT := r["checkin"].(primitive.DateTime); okDT {
+	// 							tin := dt.Time().In(loc)
+	// 							if tin.Format(fmtDay) != target {
+	// 								continue
+	// 							}
+	// 							early := start.Add(-15 * time.Minute)
+	// 							late := start.Add(15 * time.Minute)
+	// 							if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
+	// 								statusTxt = "ตรงเวลา"
+	// 							} else {
+	// 								statusTxt = "สาย"
+	// 							}
+	// 							break
+	// 						}
+	// 					}
+	// 				}
+	// 			}
+	// 		}
 
-			results[i]["checkInStatus"] = statusTxt
-			delete(results[i], "rawCheckInOut") // ลบ raw ก่อนส่งออก
-		}
-	}
+	// 		results[i]["checkInStatus"] = statusTxt
+	// 		delete(results[i], "rawCheckInOut") // ลบ raw ก่อนส่งออก
+	// 	}
+	// }
 
 	return results, total, nil
 }
@@ -1218,7 +1217,6 @@ func GetEnrollmentsByProgramID(
 			"enrollmentId":     "$_id",
 			"food":             "$food",
 			"registrationDate": "$registrationDate",
-			"checkInStatus":    nil,
 
 			// rawCheckInOut ต่อ item พร้อม programItemId
 			"checkInOut": bson.M{
@@ -1317,7 +1315,7 @@ func GetEnrollmentsByProgramID(
 				"input": "$rawCheckInOut",
 				"as":    "x",
 				"in": bson.M{
-					// GetEnrollmentsByProgramID
+					"id": "$$x.r._id", // <<< เพิ่ม
 					"checkin": bson.M{"$cond": bson.A{
 						bson.M{"$ne": bson.A{"$$x.r.checkin", nil}},
 						bson.M{"$dateToString": bson.M{
@@ -1336,7 +1334,6 @@ func GetEnrollmentsByProgramID(
 						}},
 						nil,
 					}},
-
 					"participation": "$$x.r.participation",
 				},
 			},
@@ -1401,73 +1398,73 @@ func GetEnrollmentsByProgramID(
 		return nil, 0, err
 	}
 
-	// 9) คำนวณสถานะแบบเดิม (±15 นาที) ต่อวัน โดย ProgramItem เป็นหลัก
-	loc := bangkok()
-	target := dateStr
-	if target == "" {
-		target = time.Now().In(loc).Format(fmtDay)
-	}
+	// // 9) คำนวณสถานะแบบเดิม (±15 นาที) ต่อวัน โดย ProgramItem เป็นหลัก
+	// loc := bangkok()
+	// target := dateStr
+	// if target == "" {
+	// 	target = time.Now().In(loc).Format(fmtDay)
+	// }
 
-	// cache start time ต่อ programItem
-	startTimeByItem := map[string]time.Time{}
-	getStart := func(itemID primitive.ObjectID) (time.Time, bool) {
-		key := itemID.Hex()
-		if v, ok := startTimeByItem[key]; ok {
-			return v, true
-		}
-		var item models.ProgramItem
-		if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": itemID}).Decode(&item); err != nil {
-			return time.Time{}, false
-		}
-		for _, d := range item.Dates {
-			if d.Date == target && d.Stime != "" {
-				if st, e := time.ParseInLocation(fmtDay+" 15:04", d.Date+" "+d.Stime, loc); e == nil {
-					startTimeByItem[key] = st
-					return st, true
-				}
-			}
-		}
-		return time.Time{}, false
-	}
+	// // cache start time ต่อ programItem
+	// startTimeByItem := map[string]time.Time{}
+	// getStart := func(itemID primitive.ObjectID) (time.Time, bool) {
+	// 	key := itemID.Hex()
+	// 	if v, ok := startTimeByItem[key]; ok {
+	// 		return v, true
+	// 	}
+	// 	var item models.ProgramItem
+	// 	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": itemID}).Decode(&item); err != nil {
+	// 		return time.Time{}, false
+	// 	}
+	// 	for _, d := range item.Dates {
+	// 		if d.Date == target && d.Stime != "" {
+	// 			if st, e := time.ParseInLocation(fmtDay+" 15:04", d.Date+" "+d.Stime, loc); e == nil {
+	// 				startTimeByItem[key] = st
+	// 				return st, true
+	// 			}
+	// 		}
+	// 	}
+	// 	return time.Time{}, false
+	// }
 
-	for i := range results {
-		statusTxt := "ยังไม่เช็คชื่อ"
+	// for i := range results {
+	// 	statusTxt := "ยังไม่เช็คชื่อ"
 
-		if arr, ok := results[i]["rawCheckInOut"].(primitive.A); ok {
-			for _, v := range arr {
-				m, ok := v.(bson.M)
-				if !ok {
-					continue
-				}
-				itemID, _ := m["programItemId"].(primitive.ObjectID)
-				r, _ := m["r"].(bson.M)
-				if r == nil {
-					continue
-				}
-				if dt, okDT := r["checkin"].(primitive.DateTime); okDT {
-					st, okStart := getStart(itemID)
-					if !okStart {
-						continue
-					}
-					tin := dt.Time().In(loc)
-					if tin.Format(fmtDay) != target {
-						continue
-					}
-					early := st.Add(-15 * time.Minute)
-					late := st.Add(15 * time.Minute)
-					if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
-						statusTxt = "ตรงเวลา"
-					} else {
-						statusTxt = "สาย"
-					}
-					break
-				}
-			}
-		}
+	// 	if arr, ok := results[i]["rawCheckInOut"].(primitive.A); ok {
+	// 		for _, v := range arr {
+	// 			m, ok := v.(bson.M)
+	// 			if !ok {
+	// 				continue
+	// 			}
+	// 			itemID, _ := m["programItemId"].(primitive.ObjectID)
+	// 			r, _ := m["r"].(bson.M)
+	// 			if r == nil {
+	// 				continue
+	// 			}
+	// 			if dt, okDT := r["checkin"].(primitive.DateTime); okDT {
+	// 				st, okStart := getStart(itemID)
+	// 				if !okStart {
+	// 					continue
+	// 				}
+	// 				tin := dt.Time().In(loc)
+	// 				if tin.Format(fmtDay) != target {
+	// 					continue
+	// 				}
+	// 				early := st.Add(-15 * time.Minute)
+	// 				late := st.Add(15 * time.Minute)
+	// 				if (tin.Equal(early) || tin.After(early)) && (tin.Before(late) || tin.Equal(late)) {
+	// 					statusTxt = "ตรงเวลา"
+	// 				} else {
+	// 					statusTxt = "สาย"
+	// 				}
+	// 				break
+	// 			}
+	// 		}
+	// 	}
 
-		results[i]["checkInStatus"] = statusTxt
-		delete(results[i], "rawCheckInOut") // ลบ raw ก่อนส่งออก
-	}
+	// 	results[i]["checkInStatus"] = statusTxt
+	// 	delete(results[i], "rawCheckInOut") // ลบ raw ก่อนส่งออก
+	// }
 
 	return results, total, nil
 }
