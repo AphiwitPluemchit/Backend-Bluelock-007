@@ -4,6 +4,8 @@ import (
 	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/utils"
 	"fmt"
+	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -178,15 +180,19 @@ func GoogleCallback(c *fiber.Ctx) error {
 		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=token_generation_failed", frontendURL))
 	}
 
-	// 5. Store refresh token in Redis (optional in dev mode)
+	// 5. Store refresh token in Redis (optional in dev mode) - non-fatal
 	refreshTokenExpire := utils.GetRefreshTokenExpiration()
-	_ = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire)
+	if err := utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire); err != nil {
+		log.Printf("StoreRefreshToken non-fatal: %v", err)
+	}
 
 	// 6. Log successful login
 	services.LogLoginAttempt(user.Email, c.IP(), true)
 
-	// 7. Redirect to frontend with token pair (ใช้ /auth/me เพื่อดึงข้อมูล user)
-	redirectURL := fmt.Sprintf("%s/auth/callback?accessToken=%s&refreshToken=%s", frontendURL, accessToken, refreshToken)
+	// 7. Redirect to frontend with token pair (URL-encoded)
+	// Send accessToken and refreshToken only (stop using legacy `token` param)
+	redirectURL := fmt.Sprintf("%s/auth/callback?accessToken=%s&refreshToken=%s", frontendURL, url.QueryEscape(accessToken), url.QueryEscape(refreshToken))
+	log.Printf("GoogleCallback redirect -> %s", redirectURL)
 	return c.Redirect(redirectURL)
 }
 
