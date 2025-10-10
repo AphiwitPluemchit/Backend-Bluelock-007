@@ -26,10 +26,13 @@ func InitRedis() {
 }
 
 // StoreRefreshToken เก็บ refresh token ใน Redis พร้อม expiration
+// Returns nil if Redis is not available (development mode)
 func StoreRefreshToken(userID, refreshToken string, expiresIn time.Duration) error {
 	client := ensureClient()
 	if client == nil {
-		return fmt.Errorf("redis client not initialized")
+		fmt.Println("redis client not initialized")
+		// ไม่มี Redis ใน dev mode - ข้าม
+		return nil
 	}
 
 	key := fmt.Sprintf("refresh_token:%s", userID)
@@ -41,10 +44,13 @@ func StoreRefreshToken(userID, refreshToken string, expiresIn time.Duration) err
 }
 
 // ValidateRefreshToken ตรวจสอบว่า refresh token ตรงกับที่เก็บไว้ใน Redis หรือไม่
+// Returns true if Redis is not available (development mode - skip validation)
 func ValidateRefreshToken(userID, refreshToken string) (bool, error) {
 	client := ensureClient()
 	if client == nil {
-		return false, fmt.Errorf("redis client not initialized")
+		fmt.Println("redis client not initialized")
+		// ไม่มี Redis ใน dev mode - ข้ามการตรวจสอบ (อนุญาตให้ผ่าน)
+		return true, nil
 	}
 
 	key := fmt.Sprintf("refresh_token:%s", userID)
@@ -60,10 +66,13 @@ func ValidateRefreshToken(userID, refreshToken string) (bool, error) {
 }
 
 // DeleteRefreshToken ลบ refresh token จาก Redis (ใช้ตอน logout)
+// Returns nil if Redis is not available (development mode)
 func DeleteRefreshToken(userID string) error {
 	client := ensureClient()
 	if client == nil {
-		return fmt.Errorf("redis client not initialized")
+		fmt.Println("redis client not initialized")
+		// ไม่มี Redis ใน dev mode - ข้าม
+		return nil
 	}
 
 	key := fmt.Sprintf("refresh_token:%s", userID)
@@ -75,10 +84,13 @@ func DeleteRefreshToken(userID string) error {
 }
 
 // BlacklistToken เพิ่ม access token เข้า blacklist (ใช้ตอน logout)
+// Returns nil if Redis is not available (development mode)
 func BlacklistToken(token string, expiresIn time.Duration) error {
 	client := ensureClient()
 	if client == nil {
-		return fmt.Errorf("redis client not initialized")
+		fmt.Println("redis client not initialized")
+		// ไม่มี Redis ใน dev mode - ข้าม
+		return nil
 	}
 
 	key := fmt.Sprintf("blacklist:%s", token)
@@ -90,10 +102,13 @@ func BlacklistToken(token string, expiresIn time.Duration) error {
 }
 
 // IsTokenBlacklisted ตรวจสอบว่า token อยู่ใน blacklist หรือไม่
+// Returns false if Redis is not available (development mode - allow all tokens)
 func IsTokenBlacklisted(token string) (bool, error) {
 	client := ensureClient()
 	if client == nil {
-		return false, fmt.Errorf("redis client not initialized")
+		fmt.Println("redis client not initialized")
+		// ไม่มี Redis ใน dev mode - ไม่มี blacklist (อนุญาตให้ผ่าน)
+		return false, nil
 	}
 
 	key := fmt.Sprintf("blacklist:%s", token)

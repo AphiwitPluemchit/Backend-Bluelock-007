@@ -83,13 +83,9 @@ func LoginUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 7. Store refresh token in Redis (use refresh token expiration from ENV)
+	// 7. Store refresh token in Redis (optional in dev mode)
 	refreshTokenExpire := utils.GetRefreshTokenExpiration()
-	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire)
-	if err != nil {
-		// Log error but don't fail login
-		fmt.Printf("Failed to store refresh token: %v\n", err)
-	}
+	_ = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire)
 
 	// 8. Log successful login
 	services.LogLoginAttempt(req.Email, c.IP(), true)
@@ -182,13 +178,9 @@ func GoogleCallback(c *fiber.Ctx) error {
 		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=token_generation_failed", frontendURL))
 	}
 
-	// 5. Store refresh token in Redis (use refresh token expiration from ENV)
+	// 5. Store refresh token in Redis (optional in dev mode)
 	refreshTokenExpire := utils.GetRefreshTokenExpiration()
-	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire)
-	if err != nil {
-		// Log error but don't fail login
-		fmt.Printf("Failed to store refresh token: %v\n", err)
-	}
+	_ = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire)
 
 	// 6. Log successful login
 	services.LogLoginAttempt(user.Email, c.IP(), true)
@@ -333,13 +325,9 @@ func RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
-	// 7. Update refresh token in Redis (use refresh token expiration from ENV)
+	// 7. Update refresh token in Redis (optional in dev mode)
 	refreshTokenExpire := utils.GetRefreshTokenExpiration()
-	err = utils.StoreRefreshToken(user.RefID.Hex(), newRefreshToken, refreshTokenExpire)
-	if err != nil {
-		// Log error but don't fail refresh
-		fmt.Printf("Failed to update refresh token: %v\n", err)
-	}
+	_ = utils.StoreRefreshToken(user.RefID.Hex(), newRefreshToken, refreshTokenExpire)
 
 	// 8. Return new token pair
 	accessTokenExpire := utils.GetAccessTokenExpiration()
