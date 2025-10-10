@@ -45,9 +45,10 @@ func main() {
 
 	// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
 	database.InitRedis()
-	// ✅ สร้าง Asynq Client และเริ่มรัน Asynq Worker
-	if database.RedisURI != "" {
+	// ✅ สร้าง Asynq Client และเริ่มรัน Asynq Worker (ถ้า Redis พร้อมใช้งาน)
+	if database.RedisClient != nil && database.RedisURI != "" {
 		database.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: database.RedisURI})
+		log.Println("✅ Asynq Client initialized")
 
 		go func() {
 			srv := asynq.NewServer(
@@ -60,13 +61,13 @@ func main() {
 			mux.HandleFunc(jobs.TypeCompleteProgram, jobs.HandleCompleteProgramTask)
 			mux.HandleFunc(jobs.TypeCloseEnroll, jobs.HandleCloseEnrollTask)
 
+			log.Println("🚀 Asynq Worker is starting...")
 			if err := srv.Run(mux); err != nil {
-				log.Fatal("❌ Failed to start Asynq worker:", err)
-			} else {
-				log.Println("🚀 Asynq Worker is starting...")
+				log.Println("⚠️ Asynq worker stopped:", err)
 			}
 		}()
-
+	} else {
+		log.Println("⚠️ Redis not available. Asynq worker will not start. Background jobs disabled.")
 	}
 
 	// สร้าง app instance

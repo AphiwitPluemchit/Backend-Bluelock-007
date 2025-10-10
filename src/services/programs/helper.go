@@ -198,6 +198,9 @@ type programsCache struct {
 }
 
 func getProgramsFromCache(key string) (*programsCache, error) {
+	if DB.RedisClient == nil {
+		return nil, errors.New("redis not available")
+	}
 	cached, err := DB.RedisClient.Get(DB.RedisCtx, key).Result()
 	if err != nil {
 		return nil, err
@@ -294,6 +297,9 @@ func populateEnrollmentCounts(ctx context.Context, programs []models.ProgramDto)
 }
 
 func cacheProgramsResult(key string, results []models.ProgramDto, total int64, totalPages int) {
+	if DB.RedisClient == nil {
+		return
+	}
 	cacheValue, _ := json.Marshal(programsCache{
 		Data:       results,
 		Total:      total,

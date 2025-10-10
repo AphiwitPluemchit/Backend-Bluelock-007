@@ -32,9 +32,10 @@ func InitRedis() {
 		// don't panic in dev; log and keep RedisClient nil
 		RedisClient = nil
 		// Use fmt.Println to keep logs simple (main app logs will show this)
-		fmt.Printf("Warning: Failed to connect Redis (%s): %v\n", RedisURI, err)
+		fmt.Printf("⚠️ Redis connection failed (%s): %v\n", RedisURI, err)
+		fmt.Println("⚠️ Running in DEV mode without Redis. Caching and background jobs are disabled.")
 		return
 	}
 
-	fmt.Printf("Redis initialized: %s\n", RedisURI)
+	fmt.Printf("✅ Redis initialized: %s\n", RedisURI)
 }

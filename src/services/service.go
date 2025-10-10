@@ -51,8 +51,6 @@ func init() {
 	DB.HourChangeHistoryCollection = DB.GetCollection(collection, "Hour_Change_Histories")
 	DB.SummaryCheckInOutReportsCollection = DB.GetCollection(collection, "View_Summary_Check_In_Out_Reports")
 
-	if DB.RedisURI != "" {
-		DB.InitAsynq()
-	}
+	// Note: Asynq initialization is now handled in main.go after Redis connection check
 
 }
