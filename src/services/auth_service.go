@@ -365,54 +365,23 @@ func CreateGoogleUser(googleUser *GoogleUserInfo) (*models.User, error) {
 		IsActive: true,
 	}
 
-	_, err = DB.UserCollection.InsertOne(ctx, user)
+	insertRes, err := DB.UserCollection.InsertOne(ctx, user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user account: %v", err)
 	}
 
-	// ดึงข้อมูล student profile ล่าสุด
-	var studentProfile models.Student
-	err = DB.StudentCollection.FindOne(ctx, bson.M{"_id": refID}).Decode(&studentProfile)
-	if err != nil {
-		// ถ้า error ให้คืนข้อมูลเท่าที่มี
-		return &models.User{
-			ID:    refID,
-			Name:  googleUser.Name,
-			Email: strings.ToLower(googleUser.Email),
-			Role:  "Student",
-			RefID: refID,
-			Code:  code,
-			Major: "",
-		}, nil
+	// แปลง InsertedID เป็น ObjectID
+	userID, ok := insertRes.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return nil, fmt.Errorf("unexpected InsertedID type %T", insertRes.InsertedID)
 	}
 
-	// ดึงข้อมูล user ล่าสุด
-	var dbUser models.User
-	err = DB.UserCollection.FindOne(ctx, bson.M{"email": strings.ToLower(googleUser.Email)}).Decode(&dbUser)
-	if err != nil {
-		// ถ้า error ให้คืนข้อมูลเท่าที่มี
-		return &models.User{
-			ID:          refID,
-			Name:        studentProfile.Name,
-			Email:       strings.ToLower(googleUser.Email),
-			Role:        "Student",
-			RefID:       refID,
-			Code:        code,
-			Major:       studentProfile.Major,
-			StudentYear: extractStudentYearFromCode(studentProfile.Code),
-		}, nil
-	}
-
-	// คืนข้อมูลครบถ้วนเหมือน Normal Login
+	// Return เฉพาะข้อมูลที่จำเป็นสำหรับสร้าง JWT
+	// Frontend จะดึงข้อมูลเต็มจาก /auth/me อยู่แล้ว
 	return &models.User{
-		ID:          dbUser.ID,
-		Name:        studentProfile.Name,
-		Email:       dbUser.Email,
-		Role:        dbUser.Role,
-		RefID:       dbUser.RefID,
-		Code:        studentProfile.Code,
-		Major:       studentProfile.Major,
-		StudentYear: extractStudentYearFromCode(studentProfile.Code),
-		LastLogin:   dbUser.LastLogin,
+		ID:    userID,
+		Email: strings.ToLower(googleUser.Email),
+		Role:  "Student",
+		RefID: refID,
 	}, nil
 }
