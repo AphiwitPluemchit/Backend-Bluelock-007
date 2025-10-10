@@ -135,7 +135,7 @@ func UpdateEnrollmentCheckinout(c *fiber.Ctx) error {
 	}
 
 	type payload struct {
-		RecordID string  `json:"recordId"`           // required
+		RecordID string  `json:"id"`                 // required
 		Checkin  *string `json:"checkin,omitempty"`  // RFC3339 กับ timezone (+07:00) หรือ null หรือไม่ส่ง
 		Checkout *string `json:"checkout,omitempty"` // เหมือนกัน
 	}

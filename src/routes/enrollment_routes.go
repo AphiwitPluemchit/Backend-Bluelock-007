@@ -2,6 +2,7 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
+	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -9,6 +10,7 @@ import (
 // EnrollmentRoutes กำหนดเส้นทางสำหรับ Enrollment API
 func enrollmentRoutes(router fiber.Router) {
 	enrollmentRoutes := router.Group("/enrollments")
+	enrollmentRoutes.Use(middleware.AuthJWT)
 	enrollmentRoutes.Post("/", controllers.RegisterStudent) // ✅ ลงทะเบียน
 	// enrollmentRoutes.Post("/many", controllers.CreateBulkEnrollment)       // ✅ ลงทะเบียนหลายคน                                              // ✅ ลงทะเบียนหลายคน
 	enrollmentRoutes.Get("/student/:studentId", controllers.GetEnrollmentsByStudent) // ✅ ดูกิจกรรมที่ Student ลงทะเบียนไว้

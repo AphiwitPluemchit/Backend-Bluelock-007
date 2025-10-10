@@ -74,7 +74,7 @@ func main() {
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     origins,
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowCredentials: false, // ❌ ต้องเป็น false ถ้าใช้ "*"
 	}))
