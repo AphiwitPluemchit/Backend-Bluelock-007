@@ -13,6 +13,7 @@ func authRoutes(router fiber.Router) {
 	auth.Post("/login", controllers.LoginUser)                       // 🔐 login (no auth required)
 	auth.Post("/logout", middleware.AuthJWT, controllers.LogoutUser) // 🔐 logout (requires JWT auth)
 	auth.Get("/me", middleware.AuthJWT, controllers.GetProfile)      // 🔐 get user profile (requires JWT auth)
+	auth.Post("/refresh", controllers.RefreshToken)                  // 🔄 refresh access token (no auth required)
 
 	// Google OAuth routes
 	auth.Get("/google", controllers.GoogleLogin)             // 🔐 start Google OAuth flow

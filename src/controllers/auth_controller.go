@@ -74,8 +74,8 @@ func LoginUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 6. Generate JWT token (ใช้ RefID เป็น userID ใน JWT)
-	token, err := utils.GenerateJWT(user.RefID.Hex(), user.Email, user.Role)
+	// 6. Generate JWT token pair (ใช้ RefID เป็น userID ใน JWT)
+	accessToken, refreshToken, err := utils.GenerateTokenPair(user.RefID.Hex(), user.Email, user.Role)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Token generation failed",
@@ -83,17 +83,25 @@ func LoginUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 7. Log successful login
+	// 7. Store refresh token in Redis (อายุ 7 วัน)
+	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, 7*24*time.Hour)
+	if err != nil {
+		// Log error but don't fail login
+		fmt.Printf("Failed to store refresh token: %v\n", err)
+	}
+
+	// 8. Log successful login
 	services.LogLoginAttempt(req.Email, c.IP(), true)
 
-	// 8. Set security headers
+	// 9. Set security headers
 	c.Set("X-Frame-Options", "DENY")
 	c.Set("X-Content-Type-Options", "nosniff")
 
-	// 9. Return response with user data
+	// 10. Return response with user data and token pair
 	return c.JSON(fiber.Map{
-		"token":     token,
-		"expiresIn": 3600,
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
+		"expiresIn":    900, // 15 minutes in seconds
 		"user": fiber.Map{
 			"id":          user.RefID.Hex(),
 			"code":        user.Code,
@@ -166,17 +174,24 @@ func GoogleCallback(c *fiber.Ctx) error {
 		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=%s", frontendURL, err.Error()))
 	}
 
-	// 4. Generate JWT token (ใช้ RefID เป็น userID ใน JWT)
-	token, err := utils.GenerateJWT(user.RefID.Hex(), user.Email, user.Role)
+	// 4. Generate JWT token pair (ใช้ RefID เป็น userID ใน JWT)
+	accessToken, refreshToken, err := utils.GenerateTokenPair(user.RefID.Hex(), user.Email, user.Role)
 	if err != nil {
 		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=token_generation_failed", frontendURL))
 	}
 
-	// 5. Log successful login
+	// 5. Store refresh token in Redis (อายุ 7 วัน)
+	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, 7*24*time.Hour)
+	if err != nil {
+		// Log error but don't fail login
+		fmt.Printf("Failed to store refresh token: %v\n", err)
+	}
+
+	// 6. Log successful login
 	services.LogLoginAttempt(user.Email, c.IP(), true)
 
-	// 6. Redirect to frontend with token only (ใช้ /auth/me เพื่อดึงข้อมูล user)
-	redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, token)
+	// 7. Redirect to frontend with token pair (ใช้ /auth/me เพื่อดึงข้อมูล user)
+	redirectURL := fmt.Sprintf("%s/auth/callback?accessToken=%s&refreshToken=%s", frontendURL, accessToken, refreshToken)
 	return c.Redirect(redirectURL)
 }
 
@@ -229,6 +244,108 @@ func GetProfile(c *fiber.Ctx) error {
 	})
 }
 
+// RefreshToken godoc
+// @Summary Refresh access token
+// @Description Get new access token using refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param refreshToken body map[string]string true "Refresh Token"
+// @Success 200 {object} map[string]interface{} "New access token generated"
+// @Failure 400 {object} map[string]interface{} "Invalid request format"
+// @Failure 401 {object} map[string]interface{} "Invalid or expired refresh token"
+// @Router /auth/refresh [post]
+func RefreshToken(c *fiber.Ctx) error {
+	// 1. Parse request body
+	var req struct {
+		RefreshToken string `json:"refreshToken"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request format",
+			"code":  "INVALID_REQUEST",
+		})
+	}
+
+	if req.RefreshToken == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Refresh token is required",
+			"code":  "MISSING_TOKEN",
+		})
+	}
+
+	// 2. Validate and parse JWT
+	claims, err := utils.ParseJWT(req.RefreshToken)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid or expired refresh token",
+			"code":  "INVALID_TOKEN",
+		})
+	}
+
+	// 3. Check token type
+	if claims.Type != "refresh" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Not a refresh token",
+			"code":  "INVALID_TOKEN_TYPE",
+		})
+	}
+
+	// 4. Validate refresh token in Redis
+	isValid, err := utils.ValidateRefreshToken(claims.UserID, req.RefreshToken)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Token validation failed",
+			"code":  "VALIDATION_ERROR",
+		})
+	}
+
+	if !isValid {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Refresh token not found or expired",
+			"code":  "TOKEN_NOT_FOUND",
+		})
+	}
+
+	// 5. Get user profile
+	user, err := services.GetUserProfile(claims.UserID, claims.Role)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User not found or account suspended",
+			"code":  "USER_NOT_FOUND",
+		})
+	}
+
+	// 6. Generate new token pair
+	newAccessToken, newRefreshToken, err := utils.GenerateTokenPair(
+		user.RefID.Hex(),
+		user.Email,
+		user.Role,
+	)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Token generation failed",
+			"code":  "TOKEN_ERROR",
+		})
+	}
+
+	// 7. Update refresh token in Redis
+	err = utils.StoreRefreshToken(user.RefID.Hex(), newRefreshToken, 7*24*time.Hour)
+	if err != nil {
+		// Log error but don't fail refresh
+		fmt.Printf("Failed to update refresh token: %v\n", err)
+	}
+
+	// 8. Return new token pair
+	return c.JSON(fiber.Map{
+		"accessToken":  newAccessToken,
+		"refreshToken": newRefreshToken,
+		"expiresIn":    900, // 15 minutes
+		"message":      "Token refreshed successfully",
+	})
+}
+
 // LogoutUser godoc
 // @Summary Logout user
 // @Description Logout user by blacklisting token and updating session
@@ -254,17 +371,30 @@ func LogoutUser(c *fiber.Ctx) error {
 	token := c.Get("Authorization")
 	if token != "" {
 		token = strings.TrimPrefix(token, "Bearer ")
-		// 3. Add to blacklist
+
+		// 3. Add access token to blacklist (อายุ 15 นาที)
+		err := utils.BlacklistToken(token, 15*time.Minute)
+		if err != nil {
+			fmt.Printf("Failed to blacklist token: %v\n", err)
+		}
+
+		// Legacy: Keep old blacklist log for compatibility
 		services.AddToBlacklist(token, userID)
 	}
 
-	// 4. Update user session
+	// 4. Delete refresh token from Redis
+	err := utils.DeleteRefreshToken(userID)
+	if err != nil {
+		fmt.Printf("Failed to delete refresh token: %v\n", err)
+	}
+
+	// 5. Update user session
 	services.UpdateLastLogout(userID)
 
-	// 5. Log logout
+	// 6. Log logout
 	services.LogLogout(userID, c.IP(), time.Now())
 
-	// 6. Return response
+	// 7. Return response
 	return c.JSON(fiber.Map{
 		"message":      "Logout successful",
 		"success":      true,

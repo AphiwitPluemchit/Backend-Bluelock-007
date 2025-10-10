@@ -34,8 +34,8 @@ func IsRateLimited(email string) bool {
 	key := strings.ToLower(email)
 	now := time.Now()
 	window := 5 * time.Minute         // 5 นาที
-	maxAttempts := 5                  // สูงสุด 5 ครั้ง
-	cooldownPeriod := 5 * time.Minute // รอ 5 นาทีหลังจากเกิน maxAttempts
+	maxAttempts := 8                  // สูงสุด 5 ครั้ง
+	cooldownPeriod := 4 * time.Minute // รอ 5 นาทีหลังจากเกิน maxAttempts
 
 	// ลบ attempts ที่เก่ากว่า window
 	if attempts, exists := loginAttempts[key]; exists {
