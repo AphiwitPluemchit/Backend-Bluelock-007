@@ -45,11 +45,12 @@ func main() {
 
 	// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
 	database.InitRedis()
-	// ✅ สร้าง Asynq Client และเริ่มรัน Asynq Worker (ถ้า Redis พร้อมใช้งาน)
-	if database.RedisClient != nil && database.RedisURI != "" {
-		database.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: database.RedisURI})
-		log.Println("✅ Asynq Client initialized")
 
+	// ✅ สร้าง Asynq Client (ถ้า Redis พร้อมใช้งาน)
+	database.InitAsynq()
+
+	// ✅ เริ่มรัน Asynq Worker (ถ้า Asynq Client พร้อมใช้งาน)
+	if database.AsynqClient != nil {
 		go func() {
 			srv := asynq.NewServer(
 				asynq.RedisClientOpt{Addr: database.RedisURI},
@@ -67,7 +68,7 @@ func main() {
 			}
 		}()
 	} else {
-		log.Println("⚠️ Redis not available. Asynq worker will not start. Background jobs disabled.")
+		log.Println("⚠️ Asynq worker will not start. Background jobs disabled.")
 	}
 
 	// สร้าง app instance
