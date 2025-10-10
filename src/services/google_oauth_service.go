@@ -68,34 +68,26 @@ func GetGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
 
 // ProcessGoogleLogin handles the Google OAuth login process
 func ProcessGoogleLogin(code string) (*models.User, error) {
-	fmt.Printf("🔄 Processing Google login with code: %s...\n", code[:10])
 
 	config := GetGoogleOAuthConfig()
-	fmt.Printf("🔍 OAuth Config - ClientID: %s, RedirectURL: %s\n",
-		config.ClientID[:10]+"...", config.RedirectURL)
 
 	// Exchange code for token
-	fmt.Printf("🔄 Exchanging code for token...\n")
 	token, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		fmt.Printf("❌ Token exchange failed: %v\n", err)
 		return nil, fmt.Errorf("failed to exchange code for token: %v", err)
 	}
-
 	fmt.Printf("✅ Token exchange successful\n")
 
 	// Get user info from Google
-	fmt.Printf("🔄 Getting user info from Google...\n")
 	userInfo, err := GetGoogleUserInfo(token.AccessToken)
 	if err != nil {
 		fmt.Printf("❌ Failed to get user info: %v\n", err)
 		return nil, fmt.Errorf("failed to get user info: %v", err)
 	}
-
 	fmt.Printf("✅ User info retrieved: %s (%s)\n", userInfo.Email, userInfo.Name)
 
 	// Check if user exists in database
-	fmt.Printf("🔄 Checking if user exists in database...\n")
 	user, err := GetUserByEmail(userInfo.Email)
 	if err != nil {
 		fmt.Printf("🔄 User doesn't exist, creating new user...\n")
@@ -105,7 +97,7 @@ func ProcessGoogleLogin(code string) (*models.User, error) {
 			fmt.Printf("❌ Failed to create user: %v\n", err)
 			return nil, fmt.Errorf("failed to create user: %v", err)
 		}
-		fmt.Printf("✅ New user created: %s\n", user.Email)
+
 	} else {
 		fmt.Printf("✅ Existing user found: %s\n", user.Email)
 	}

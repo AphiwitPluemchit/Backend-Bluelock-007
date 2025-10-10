@@ -1,125 +1,10 @@
 definitions:
-  models.Activity:
+  controllers.LoginRequest:
     properties:
-      activityState:
-        example: planning
+      email:
         type: string
-      endDateEnroll:
+      password:
         type: string
-      file:
-        example: image.jpg
-        type: string
-      foodVotes:
-        items:
-          $ref: '#/definitions/models.FoodVote'
-        type: array
-      formId:
-        type: string
-      id:
-        type: string
-      name:
-        example: Football Tournament
-        type: string
-      skill:
-        example: hard
-        type: string
-      type:
-        example: one
-        type: string
-    type: object
-  models.ActivityDto:
-    properties:
-      activityItems:
-        items:
-          $ref: '#/definitions/models.ActivityItemDto'
-        type: array
-      activityState:
-        example: planning
-        type: string
-      endDateEnroll:
-        type: string
-      file:
-        example: image.jpg
-        type: string
-      foodVotes:
-        items:
-          $ref: '#/definitions/models.FoodVote'
-        type: array
-      formId:
-        type: string
-      id:
-        type: string
-      name:
-        example: Football Tournament
-        type: string
-      skill:
-        example: hard
-        type: string
-      type:
-        example: one
-        type: string
-    type: object
-  models.ActivityItemDto:
-    properties:
-      activityId:
-        type: string
-      dates:
-        items:
-          $ref: '#/definitions/models.Dates'
-        type: array
-      description:
-        example: Quarter Final
-        type: string
-      enrollmentCount:
-        type: integer
-      hour:
-        example: 4
-        type: integer
-      id:
-        type: string
-      majors:
-        example:
-        - CS
-        - SE
-        - ITDI
-        - AAI
-        items:
-          type: string
-        type: array
-      maxParticipants:
-        example: 22
-        type: integer
-      name:
-        example: Quarter Final
-        type: string
-      operator:
-        example: Operator 1
-        type: string
-      rooms:
-        example:
-        - Room 1
-        - Room 2
-        items:
-          type: string
-        type: array
-      studentYears:
-        example:
-        - 1
-        - 2
-        - 3
-        - 4
-        items:
-          type: integer
-        type: array
-    type: object
-  models.ActivityItemSum:
-    properties:
-      activityItemName:
-        type: string
-      registeredByMajor:
-        items:
-          $ref: '#/definitions/models.MajorEnrollment'
-        type: array
     type: object
   models.Admin:
     properties:
@@ -138,14 +23,10 @@ definitions:
         type: string
       formId:
         type: string
-      icon:
-        type: string
       id:
         type: string
       isRequired:
         type: boolean
-      max:
-        type: integer
       rows:
         items:
           $ref: '#/definitions/models.Row'
@@ -188,9 +69,6 @@ definitions:
         description: true = hard skill, false = soft skill
         example: true
         type: boolean
-      isThaiFormat:
-        example: true
-        type: boolean
       issuer:
         example: Computer Science Department
         type: string
@@ -229,31 +107,14 @@ definitions:
         example: "10:00"
         type: string
     type: object
-  models.Enrollment:
-    properties:
-      activityItemId:
-        type: string
-      food:
-        type: string
-      id:
-        type: string
-      registrationDate:
-        type: string
-      student:
-        allOf:
-        - $ref: '#/definitions/models.Student'
-        description: เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB
-      studentId:
-        type: string
-    type: object
   models.EnrollmentSummary:
     properties:
-      activityItemSums:
-        items:
-          $ref: '#/definitions/models.ActivityItemSum'
-        type: array
       maxParticipants:
         type: integer
+      programItemSums:
+        items:
+          $ref: '#/definitions/models.ProgramItemSum'
+        type: array
       remainingSlots:
         type: integer
       totalRegistered:
@@ -316,6 +177,128 @@ definitions:
       totalPages:
         type: integer
     type: object
+  models.Program:
+    properties:
+      endDateEnroll:
+        type: string
+      file:
+        example: image.jpg
+        type: string
+      foodVotes:
+        items:
+          $ref: '#/definitions/models.FoodVote'
+        type: array
+      formId:
+        type: string
+      id:
+        type: string
+      name:
+        example: Football Tournament
+        type: string
+      programState:
+        example: planning
+        type: string
+      skill:
+        example: hard
+        type: string
+      type:
+        example: one
+        type: string
+    type: object
+  models.ProgramDto:
+    properties:
+      endDateEnroll:
+        type: string
+      file:
+        example: image.jpg
+        type: string
+      foodVotes:
+        items:
+          $ref: '#/definitions/models.FoodVote'
+        type: array
+      formId:
+        type: string
+      id:
+        type: string
+      name:
+        example: Football Tournament
+        type: string
+      programItems:
+        items:
+          $ref: '#/definitions/models.ProgramItemDto'
+        type: array
+      programState:
+        example: planning
+        type: string
+      skill:
+        example: hard
+        type: string
+      type:
+        example: one
+        type: string
+    type: object
+  models.ProgramItemDto:
+    properties:
+      dates:
+        items:
+          $ref: '#/definitions/models.Dates'
+        type: array
+      description:
+        example: Quarter Final
+        type: string
+      enrollmentCount:
+        type: integer
+      hour:
+        example: 4
+        type: integer
+      id:
+        type: string
+      majors:
+        example:
+        - CS
+        - SE
+        - ITDI
+        - AAI
+        items:
+          type: string
+        type: array
+      maxParticipants:
+        example: 22
+        type: integer
+      name:
+        example: Quarter Final
+        type: string
+      operator:
+        example: Operator 1
+        type: string
+      programId:
+        type: string
+      rooms:
+        example:
+        - Room 1
+        - Room 2
+        items:
+          type: string
+        type: array
+      studentYears:
+        example:
+        - 1
+        - 2
+        - 3
+        - 4
+        items:
+          type: integer
+        type: array
+    type: object
+  models.ProgramItemSum:
+    properties:
+      programItemName:
+        type: string
+      registeredByMajor:
+        items:
+          $ref: '#/definitions/models.MajorEnrollment'
+        type: array
+    type: object
   models.Row:
     properties:
       blockId:
@@ -359,362 +342,6 @@ info:
   title: Bluelock API
   version: "1.0"
 paths:
-  /activitys:
-    get:
-      description: Get all activities with pagination, search, and sorting
-      parameters:
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: Number of items per page
-        in: query
-        name: limit
-        type: integer
-      - description: Search term
-        in: query
-        name: search
-        type: string
-      - default: name
-        description: Field to sort by
-        in: query
-        name: sortBy
-        type: string
-      - default: asc
-        description: Sort order (asc or desc)
-        in: query
-        name: order
-        type: string
-      - description: Filter by skill
-        in: query
-        name: skills
-        type: string
-      - description: Filter by activityState
-        in: query
-        name: activityStates
-        type: string
-      - description: Filter by major
-        in: query
-        name: majors
-        type: string
-      - description: Filter by studentYear
-        in: query
-        name: studentYears
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get all activities with pagination, search, and sorting
-      tags:
-      - activitys
-    post:
-      consumes:
-      - application/json
-      description: Create a new activity
-      parameters:
-      - description: Activity and ActivityItems
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/models.ActivityDto'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/models.Activity'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Create a new activity
-      tags:
-      - activitys
-  /activitys/{id}:
-    delete:
-      description: Delete an activity
-      parameters:
-      - description: Activity ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Delete an activity
-      tags:
-      - activitys
-    get:
-      description: Get an activity by ID
-      parameters:
-      - description: Activity ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.Activity'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get an activity by ID
-      tags:
-      - activitys
-    put:
-      description: Update an activity
-      parameters:
-      - description: Activity ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Activity object
-        in: body
-        name: activity
-        required: true
-        schema:
-          $ref: '#/definitions/models.Activity'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.Activity'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Update an activity
-      tags:
-      - activitys
-  /activitys/{id}/enrollment-summary:
-    get:
-      description: Get enrollment summary by activity ID
-      parameters:
-      - description: Activity ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.EnrollmentSummary'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get enrollment summary by activity ID
-      tags:
-      - activitys
-  /activitys/{id}/enrollments:
-    get:
-      description: Get enrollments by activity ID
-      parameters:
-      - description: ActivityItem ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      - description: Items per page
-        in: query
-        name: limit
-        type: integer
-      - description: Search query
-        in: query
-        name: search
-        type: string
-      - description: Sort by field
-        in: query
-        name: sortBy
-        type: string
-      - description: Sort order
-        in: query
-        name: order
-        type: string
-      - description: Filter by majors
-        in: query
-        name: majors
-        type: string
-      - description: Filter by status
-        in: query
-        name: status
-        type: string
-      - description: Filter by student years
-        in: query
-        name: years
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get enrollments by activity ID
-      tags:
-      - activitys
-  /activitys/{id}/image:
-    delete:
-      description: Delete an image for an activity
-      parameters:
-      - description: Activity ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: File name
-        in: query
-        name: filename
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Delete an image for an activity
-      tags:
-      - activitys
-    post:
-      consumes:
-      - multipart/form-data
-      description: Upload an image for an activity
-      parameters:
-      - description: Activity ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: File name
-        in: query
-        name: filename
-        type: string
-      - description: Image file
-        in: formData
-        name: file
-        required: true
-        type: file
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Upload an image for an activity
-      tags:
-      - activitys
-  /activitys/calendar/{month}/{year}:
-    get:
-      description: Get all activity calendar
-      parameters:
-      - description: Month
-        in: path
-        name: month
-        required: true
-        type: integer
-      - description: Year
-        in: path
-        name: year
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/models.ActivityDto'
-            type: array
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get all activity calendar
-      tags:
-      - activitys
   /admins:
     get:
       description: Get admins with pagination, search, and sorting
@@ -869,6 +496,142 @@ paths:
       summary: Update an admin
       tags:
       - admins
+  /auth/google:
+    get:
+      consumes:
+      - application/json
+      description: Start Google OAuth authentication flow and return authorization
+        URL
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OAuth URL generated successfully
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Initiate Google OAuth login
+      tags:
+      - auth
+  /auth/google/callback:
+    get:
+      consumes:
+      - application/json
+      description: Process Google OAuth callback, authenticate user, and redirect
+        with token
+      parameters:
+      - description: Authorization code from Google
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: State parameter for security
+        in: query
+        name: state
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Redirect to frontend with error
+      summary: Handle Google OAuth callback
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password, includes rate limiting
+        and security measures
+      parameters:
+      - description: Login credentials
+        in: body
+        name: loginRequest
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful with token and user info
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - invalid format or missing credentials
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized - invalid credentials
+          schema:
+            additionalProperties: true
+            type: object
+        "429":
+          description: Too many requests - rate limited
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error - token generation failed
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login user
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logout user by blacklisting token and updating session
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logout successful
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: User not authenticated
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - auth
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Get current user profile information from JWT token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User profile retrieved successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: User not authenticated
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Failed to fetch profile
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - auth
   /certificates:
     get:
       consumes:
@@ -1141,222 +904,6 @@ paths:
       summary: Update a course
       tags:
       - courses
-  /enrollments:
-    post:
-      consumes:
-      - application/json
-      description: นักศึกษาสามารถลงทะเบียนกิจกรรมได้
-      parameters:
-      - description: Enrollment data
-        in: body
-        name: enrollment
-        required: true
-        schema:
-          $ref: '#/definitions/models.Enrollment'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: ลงทะเบียนกิจกรรม
-      tags:
-      - enrollments
-  /enrollments/{enrollmentId}:
-    delete:
-      description: นักศึกษาสามารถยกเลิกการลงทะเบียนกิจกรรมได้
-      parameters:
-      - description: Enrollment ID
-        in: path
-        name: enrollmentId
-        required: true
-        type: string
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: ยกเลิกการลงทะเบียนกิจกรรม
-      tags:
-      - enrollments
-  /enrollments/activity/{activityItemId}:
-    get:
-      description: แอดมินสามารถดูรายชื่อนักศึกษาที่ลงทะเบียนในกิจกรรมได้
-      parameters:
-      - description: Activity Item ID
-        in: path
-        name: activityItemId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/models.Enrollment'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: ดูนักศึกษาที่ลงทะเบียนในกิจกรรม
-      tags:
-      - enrollments
-  /enrollments/student/{studentId}:
-    get:
-      description: ให้นักศึกษาดูรายการกิจกรรมที่ลงทะเบียนไว้ทั้งหมด
-      parameters:
-      - description: Student ID
-        in: path
-        name: studentId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/models.Enrollment'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: ดึงรายการกิจกรรมที่นักศึกษาลงทะเบียนไว้
-      tags:
-      - enrollments
-  /enrollments/student/{studentId}/activity/{activityId}:
-    get:
-      description: ดึงข้อมูล Enrollment ที่ Student ลงทะเบียนใน Activity นี้ (รวม
-        activity และ activityItem details)
-      parameters:
-      - description: Student ID
-        in: path
-        name: studentId
-        required: true
-        type: string
-      - description: Activity ID
-        in: path
-        name: activityId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.Enrollment'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: ดึงข้อมูล Enrollment ของ Student ใน Activity
-      tags:
-      - enrollments
-  /enrollments/student/{studentId}/activity/{activityId}/check:
-    get:
-      description: ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่ และส่งข้อมูลกิจกรรมที่คล้ายกับ
-        activity getOne
-      parameters:
-      - description: Student ID
-        in: path
-        name: studentId
-        required: true
-        type: string
-      - description: Activity ID
-        in: path
-        name: activityId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่
-      tags:
-      - enrollments
-  /enrollments/student/{studentId}/activityItem/{activityItemId}:
-    get:
-      description: นักศึกษาสามารถดูรายละเอียดของกิจกรรมที่ลงทะเบียนไว้
-      parameters:
-      - description: Student ID
-        in: path
-        name: studentId
-        required: true
-        type: string
-      - description: Activity Item ID
-        in: path
-        name: activityItemId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.EnrollmentSummary'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: ดูรายละเอียดของกิจกรรมที่นักศึกษาลงทะเบียนไว้ (เฉพาะ 1 รายการ)
-      tags:
-      - enrollments
   /foods:
     get:
       description: ดึงข้อมูลอาหารที่มีอยู่ทั้งหมด
@@ -1651,6 +1198,298 @@ paths:
       summary: Update a form
       tags:
       - forms
+  /programs:
+    get:
+      description: Get all programs with pagination, search, and sorting
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      - default: name
+        description: Field to sort by
+        in: query
+        name: sortBy
+        type: string
+      - default: asc
+        description: Sort order (asc or desc)
+        in: query
+        name: order
+        type: string
+      - description: Filter by skill
+        in: query
+        name: skills
+        type: string
+      - description: Filter by programState
+        in: query
+        name: programStates
+        type: string
+      - description: Filter by major
+        in: query
+        name: majors
+        type: string
+      - description: Filter by studentYear
+        in: query
+        name: studentYears
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all programs with pagination, search, and sorting
+      tags:
+      - programs
+    post:
+      consumes:
+      - application/json
+      description: Create a new program
+      parameters:
+      - description: Program and ProgramItems
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ProgramDto'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Program'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create a new program
+      tags:
+      - programs
+  /programs/{id}:
+    delete:
+      description: Delete an program
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete an program
+      tags:
+      - programs
+    get:
+      description: Get an program by ID
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Program'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get an program by ID
+      tags:
+      - programs
+    put:
+      description: Update an program
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Program object
+        in: body
+        name: program
+        required: true
+        schema:
+          $ref: '#/definitions/models.Program'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Program'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update an program
+      tags:
+      - programs
+  /programs/{id}/enrollment-summary:
+    get:
+      description: Get enrollment summary by program ID
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.EnrollmentSummary'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get enrollment summary by program ID
+      tags:
+      - programs
+  /programs/{id}/image:
+    delete:
+      description: Delete an image for an program
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File name
+        in: query
+        name: filename
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete an image for an program
+      tags:
+      - programs
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload an image for an program
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File name
+        in: query
+        name: filename
+        type: string
+      - description: Image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Upload an image for an program
+      tags:
+      - programs
+  /programs/calendar/{month}/{year}:
+    get:
+      description: Get all program calendar
+      parameters:
+      - description: Month
+        in: path
+        name: month
+        required: true
+        type: integer
+      - description: Year
+        in: path
+        name: year
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ProgramDto'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all program calendar
+      tags:
+      - programs
   /students:
     get:
       consumes:

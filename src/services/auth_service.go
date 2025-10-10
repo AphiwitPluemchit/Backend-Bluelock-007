@@ -243,25 +243,98 @@ func GetUserByEmail(email string) (*models.User, error) {
 	}
 
 	// Get name from profile based on role
-	// switch dbUser.Role {
-	// case "Student":
-	// 	var student models.Student
-	// 	err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
-	// 	if err == nil {
-	// 		result.ID = student.ID
-	// 		result.Name = student.Name
-	// 		result.Code = student.Code
-	// 		result.Major = student.Major
-	// 		result.StudentYear = extractStudentYearFromCode(student.Code)
-	// 	}
-	// case "Admin":
-	// 	var admin models.Admin
-	// 	err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
-	// 	if err == nil {
-	// 		result.ID = admin.ID
-	// 		result.Name = admin.Name
-	// 	}
-	// }
+	switch dbUser.Role {
+	case "Student":
+		var student models.Student
+		err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
+		if err == nil {
+			result.ID = student.ID
+			result.Name = student.Name
+			result.Code = student.Code
+			result.Major = student.Major
+			result.StudentYear = extractStudentYearFromCode(student.Code)
+
+		}
+	case "Admin":
+		var admin models.Admin
+		err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
+		if err == nil {
+			result.ID = admin.ID
+			result.Name = admin.Name
+		}
+	}
+
+	fmt.Println("Studenttttttttttttttttttttttttttttttttt ")
+	fmt.Printf("result: %+v\n", result)
+
+	return result, nil
+}
+
+// GetUserProfile retrieves user profile by user ID and role
+func GetUserProfile(userID, role string) (*models.User, error) {
+	ctx := context.Background()
+
+	// Convert userID string to ObjectID
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID format: %v", err)
+	}
+
+	log.Printf("🔍 GetUserProfile - Looking for RefID: %s in role: %s", objID.Hex(), role)
+
+	// ✅ ค้นหาด้วย RefID ไม่ใช่ _id เพราะ JWT เก็บ RefID (Student/Admin ID)
+	var dbUser models.User
+	err = DB.UserCollection.FindOne(ctx, bson.M{"refId": objID}).Decode(&dbUser)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			log.Printf("❌ User not found with RefID: %s", objID.Hex())
+			return nil, errors.New("user not found")
+		}
+		log.Printf("❌ Database error: %v", err)
+		return nil, fmt.Errorf("database error: %v", err)
+	}
+
+	log.Printf("✅ Found user: %s (email: %s, role: %s)", dbUser.RefID.Hex(), dbUser.Email, dbUser.Role)
+
+	// Check if user is active
+	if !dbUser.IsActive {
+		return nil, errors.New("account is suspended")
+	}
+
+	// Prepare response data
+	result := &models.User{
+		ID:          dbUser.ID,
+		Name:        dbUser.Name,
+		Email:       dbUser.Email,
+		Role:        dbUser.Role,
+		RefID:       dbUser.RefID,
+		Code:        dbUser.Code,
+		Major:       "",
+		StudentYear: 0,
+	}
+
+	// Get additional data from profile based on role
+	switch role {
+	case "Student":
+		var student models.Student
+		err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
+		if err == nil {
+			result.Name = student.Name
+			result.Code = student.Code
+			result.Major = student.Major
+			result.StudentYear = extractStudentYearFromCode(student.Code)
+		} else {
+			log.Printf("Warning: Could not fetch student profile for RefID %s: %v", dbUser.RefID.Hex(), err)
+		}
+	case "Admin":
+		var admin models.Admin
+		err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
+		if err == nil {
+			result.Name = admin.Name
+		} else {
+			log.Printf("Warning: Could not fetch admin profile for RefID %s: %v", dbUser.RefID.Hex(), err)
+		}
+	}
 
 	return result, nil
 }
@@ -343,16 +416,49 @@ func CreateGoogleUser(googleUser *GoogleUserInfo) (*models.User, error) {
 		return nil, fmt.Errorf("failed to create user account: %v", err)
 	}
 
-	// Return the created user
-	createdUser := &models.User{
-		ID:    refID,
-		Name:  googleUser.Name,
-		Email: strings.ToLower(googleUser.Email),
-		Role:  "Student",
-		RefID: refID,
-		Code:  code,
-		Major: "",
+	// ดึงข้อมูล student profile ล่าสุด
+	var studentProfile models.Student
+	err = DB.StudentCollection.FindOne(ctx, bson.M{"_id": refID}).Decode(&studentProfile)
+	if err != nil {
+		// ถ้า error ให้คืนข้อมูลเท่าที่มี
+		return &models.User{
+			ID:    refID,
+			Name:  googleUser.Name,
+			Email: strings.ToLower(googleUser.Email),
+			Role:  "Student",
+			RefID: refID,
+			Code:  code,
+			Major: "",
+		}, nil
 	}
 
-	return createdUser, nil
+	// ดึงข้อมูล user ล่าสุด
+	var dbUser models.User
+	err = DB.UserCollection.FindOne(ctx, bson.M{"email": strings.ToLower(googleUser.Email)}).Decode(&dbUser)
+	if err != nil {
+		// ถ้า error ให้คืนข้อมูลเท่าที่มี
+		return &models.User{
+			ID:          refID,
+			Name:        studentProfile.Name,
+			Email:       strings.ToLower(googleUser.Email),
+			Role:        "Student",
+			RefID:       refID,
+			Code:        code,
+			Major:       studentProfile.Major,
+			StudentYear: extractStudentYearFromCode(studentProfile.Code),
+		}, nil
+	}
+
+	// คืนข้อมูลครบถ้วนเหมือน Normal Login
+	return &models.User{
+		ID:          dbUser.ID,
+		Name:        studentProfile.Name,
+		Email:       dbUser.Email,
+		Role:        dbUser.Role,
+		RefID:       dbUser.RefID,
+		Code:        studentProfile.Code,
+		Major:       studentProfile.Major,
+		StudentYear: extractStudentYearFromCode(studentProfile.Code),
+		LastLogin:   dbUser.LastLogin,
+	}, nil
 }

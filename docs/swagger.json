@@ -7,540 +7,6 @@
         "version": "1.0"
     },
     "paths": {
-        "/activitys": {
-            "get": {
-                "description": "Get all activities with pagination, search, and sorting",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Get all activities with pagination, search, and sorting",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "Number of items per page",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Search term",
-                        "name": "search",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "name",
-                        "description": "Field to sort by",
-                        "name": "sortBy",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "asc",
-                        "description": "Sort order (asc or desc)",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by skill",
-                        "name": "skills",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by activityState",
-                        "name": "activityStates",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by major",
-                        "name": "majors",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by studentYear",
-                        "name": "studentYears",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Create a new activity",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Create a new activity",
-                "parameters": [
-                    {
-                        "description": "Activity and ActivityItems",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.ActivityDto"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/models.Activity"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/activitys/calendar/{month}/{year}": {
-            "get": {
-                "description": "Get all activity calendar",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Get all activity calendar",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Month",
-                        "name": "month",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Year",
-                        "name": "year",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.ActivityDto"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/activitys/{id}": {
-            "get": {
-                "description": "Get an activity by ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Get an activity by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.Activity"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Update an activity",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Update an activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Activity object",
-                        "name": "activity",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.Activity"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.Activity"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Delete an activity",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Delete an activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/activitys/{id}/enrollment-summary": {
-            "get": {
-                "description": "Get enrollment summary by activity ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Get enrollment summary by activity ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.EnrollmentSummary"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/activitys/{id}/enrollments": {
-            "get": {
-                "description": "Get enrollments by activity ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Get enrollments by activity ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ActivityItem ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Items per page",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Search query",
-                        "name": "search",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Sort by field",
-                        "name": "sortBy",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Sort order",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by majors",
-                        "name": "majors",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by status",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by student years",
-                        "name": "years",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/activitys/{id}/image": {
-            "post": {
-                "description": "Upload an image for an activity",
-                "consumes": [
-                    "multipart/form-data"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Upload an image for an activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "File name",
-                        "name": "filename",
-                        "in": "query"
-                    },
-                    {
-                        "type": "file",
-                        "description": "Image file",
-                        "name": "file",
-                        "in": "formData",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Delete an image for an activity",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "activitys"
-                ],
-                "summary": "Delete an image for an activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "File name",
-                        "name": "filename",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/admins": {
             "get": {
                 "description": "Get admins with pagination, search, and sorting",
@@ -767,6 +233,207 @@
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/google": {
+            "get": {
+                "description": "Start Google OAuth authentication flow and return authorization URL",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Initiate Google OAuth login",
+                "responses": {
+                    "200": {
+                        "description": "OAuth URL generated successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/google/callback": {
+            "get": {
+                "description": "Process Google OAuth callback, authenticate user, and redirect with token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Handle Google OAuth callback",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization code from Google",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "State parameter for security",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirect to frontend with error"
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "description": "Authenticate user with email and password, includes rate limiting and security measures",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login user",
+                "parameters": [
+                    {
+                        "description": "Login credentials",
+                        "name": "loginRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Login successful with token and user info",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid format or missing credentials",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - invalid credentials",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests - rate limited",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - token generation failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Logout user by blacklisting token and updating session",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout user",
+                "responses": {
+                    "200": {
+                        "description": "Logout successful",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "User not authenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get current user profile information from JWT token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get user profile",
+                "responses": {
+                    "200": {
+                        "description": "User profile retrieved successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "User not authenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to fetch profile",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -1170,329 +837,6 @@
                     },
                     "500": {
                         "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/enrollments": {
-            "post": {
-                "description": "นักศึกษาสามารถลงทะเบียนกิจกรรมได้",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "enrollments"
-                ],
-                "summary": "ลงทะเบียนกิจกรรม",
-                "parameters": [
-                    {
-                        "description": "Enrollment data",
-                        "name": "enrollment",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.Enrollment"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/enrollments/activity/{activityItemId}": {
-            "get": {
-                "description": "แอดมินสามารถดูรายชื่อนักศึกษาที่ลงทะเบียนในกิจกรรมได้",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "enrollments"
-                ],
-                "summary": "ดูนักศึกษาที่ลงทะเบียนในกิจกรรม",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Activity Item ID",
-                        "name": "activityItemId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Enrollment"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/enrollments/student/{studentId}": {
-            "get": {
-                "description": "ให้นักศึกษาดูรายการกิจกรรมที่ลงทะเบียนไว้ทั้งหมด",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "enrollments"
-                ],
-                "summary": "ดึงรายการกิจกรรมที่นักศึกษาลงทะเบียนไว้",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Student ID",
-                        "name": "studentId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Enrollment"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/enrollments/student/{studentId}/activity/{activityId}": {
-            "get": {
-                "description": "ดึงข้อมูล Enrollment ที่ Student ลงทะเบียนใน Activity นี้ (รวม activity และ activityItem details)",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "enrollments"
-                ],
-                "summary": "ดึงข้อมูล Enrollment ของ Student ใน Activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Student ID",
-                        "name": "studentId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "activityId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.Enrollment"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/enrollments/student/{studentId}/activity/{activityId}/check": {
-            "get": {
-                "description": "ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่ และส่งข้อมูลกิจกรรมที่คล้ายกับ activity getOne",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "enrollments"
-                ],
-                "summary": "ตรวจสอบว่านักศึกษาลงทะเบียนในกิจกรรมหรือไม่",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Student ID",
-                        "name": "studentId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "activityId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/enrollments/student/{studentId}/activityItem/{activityItemId}": {
-            "get": {
-                "description": "นักศึกษาสามารถดูรายละเอียดของกิจกรรมที่ลงทะเบียนไว้",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "enrollments"
-                ],
-                "summary": "ดูรายละเอียดของกิจกรรมที่นักศึกษาลงทะเบียนไว้ (เฉพาะ 1 รายการ)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Student ID",
-                        "name": "studentId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Activity Item ID",
-                        "name": "activityItemId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.EnrollmentSummary"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/enrollments/{enrollmentId}": {
-            "delete": {
-                "description": "นักศึกษาสามารถยกเลิกการลงทะเบียนกิจกรรมได้",
-                "tags": [
-                    "enrollments"
-                ],
-                "summary": "ยกเลิกการลงทะเบียนกิจกรรม",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Enrollment ID",
-                        "name": "enrollmentId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -1947,6 +1291,444 @@
                 }
             }
         },
+        "/programs": {
+            "get": {
+                "description": "Get all programs with pagination, search, and sorting",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Get all programs with pagination, search, and sorting",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "name",
+                        "description": "Field to sort by",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort order (asc or desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by skill",
+                        "name": "skills",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by programState",
+                        "name": "programStates",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by major",
+                        "name": "majors",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by studentYear",
+                        "name": "studentYears",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new program",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Create a new program",
+                "parameters": [
+                    {
+                        "description": "Program and ProgramItems",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ProgramDto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Program"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/programs/calendar/{month}/{year}": {
+            "get": {
+                "description": "Get all program calendar",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Get all program calendar",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Month",
+                        "name": "month",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "year",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ProgramDto"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/programs/{id}": {
+            "get": {
+                "description": "Get an program by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Get an program by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Program"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update an program",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Update an program",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Program object",
+                        "name": "program",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Program"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Program"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an program",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Delete an program",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/programs/{id}/enrollment-summary": {
+            "get": {
+                "description": "Get enrollment summary by program ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Get enrollment summary by program ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.EnrollmentSummary"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/programs/{id}/image": {
+            "post": {
+                "description": "Upload an image for an program",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Upload an image for an program",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "File name",
+                        "name": "filename",
+                        "in": "query"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Image file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an image for an program",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Delete an image for an program",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "File name",
+                        "name": "filename",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/students": {
             "get": {
                 "description": "Get all students with optional filters",
@@ -2213,177 +1995,14 @@
         }
     },
     "definitions": {
-        "models.Activity": {
+        "controllers.LoginRequest": {
             "type": "object",
             "properties": {
-                "activityState": {
-                    "type": "string",
-                    "example": "planning"
-                },
-                "endDateEnroll": {
+                "email": {
                     "type": "string"
                 },
-                "file": {
-                    "type": "string",
-                    "example": "image.jpg"
-                },
-                "foodVotes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.FoodVote"
-                    }
-                },
-                "formId": {
+                "password": {
                     "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "Football Tournament"
-                },
-                "skill": {
-                    "type": "string",
-                    "example": "hard"
-                },
-                "type": {
-                    "type": "string",
-                    "example": "one"
-                }
-            }
-        },
-        "models.ActivityDto": {
-            "type": "object",
-            "properties": {
-                "activityItems": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.ActivityItemDto"
-                    }
-                },
-                "activityState": {
-                    "type": "string",
-                    "example": "planning"
-                },
-                "endDateEnroll": {
-                    "type": "string"
-                },
-                "file": {
-                    "type": "string",
-                    "example": "image.jpg"
-                },
-                "foodVotes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.FoodVote"
-                    }
-                },
-                "formId": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "Football Tournament"
-                },
-                "skill": {
-                    "type": "string",
-                    "example": "hard"
-                },
-                "type": {
-                    "type": "string",
-                    "example": "one"
-                }
-            }
-        },
-        "models.ActivityItemDto": {
-            "type": "object",
-            "properties": {
-                "activityId": {
-                    "type": "string"
-                },
-                "dates": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Dates"
-                    }
-                },
-                "description": {
-                    "type": "string",
-                    "example": "Quarter Final"
-                },
-                "enrollmentCount": {
-                    "type": "integer"
-                },
-                "hour": {
-                    "type": "integer",
-                    "example": 4
-                },
-                "id": {
-                    "type": "string"
-                },
-                "majors": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "CS",
-                        "SE",
-                        "ITDI",
-                        "AAI"
-                    ]
-                },
-                "maxParticipants": {
-                    "type": "integer",
-                    "example": 22
-                },
-                "name": {
-                    "type": "string",
-                    "example": "Quarter Final"
-                },
-                "operator": {
-                    "type": "string",
-                    "example": "Operator 1"
-                },
-                "rooms": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "Room 1",
-                        "Room 2"
-                    ]
-                },
-                "studentYears": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    },
-                    "example": [
-                        1,
-                        2,
-                        3,
-                        4
-                    ]
-                }
-            }
-        },
-        "models.ActivityItemSum": {
-            "type": "object",
-            "properties": {
-                "activityItemName": {
-                    "type": "string"
-                },
-                "registeredByMajor": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.MajorEnrollment"
-                    }
                 }
             }
         },
@@ -2413,17 +2032,11 @@
                 "formId": {
                     "type": "string"
                 },
-                "icon": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
                 "isRequired": {
                     "type": "boolean"
-                },
-                "max": {
-                    "type": "integer"
                 },
                 "rows": {
                     "type": "array",
@@ -2486,10 +2099,6 @@
                     "type": "boolean",
                     "example": true
                 },
-                "isThaiFormat": {
-                    "type": "boolean",
-                    "example": true
-                },
                 "issuer": {
                     "type": "string",
                     "example": "Computer Science Department"
@@ -2544,45 +2153,17 @@
                 }
             }
         },
-        "models.Enrollment": {
-            "type": "object",
-            "properties": {
-                "activityItemId": {
-                    "type": "string"
-                },
-                "food": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "registrationDate": {
-                    "type": "string"
-                },
-                "student": {
-                    "description": "เพิ่ม `Student` ในโครงสร้าง Enrollment JSON ไม่ลง BSON ใน MongoDB",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.Student"
-                        }
-                    ]
-                },
-                "studentId": {
-                    "type": "string"
-                }
-            }
-        },
         "models.EnrollmentSummary": {
             "type": "object",
             "properties": {
-                "activityItemSums": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.ActivityItemSum"
-                    }
-                },
                 "maxParticipants": {
                     "type": "integer"
+                },
+                "programItemSums": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ProgramItemSum"
+                    }
                 },
                 "remainingSlots": {
                     "type": "integer"
@@ -2676,6 +2257,180 @@
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.Program": {
+            "type": "object",
+            "properties": {
+                "endDateEnroll": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
+                },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
+                "formId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Football Tournament"
+                },
+                "programState": {
+                    "type": "string",
+                    "example": "planning"
+                },
+                "skill": {
+                    "type": "string",
+                    "example": "hard"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "one"
+                }
+            }
+        },
+        "models.ProgramDto": {
+            "type": "object",
+            "properties": {
+                "endDateEnroll": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string",
+                    "example": "image.jpg"
+                },
+                "foodVotes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FoodVote"
+                    }
+                },
+                "formId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Football Tournament"
+                },
+                "programItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ProgramItemDto"
+                    }
+                },
+                "programState": {
+                    "type": "string",
+                    "example": "planning"
+                },
+                "skill": {
+                    "type": "string",
+                    "example": "hard"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "one"
+                }
+            }
+        },
+        "models.ProgramItemDto": {
+            "type": "object",
+            "properties": {
+                "dates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Dates"
+                    }
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Quarter Final"
+                },
+                "enrollmentCount": {
+                    "type": "integer"
+                },
+                "hour": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "id": {
+                    "type": "string"
+                },
+                "majors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "CS",
+                        "SE",
+                        "ITDI",
+                        "AAI"
+                    ]
+                },
+                "maxParticipants": {
+                    "type": "integer",
+                    "example": 22
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Quarter Final"
+                },
+                "operator": {
+                    "type": "string",
+                    "example": "Operator 1"
+                },
+                "programId": {
+                    "type": "string"
+                },
+                "rooms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "Room 1",
+                        "Room 2"
+                    ]
+                },
+                "studentYears": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4
+                    ]
+                }
+            }
+        },
+        "models.ProgramItemSum": {
+            "type": "object",
+            "properties": {
+                "programItemName": {
+                    "type": "string"
+                },
+                "registeredByMajor": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MajorEnrollment"
+                    }
                 }
             }
         },

@@ -14,4 +14,5 @@ type User struct {
 	Code        string             `bson:"-" json:"code"`
 	Major       string             `bson:"-" json:"major"`
 	StudentYear int                `bson:"-" json:"studentYear"`
+	LastLogin   interface{}        `bson:"lastLogin,omitempty" json:"lastLogin,omitempty"`
 }

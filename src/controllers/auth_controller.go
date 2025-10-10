@@ -3,6 +3,8 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/utils"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -12,13 +14,26 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// LoginUser - สำหรับ login ทั้ง student และ admin
-func LoginUser(c *fiber.Ctx) error {
-	type LoginRequest struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
+// LoginRequest represents the login request payload
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 
+// LoginUser godoc
+// @Summary Login user
+// @Description Authenticate user with email and password, includes rate limiting and security measures
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param loginRequest body LoginRequest true "Login credentials"
+// @Success 200 {object} map[string]interface{} "Login successful with token and user info"
+// @Failure 400 {object} map[string]interface{} "Bad request - invalid format or missing credentials"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - invalid credentials"
+// @Failure 429 {object} map[string]interface{} "Too many requests - rate limited"
+// @Failure 500 {object} map[string]interface{} "Internal server error - token generation failed"
+// @Router /auth/login [post]
+func LoginUser(c *fiber.Ctx) error {
 	// 1. Input validation
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -82,7 +97,8 @@ func LoginUser(c *fiber.Ctx) error {
 		"token":     token,
 		"expiresIn": 3600,
 		"user": fiber.Map{
-			"id":          user.RefID.Hex(),
+			"id":          user.ID,
+			"refId":       user.RefID.Hex(),
 			"code":        user.Code,
 			"name":        user.Name,
 			"email":       user.Email,
@@ -95,6 +111,14 @@ func LoginUser(c *fiber.Ctx) error {
 	})
 }
 
+// GoogleLogin godoc
+// @Summary Initiate Google OAuth login
+// @Description Start Google OAuth authentication flow and return authorization URL
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "OAuth URL generated successfully"
+// @Router /auth/google [get]
 // GoogleLogin - เริ่มต้น Google OAuth flow
 func GoogleLogin(c *fiber.Ctx) error {
 	config := services.GetGoogleOAuthConfig()
@@ -112,6 +136,17 @@ func GoogleLogin(c *fiber.Ctx) error {
 	})
 }
 
+// GoogleCallback godoc
+// @Summary Handle Google OAuth callback
+// @Description Process Google OAuth callback, authenticate user, and redirect with token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param code query string true "Authorization code from Google"
+// @Param state query string false "State parameter for security"
+// @Success 302 "Redirect to frontend with token"
+// @Failure 302 "Redirect to frontend with error"
+// @Router /auth/google/callback [get]
 // GoogleCallback - handle Google OAuth callback
 func GoogleCallback(c *fiber.Ctx) error {
 	fmt.Printf("🔍 Google Callback received - IP: %s\n", c.IP())
@@ -149,8 +184,6 @@ func GoogleCallback(c *fiber.Ctx) error {
 		return c.Redirect(redirectURL)
 	}
 
-	fmt.Printf("✅ User authenticated: %s (%s)\n", user.Email, user.Role)
-
 	// Generate JWT token
 	token, err := utils.GenerateJWT(user.ID.Hex(), user.Email, user.Role)
 	if err != nil {
@@ -160,19 +193,93 @@ func GoogleCallback(c *fiber.Ctx) error {
 		return c.Redirect(redirectURL)
 	}
 
-	fmt.Printf("✅ JWT token generated successfully\n")
-
 	// Log successful login
 	services.LogLoginAttempt(user.Email, c.IP(), true)
 
-	// Redirect to frontend with token
-	frontendURL := os.Getenv("FRONTEND_URL")
-	redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, token)
+	// Prepare user data
+	userData := fiber.Map{
+		"id":          user.ID,
+		"refId":       user.RefID.Hex(),
+		"code":        user.Code,
+		"name":        user.Name,
+		"email":       user.Email,
+		"role":        user.Role,
+		"studentYear": user.StudentYear,
+		"major":       user.Major,
+		"lastLogin":   time.Now(),
+	}
+	jsonBytes, _ := json.Marshal(userData)
+	encodedUser := base64.StdEncoding.EncodeToString(jsonBytes)
 
-	fmt.Printf("🔄 Redirecting to: %s\n", redirectURL)
+	// Redirect to frontend with token and user data
+	frontendURL := os.Getenv("FRONTEND_URL")
+	redirectURL := fmt.Sprintf("%s/auth/callback?token=%s&user=%s", frontendURL, token, encodedUser)
+
 	return c.Redirect(redirectURL)
 }
 
+// GetProfile godoc
+// @Summary Get user profile
+// @Description Get current user profile information from JWT token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "User profile retrieved successfully"
+// @Failure 401 {object} map[string]interface{} "User not authenticated"
+// @Failure 500 {object} map[string]interface{} "Failed to fetch profile"
+// @Router /auth/me [get]
+// GetProfile - ดึงข้อมูลโปรไฟล์ผู้ใช้
+func GetProfile(c *fiber.Ctx) error {
+	// 1. Get user info from JWT middleware context
+	userID := c.Locals("userId").(string)
+	role := c.Locals("role").(string)
+
+	if userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User not authenticated",
+			"code":  "NOT_AUTHENTICATED",
+		})
+	}
+
+	// 2. Get full user profile from database
+	fmt.Printf("🔍 GetProfile - userID: %s, role: %s\n", userID, role)
+	user, err := services.GetUserProfile(userID, role)
+	if err != nil {
+		fmt.Printf("❌ GetUserProfile error: %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to fetch profile: %v", err),
+			"code":  "PROFILE_FETCH_ERROR",
+		})
+	}
+	fmt.Printf("✅ User profile fetched: %+v\n", user)
+
+	// 3. Return user profile
+	return c.JSON(fiber.Map{
+		"user": fiber.Map{
+			"id":          user.RefID.Hex(),
+			"code":        user.Code,
+			"name":        user.Name,
+			"email":       user.Email,
+			"role":        user.Role,
+			"studentYear": user.StudentYear,
+			"major":       user.Major,
+			"lastLogin":   time.Now(),
+		},
+		"message": "Profile retrieved successfully",
+	})
+}
+
+// LogoutUser godoc
+// @Summary Logout user
+// @Description Logout user by blacklisting token and updating session
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "Logout successful"
+// @Failure 401 {object} map[string]interface{} "User not authenticated"
+// @Router /auth/logout [post]
 // LogoutUser - สำหรับ logout user
 func LogoutUser(c *fiber.Ctx) error {
 	// 1. Get user from JWT middleware context
