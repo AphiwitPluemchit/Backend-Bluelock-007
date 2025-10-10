@@ -5,26 +5,35 @@ import (
 	"fmt"
 	"time"
 
+	DB "Backend-Bluelock-007/src/database"
+
 	"github.com/redis/go-redis/v9"
 )
 
 var Ctx = context.Background()
-var RedisClient *redis.Client
 
+// ensureClient returns the shared Redis client managed by the database package.
+// If the database package didn't initialize Redis, this will return nil and
+// callers should handle that case (they already do).
+func ensureClient() *redis.Client {
+	return DB.RedisClient
+}
+
+// InitRedis delegates initialization to database.InitRedis so there is a single
+// place responsible for creating and pinging the Redis client.
 func InitRedis() {
-	RedisClient = redis.NewClient(&redis.Options{
-		Addr: "localhost:6379", // แก้ตาม .env ถ้ามี
-	})
+	DB.InitRedis()
 }
 
 // StoreRefreshToken เก็บ refresh token ใน Redis พร้อม expiration
 func StoreRefreshToken(userID, refreshToken string, expiresIn time.Duration) error {
-	if RedisClient == nil {
+	client := ensureClient()
+	if client == nil {
 		return fmt.Errorf("redis client not initialized")
 	}
 
 	key := fmt.Sprintf("refresh_token:%s", userID)
-	err := RedisClient.Set(Ctx, key, refreshToken, expiresIn).Err()
+	err := client.Set(Ctx, key, refreshToken, expiresIn).Err()
 	if err != nil {
 		return fmt.Errorf("failed to store refresh token: %v", err)
 	}
@@ -33,12 +42,13 @@ func StoreRefreshToken(userID, refreshToken string, expiresIn time.Duration) err
 
 // ValidateRefreshToken ตรวจสอบว่า refresh token ตรงกับที่เก็บไว้ใน Redis หรือไม่
 func ValidateRefreshToken(userID, refreshToken string) (bool, error) {
-	if RedisClient == nil {
+	client := ensureClient()
+	if client == nil {
 		return false, fmt.Errorf("redis client not initialized")
 	}
 
 	key := fmt.Sprintf("refresh_token:%s", userID)
-	storedToken, err := RedisClient.Get(Ctx, key).Result()
+	storedToken, err := client.Get(Ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return false, nil // Token ไม่มีใน Redis
@@ -51,12 +61,13 @@ func ValidateRefreshToken(userID, refreshToken string) (bool, error) {
 
 // DeleteRefreshToken ลบ refresh token จาก Redis (ใช้ตอน logout)
 func DeleteRefreshToken(userID string) error {
-	if RedisClient == nil {
+	client := ensureClient()
+	if client == nil {
 		return fmt.Errorf("redis client not initialized")
 	}
 
 	key := fmt.Sprintf("refresh_token:%s", userID)
-	err := RedisClient.Del(Ctx, key).Err()
+	err := client.Del(Ctx, key).Err()
 	if err != nil {
 		return fmt.Errorf("failed to delete refresh token: %v", err)
 	}
@@ -65,12 +76,13 @@ func DeleteRefreshToken(userID string) error {
 
 // BlacklistToken เพิ่ม access token เข้า blacklist (ใช้ตอน logout)
 func BlacklistToken(token string, expiresIn time.Duration) error {
-	if RedisClient == nil {
+	client := ensureClient()
+	if client == nil {
 		return fmt.Errorf("redis client not initialized")
 	}
 
 	key := fmt.Sprintf("blacklist:%s", token)
-	err := RedisClient.Set(Ctx, key, "1", expiresIn).Err()
+	err := client.Set(Ctx, key, "1", expiresIn).Err()
 	if err != nil {
 		return fmt.Errorf("failed to blacklist token: %v", err)
 	}
@@ -79,12 +91,13 @@ func BlacklistToken(token string, expiresIn time.Duration) error {
 
 // IsTokenBlacklisted ตรวจสอบว่า token อยู่ใน blacklist หรือไม่
 func IsTokenBlacklisted(token string) (bool, error) {
-	if RedisClient == nil {
+	client := ensureClient()
+	if client == nil {
 		return false, fmt.Errorf("redis client not initialized")
 	}
 
 	key := fmt.Sprintf("blacklist:%s", token)
-	_, err := RedisClient.Get(Ctx, key).Result()
+	_, err := client.Get(Ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return false, nil // Token ไม่อยู่ใน blacklist

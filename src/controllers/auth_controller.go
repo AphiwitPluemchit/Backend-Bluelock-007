@@ -83,8 +83,9 @@ func LoginUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 7. Store refresh token in Redis (อายุ 7 วัน)
-	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, 7*24*time.Hour)
+	// 7. Store refresh token in Redis (use refresh token expiration from ENV)
+	refreshTokenExpire := utils.GetRefreshTokenExpiration()
+	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire)
 	if err != nil {
 		// Log error but don't fail login
 		fmt.Printf("Failed to store refresh token: %v\n", err)
@@ -98,10 +99,11 @@ func LoginUser(c *fiber.Ctx) error {
 	c.Set("X-Content-Type-Options", "nosniff")
 
 	// 10. Return response with user data and token pair
+	accessTokenExpire := utils.GetAccessTokenExpiration()
 	return c.JSON(fiber.Map{
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
-		"expiresIn":    900, // 15 minutes in seconds
+		"expiresIn":    int(accessTokenExpire.Seconds()), // expiration in seconds
 		"user": fiber.Map{
 			"id":          user.RefID.Hex(),
 			"code":        user.Code,
@@ -180,8 +182,9 @@ func GoogleCallback(c *fiber.Ctx) error {
 		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=token_generation_failed", frontendURL))
 	}
 
-	// 5. Store refresh token in Redis (อายุ 7 วัน)
-	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, 7*24*time.Hour)
+	// 5. Store refresh token in Redis (use refresh token expiration from ENV)
+	refreshTokenExpire := utils.GetRefreshTokenExpiration()
+	err = utils.StoreRefreshToken(user.RefID.Hex(), refreshToken, refreshTokenExpire)
 	if err != nil {
 		// Log error but don't fail login
 		fmt.Printf("Failed to store refresh token: %v\n", err)
@@ -330,18 +333,20 @@ func RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
-	// 7. Update refresh token in Redis
-	err = utils.StoreRefreshToken(user.RefID.Hex(), newRefreshToken, 7*24*time.Hour)
+	// 7. Update refresh token in Redis (use refresh token expiration from ENV)
+	refreshTokenExpire := utils.GetRefreshTokenExpiration()
+	err = utils.StoreRefreshToken(user.RefID.Hex(), newRefreshToken, refreshTokenExpire)
 	if err != nil {
 		// Log error but don't fail refresh
 		fmt.Printf("Failed to update refresh token: %v\n", err)
 	}
 
 	// 8. Return new token pair
+	accessTokenExpire := utils.GetAccessTokenExpiration()
 	return c.JSON(fiber.Map{
 		"accessToken":  newAccessToken,
 		"refreshToken": newRefreshToken,
-		"expiresIn":    900, // 15 minutes
+		"expiresIn":    int(accessTokenExpire.Seconds()), // expiration in seconds
 		"message":      "Token refreshed successfully",
 	})
 }
@@ -372,8 +377,9 @@ func LogoutUser(c *fiber.Ctx) error {
 	if token != "" {
 		token = strings.TrimPrefix(token, "Bearer ")
 
-		// 3. Add access token to blacklist (อายุ 15 นาที)
-		err := utils.BlacklistToken(token, 15*time.Minute)
+		// 3. Add access token to blacklist (use access token expiration from ENV)
+		accessTokenExpire := utils.GetAccessTokenExpiration()
+		err := utils.BlacklistToken(token, accessTokenExpire)
 		if err != nil {
 			fmt.Printf("Failed to blacklist token: %v\n", err)
 		}

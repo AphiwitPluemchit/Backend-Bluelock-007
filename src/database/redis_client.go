@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/redis/go-redis/v9"
@@ -12,18 +13,28 @@ var RedisClient *redis.Client
 var RedisCtx = context.Background()
 
 func InitRedis() {
-
+	// Read REDIS_URI from env. If empty, default to localhost:6379 which is
+	// common when running a Redis container mapped to host port 6379.
 	RedisURI = os.Getenv("REDIS_URI")
-	if RedisURI != "" {
-
-		RedisClient = redis.NewClient(&redis.Options{
-			Addr:     RedisURI, // เช่น localhost:6379
-			Password: "",       // ถ้าไม่มีรหัสผ่าน
-			DB:       0,
-		})
-		_, err := RedisClient.Ping(RedisCtx).Result()
-		if err != nil {
-			panic("❌ Failed to connect Redis: " + err.Error())
-		}
+	if RedisURI == "" {
+		RedisURI = "localhost:6379"
 	}
+
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr:     RedisURI, // e.g., localhost:6379
+		Password: "",       // set via env if needed
+		DB:       0,
+	})
+
+	// Try ping; if fail, log a warning and set RedisClient to nil so callers
+	// can detect it and handle gracefully (instead of crashing the whole app).
+	if _, err := RedisClient.Ping(RedisCtx).Result(); err != nil {
+		// don't panic in dev; log and keep RedisClient nil
+		RedisClient = nil
+		// Use fmt.Println to keep logs simple (main app logs will show this)
+		fmt.Printf("Warning: Failed to connect Redis (%s): %v\n", RedisURI, err)
+		return
+	}
+
+	fmt.Printf("Redis initialized: %s\n", RedisURI)
 }

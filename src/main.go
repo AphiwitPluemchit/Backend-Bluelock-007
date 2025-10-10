@@ -75,8 +75,10 @@ func main() {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Skip-Loading, X-Skip-Auth-Redirect",
 		AllowCredentials: false, // ❌ ต้องเป็น false ถ้าใช้ "*"
+		ExposeHeaders:    "Content-Length, Content-Type",
+		MaxAge:           300, // Cache preflight requests for 5 minutes
 	}))
 
 	// Group API routes under /api
