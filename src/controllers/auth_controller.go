@@ -3,8 +3,6 @@ package controllers
 import (
 	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/utils"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -76,8 +74,8 @@ func LoginUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 6. Generate tokens
-	token, err := utils.GenerateJWT(user.ID.Hex(), user.Email, user.Role)
+	// 6. Generate JWT token (ใช้ RefID เป็น userID ใน JWT)
+	token, err := utils.GenerateJWT(user.RefID.Hex(), user.Email, user.Role)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Token generation failed",
@@ -92,13 +90,12 @@ func LoginUser(c *fiber.Ctx) error {
 	c.Set("X-Frame-Options", "DENY")
 	c.Set("X-Content-Type-Options", "nosniff")
 
-	// 9. Return response
+	// 9. Return response with user data
 	return c.JSON(fiber.Map{
 		"token":     token,
 		"expiresIn": 3600,
 		"user": fiber.Map{
-			"id":          user.ID,
-			"refId":       user.RefID.Hex(),
+			"id":          user.RefID.Hex(),
 			"code":        user.Code,
 			"name":        user.Name,
 			"email":       user.Email,
@@ -149,72 +146,37 @@ func GoogleLogin(c *fiber.Ctx) error {
 // @Router /auth/google/callback [get]
 // GoogleCallback - handle Google OAuth callback
 func GoogleCallback(c *fiber.Ctx) error {
-	fmt.Printf("🔍 Google Callback received - IP: %s\n", c.IP())
-	fmt.Printf("🔍 Query params: %s\n", c.Request().URI().QueryString())
-
 	code := c.Query("code")
-	state := c.Query("state")
 	errorParam := c.Query("error")
+	frontendURL := os.Getenv("FRONTEND_URL")
 
-	fmt.Printf("🔍 Code: %s\n", code)
-	fmt.Printf("🔍 State: %s\n", state)
-	fmt.Printf("🔍 Error: %s\n", errorParam)
-
+	// 1. Handle OAuth error
 	if errorParam != "" {
-		fmt.Printf("❌ Google OAuth error: %s\n", errorParam)
-		frontendURL := os.Getenv("FRONTEND_URL")
-		redirectURL := fmt.Sprintf("%s/auth/callback?error=%s", frontendURL, errorParam)
-		return c.Redirect(redirectURL)
+		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=%s", frontendURL, errorParam))
 	}
 
+	// 2. Validate authorization code
 	if code == "" {
-		fmt.Printf("❌ No authorization code provided\n")
-		frontendURL := os.Getenv("FRONTEND_URL")
-		redirectURL := fmt.Sprintf("%s/auth/callback?error=missing_code", frontendURL)
-		return c.Redirect(redirectURL)
+		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=missing_code", frontendURL))
 	}
 
-	fmt.Printf("🔄 Processing Google login...\n")
-	// Process Google login
+	// 3. Process Google login
 	user, err := services.ProcessGoogleLogin(code)
 	if err != nil {
-		fmt.Printf("❌ Google login failed: %v\n", err)
-		frontendURL := os.Getenv("FRONTEND_URL")
-		redirectURL := fmt.Sprintf("%s/auth/callback?error=%s", frontendURL, err.Error())
-		return c.Redirect(redirectURL)
+		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=%s", frontendURL, err.Error()))
 	}
 
-	// Generate JWT token
-	token, err := utils.GenerateJWT(user.ID.Hex(), user.Email, user.Role)
+	// 4. Generate JWT token (ใช้ RefID เป็น userID ใน JWT)
+	token, err := utils.GenerateJWT(user.RefID.Hex(), user.Email, user.Role)
 	if err != nil {
-		fmt.Printf("❌ Token generation failed: %v\n", err)
-		frontendURL := os.Getenv("FRONTEND_URL")
-		redirectURL := fmt.Sprintf("%s/auth/callback?error=token_generation_failed", frontendURL)
-		return c.Redirect(redirectURL)
+		return c.Redirect(fmt.Sprintf("%s/auth/callback?error=token_generation_failed", frontendURL))
 	}
 
-	// Log successful login
+	// 5. Log successful login
 	services.LogLoginAttempt(user.Email, c.IP(), true)
 
-	// Prepare user data
-	userData := fiber.Map{
-		"id":          user.ID,
-		"refId":       user.RefID.Hex(),
-		"code":        user.Code,
-		"name":        user.Name,
-		"email":       user.Email,
-		"role":        user.Role,
-		"studentYear": user.StudentYear,
-		"major":       user.Major,
-		"lastLogin":   time.Now(),
-	}
-	jsonBytes, _ := json.Marshal(userData)
-	encodedUser := base64.StdEncoding.EncodeToString(jsonBytes)
-
-	// Redirect to frontend with token and user data
-	frontendURL := os.Getenv("FRONTEND_URL")
-	redirectURL := fmt.Sprintf("%s/auth/callback?token=%s&user=%s", frontendURL, token, encodedUser)
-
+	// 6. Redirect to frontend with token only (ใช้ /auth/me เพื่อดึงข้อมูล user)
+	redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, token)
 	return c.Redirect(redirectURL)
 }
 
@@ -243,16 +205,13 @@ func GetProfile(c *fiber.Ctx) error {
 	}
 
 	// 2. Get full user profile from database
-	fmt.Printf("🔍 GetProfile - userID: %s, role: %s\n", userID, role)
 	user, err := services.GetUserProfile(userID, role)
 	if err != nil {
-		fmt.Printf("❌ GetUserProfile error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to fetch profile: %v", err),
 			"code":  "PROFILE_FETCH_ERROR",
 		})
 	}
-	fmt.Printf("✅ User profile fetched: %+v\n", user)
 
 	// 3. Return user profile
 	return c.JSON(fiber.Map{

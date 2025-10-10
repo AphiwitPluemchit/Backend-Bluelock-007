@@ -154,187 +154,141 @@ func extractStudentYearFromCode(code string) int {
 	return 0
 }
 
+// enrichUserProfile ดึงข้อมูลเพิ่มเติมจาก Student/Admin collection
+// ✅ ฟังก์ชันกลางที่ใช้ร่วมกันในทุก auth flow
+func enrichUserProfile(ctx context.Context, user *models.User) error {
+	switch user.Role {
+	case "Student":
+		var student models.Student
+		err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": user.RefID}).Decode(&student)
+		if err != nil {
+			log.Printf("Warning: Could not fetch student profile for RefID %s: %v", user.RefID.Hex(), err)
+			return err
+		}
+		user.Name = student.Name
+		user.Code = student.Code
+		user.Major = student.Major
+		user.StudentYear = extractStudentYearFromCode(student.Code)
+
+	case "Admin":
+		var admin models.Admin
+		err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": user.RefID}).Decode(&admin)
+		if err != nil {
+			log.Printf("Warning: Could not fetch admin profile for RefID %s: %v", user.RefID.Hex(), err)
+			return err
+		}
+		user.Name = admin.Name
+	}
+
+	return nil
+}
+
+// AuthenticateUser ตรวจสอบ email และ password
 func AuthenticateUser(email, password string) (*models.User, error) {
 	ctx := context.Background()
-	// Use the initialized collection from DB package
 
+	// 1. หา user จาก email
 	var dbUser models.User
 	err := DB.UserCollection.FindOne(ctx, bson.M{"email": strings.ToLower(email)}).Decode(&dbUser)
 	if err != nil {
 		return nil, errors.New("Invalid email or password")
 	}
 
-	// ✅ ตรวจสอบสถานะการใช้งาน
+	// 2. ตรวจสอบสถานะการใช้งาน
 	if !dbUser.IsActive {
 		return nil, errors.New("บัญชีนี้ถูกระงับการใช้งาน")
 	}
 
-	// ✅ ตรวจสอบ password
+	// 3. ตรวจสอบ password
 	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(password)); err != nil {
 		return nil, errors.New("Invalid password")
 	}
 
-	// ✅ เตรียมข้อมูล response
+	// 4. เตรียมข้อมูล response
 	result := &models.User{
 		ID:          dbUser.ID,
-		Name:        dbUser.Name,
 		Email:       dbUser.Email,
 		Role:        dbUser.Role,
 		RefID:       dbUser.RefID,
-		Code:        dbUser.Code,
 		Major:       "",
 		StudentYear: 0,
 	}
 
-	// 🔍 ดึง name จาก profile ตาม role
-	switch dbUser.Role {
-	case "Student":
-		var student models.Student
-		// Use the initialized collection from DB package
-		err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
-		if err == nil {
-			result.ID = student.ID
-			result.Name = student.Name
-			result.Code = student.Code
-			result.Major = student.Major
-			result.StudentYear = extractStudentYearFromCode(student.Code)
-		}
-	case "Admin":
-		var admin models.Admin
-		// Use the initialized collection from DB package
-		err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
-		if err == nil {
-			result.ID = admin.ID
-			result.Name = admin.Name
-
-		}
-		// Admin ไม่มี major และ studentYear
-
-	}
+	// 5. ดึงข้อมูลเพิ่มเติมจาก Student/Admin collection
+	enrichUserProfile(ctx, result)
 
 	return result, nil
 }
 
-// GetUserByEmail retrieves a user by email
+// GetUserByEmail ดึงข้อมูล user จาก email (ใช้สำหรับ Google OAuth)
 func GetUserByEmail(email string) (*models.User, error) {
 	ctx := context.Background()
 
+	// 1. หา user จาก email
 	var dbUser models.User
 	err := DB.UserCollection.FindOne(ctx, bson.M{"email": strings.ToLower(email)}).Decode(&dbUser)
 	if err != nil {
 		return nil, errors.New("user not found")
 	}
 
-	// Check if user is active
+	// 2. ตรวจสอบสถานะการใช้งาน
 	if !dbUser.IsActive {
 		return nil, errors.New("account is suspended")
 	}
 
-	// Prepare response data
+	// 3. เตรียมข้อมูล response
 	result := &models.User{
-		ID:          dbUser.RefID,
-		Name:        dbUser.Name,
+		ID:          dbUser.ID,
 		Email:       dbUser.Email,
 		Role:        dbUser.Role,
 		RefID:       dbUser.RefID,
-		Code:        dbUser.Code,
 		Major:       "",
 		StudentYear: 0,
 	}
 
-	// Get name from profile based on role
-	switch dbUser.Role {
-	case "Student":
-		var student models.Student
-		err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
-		if err == nil {
-			result.ID = student.ID
-			result.Name = student.Name
-			result.Code = student.Code
-			result.Major = student.Major
-			result.StudentYear = extractStudentYearFromCode(student.Code)
-
-		}
-	case "Admin":
-		var admin models.Admin
-		err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
-		if err == nil {
-			result.ID = admin.ID
-			result.Name = admin.Name
-		}
-	}
-
-	fmt.Println("Studenttttttttttttttttttttttttttttttttt ")
-	fmt.Printf("result: %+v\n", result)
+	// 4. ดึงข้อมูลเพิ่มเติมจาก Student/Admin collection
+	enrichUserProfile(ctx, result)
 
 	return result, nil
 }
 
-// GetUserProfile retrieves user profile by user ID and role
+// GetUserProfile ดึงข้อมูล user profile จาก JWT token (ใช้สำหรับ /auth/me)
 func GetUserProfile(userID, role string) (*models.User, error) {
 	ctx := context.Background()
 
-	// Convert userID string to ObjectID
+	// 1. แปลง userID string เป็น ObjectID
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %v", err)
 	}
 
-	log.Printf("🔍 GetUserProfile - Looking for RefID: %s in role: %s", objID.Hex(), role)
-
-	// ✅ ค้นหาด้วย RefID ไม่ใช่ _id เพราะ JWT เก็บ RefID (Student/Admin ID)
+	// 2. หา user จาก RefID (เพราะ JWT เก็บ RefID ซึ่งเป็น Student/Admin ID)
 	var dbUser models.User
 	err = DB.UserCollection.FindOne(ctx, bson.M{"refId": objID}).Decode(&dbUser)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Printf("❌ User not found with RefID: %s", objID.Hex())
 			return nil, errors.New("user not found")
 		}
-		log.Printf("❌ Database error: %v", err)
 		return nil, fmt.Errorf("database error: %v", err)
 	}
 
-	log.Printf("✅ Found user: %s (email: %s, role: %s)", dbUser.RefID.Hex(), dbUser.Email, dbUser.Role)
-
-	// Check if user is active
+	// 3. ตรวจสอบสถานะการใช้งาน
 	if !dbUser.IsActive {
 		return nil, errors.New("account is suspended")
 	}
 
-	// Prepare response data
+	// 4. เตรียมข้อมูล response
 	result := &models.User{
 		ID:          dbUser.ID,
-		Name:        dbUser.Name,
 		Email:       dbUser.Email,
 		Role:        dbUser.Role,
 		RefID:       dbUser.RefID,
-		Code:        dbUser.Code,
 		Major:       "",
 		StudentYear: 0,
 	}
 
-	// Get additional data from profile based on role
-	switch role {
-	case "Student":
-		var student models.Student
-		err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&student)
-		if err == nil {
-			result.Name = student.Name
-			result.Code = student.Code
-			result.Major = student.Major
-			result.StudentYear = extractStudentYearFromCode(student.Code)
-		} else {
-			log.Printf("Warning: Could not fetch student profile for RefID %s: %v", dbUser.RefID.Hex(), err)
-		}
-	case "Admin":
-		var admin models.Admin
-		err := DB.AdminCollection.FindOne(ctx, bson.M{"_id": dbUser.RefID}).Decode(&admin)
-		if err == nil {
-			result.Name = admin.Name
-		} else {
-			log.Printf("Warning: Could not fetch admin profile for RefID %s: %v", dbUser.RefID.Hex(), err)
-		}
-	}
+	// 5. ดึงข้อมูลเพิ่มเติมจาก Student/Admin collection
+	enrichUserProfile(ctx, result)
 
 	return result, nil
 }
