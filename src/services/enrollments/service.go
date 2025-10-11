@@ -3,6 +3,7 @@ package enrollments
 import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
+	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/programs"
 	"Backend-Bluelock-007/src/services/summary_reports"
 	"context"
@@ -308,6 +309,33 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 			// Don't return error here, just log it - we don't want to fail enrollment
 			// if summary report update fails
 		}
+	}
+
+	fmt.Println("Before recording hour change history.................")
+
+	// 10) 📝 บันทึก HourChangeHistory สำหรับ Enrollment
+	var program models.Program
+	if err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programItem.ProgramID}).Decode(&program); err == nil {
+		programName := "Unknown Program"
+		if program.Name != nil {
+			programName = *program.Name
+		}
+		hours := 0
+
+		if err := hourhistory.RecordEnrollmentHourChange(
+			ctx,
+			studentID,
+			newEnrollment.ID,
+			programItem.ProgramID,
+			programName,
+			program.Skill,
+			hours,
+		); err != nil {
+			log.Printf("⚠️ Warning: Failed to record enrollment hour change: %v", err)
+			// Don't return error - we don't want to fail enrollment if hour history fails
+		}
+	} else {
+		log.Printf("⚠️ Warning: Failed to get program info for hour history: %v", err)
 	}
 
 	return nil

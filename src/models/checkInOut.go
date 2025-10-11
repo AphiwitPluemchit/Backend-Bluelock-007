@@ -48,20 +48,6 @@ type QRClaim struct {
 	ExpireAt  time.Time          `bson:"expireAt" json:"expireAt"`
 }
 
-// HourChangeHistory บันทึกประวัติการเปลี่ยนแปลงชั่วโมง
-type HourChangeHistory struct {
-	ID           primitive.ObjectID  `bson:"_id,omitempty" json:"id"`
-	SkillType    string              `bson:"skillType" json:"skillType"`                           // "soft" | "hard"
-	HourChange   int                 `bson:"hourChange" json:"hourChange"`                         // จำนวนชั่วโมงที่เปลี่ยน (บวก = เพิ่ม, ลบ = ลด)
-	Remark       string              `bson:"remark,omitempty" json:"remark,omitempty"`             // หมายเหตุ
-	ChangeAt     time.Time           `bson:"changeAt" json:"changeAt"`                             // เวลาที่เกิดการเปลี่ยนแปลง
-	Title        string              `bson:"title" json:"title"`                                   // หัวข้อ/ชื่อของการเปลี่ยนแปลง
-	StudentID    primitive.ObjectID  `bson:"studentId" json:"studentId"`                           // นิสิตที่ได้รับผลกระทบ
-	EnrollmentID *primitive.ObjectID `bson:"enrollmentId,omitempty" json:"enrollmentId,omitempty"` // enrollment ID (สำหรับ program)
-	SourceType   string              `bson:"sourceType" json:"sourceType"`                         // "program" | "certificate"
-	SourceID     primitive.ObjectID  `bson:"sourceId" json:"sourceId"`                             // ID ของ program/certificate ที่เป็นต้นเหตุ
-}
-
 // CheckinoutRecord สำหรับการแสดงข้อมูลการเช็คชื่อ
 type CheckinoutRecord struct {
 	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`

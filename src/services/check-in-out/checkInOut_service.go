@@ -4,6 +4,7 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/enrollments"
+	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/summary_reports"
 	"context"
 	"fmt"
@@ -309,129 +310,38 @@ func deref(p *string) string {
 	return *p
 }
 
-// GetHourChangeHistory ดึงประวัติการเปลี่ยนแปลงชั่วโมงของนักเรียน
+// GetHourChangeHistory ดึงประวัติการเปลี่ยนแปลงชั่วโมงของนักเรียน (wrapper function)
 func GetHourChangeHistory(studentID string, limit int) ([]models.HourChangeHistory, error) {
 	ctx := context.TODO()
-
 	studentObjID, err := primitive.ObjectIDFromHex(studentID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid student ID format: %v", err)
 	}
-
-	// สร้าง filter และ options
-	filter := bson.M{"studentId": studentObjID}
-	opts := options.Find().SetSort(bson.D{{Key: "changedAt", Value: -1}})
-
-	if limit > 0 {
-		opts.SetLimit(int64(limit))
-	}
-
-	// ดึงข้อมูล
-	cursor, err := DB.HourChangeHistoryCollection.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("ไม่สามารถดึงประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	var histories []models.HourChangeHistory
-	if err := cursor.All(ctx, &histories); err != nil {
-		return nil, fmt.Errorf("ไม่สามารถถอดรหัสประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-
-	return histories, nil
+	return hourhistory.GetHistoryByStudentWithLimit(ctx, studentObjID, limit)
 }
 
-// GetHourChangeHistoryByProgram ดึงประวัติการเปลี่ยนแปลงชั่วโมงของกิจกรรม
+// GetHourChangeHistoryByProgram ดึงประวัติการเปลี่ยนแปลงชั่วโมงของกิจกรรม (wrapper function)
 func GetHourChangeHistoryByProgram(programID string, limit int) ([]models.HourChangeHistory, error) {
 	ctx := context.TODO()
-
 	programObjID, err := primitive.ObjectIDFromHex(programID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid program ID format: %v", err)
 	}
-
-	// สร้าง filter และ options
-	filter := bson.M{"programId": programObjID}
-	opts := options.Find().SetSort(bson.D{{Key: "changedAt", Value: -1}})
-
-	if limit > 0 {
-		opts.SetLimit(int64(limit))
-	}
-
-	// ดึงข้อมูล
-	cursor, err := DB.HourChangeHistoryCollection.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("ไม่สามารถดึงประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	var histories []models.HourChangeHistory
-	if err := cursor.All(ctx, &histories); err != nil {
-		return nil, fmt.Errorf("ไม่สามารถถอดรหัสประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-
-	return histories, nil
+	return hourhistory.GetHistoryByProgram(ctx, programObjID, limit)
 }
 
-// GetHourChangeHistorySummary สรุปประวัติการเปลี่ยนแปลงชั่วโมง
+// GetHourChangeHistorySummary สรุปประวัติการเปลี่ยนแปลงชั่วโมง (wrapper function)
 func GetHourChangeHistorySummary(studentID string) (map[string]interface{}, error) {
 	ctx := context.TODO()
-
 	studentObjID, err := primitive.ObjectIDFromHex(studentID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid student ID format: %v", err)
 	}
-
-	// Pipeline สำหรับ aggregation
-	pipeline := []bson.M{
-		{"$match": bson.M{"studentId": studentObjID}},
-		{"$group": bson.M{
-			"_id":        "$changeType",
-			"count":      bson.M{"$sum": 1},
-			"totalHours": bson.M{"$sum": "$hoursChange"},
-		}},
-	}
-
-	cursor, err := DB.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, fmt.Errorf("ไม่สามารถดึงสรุปประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	var results []bson.M
-	if err := cursor.All(ctx, &results); err != nil {
-		return nil, fmt.Errorf("ไม่สามารถถอดรหัสสรุปประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-
-	// สร้าง summary
-	summary := map[string]interface{}{
-		"totalRecords": 0,
-		"totalAdded":   0,
-		"totalRemoved": 0,
-		"noChange":     0,
-	}
-
-	for _, result := range results {
-		changeType := result["_id"].(string)
-		count := result["count"].(int32)
-		totalHours := result["totalHours"].(int32)
-
-		summary["totalRecords"] = summary["totalRecords"].(int) + int(count)
-
-		switch changeType {
-		case "add":
-			summary["totalAdded"] = int(totalHours)
-		case "remove":
-			summary["totalRemoved"] = int(totalHours)
-		case "no_change":
-			summary["noChange"] = int(count)
-		}
-	}
-
-	return summary, nil
+	return hourhistory.GetHistorySummary(ctx, studentObjID)
 }
 
 func SaveCheckInOut(userId, programItemId, checkType string) error {
+	ctx := context.TODO()
 	uID, err1 := primitive.ObjectIDFromHex(userId)
 	aID, err2 := primitive.ObjectIDFromHex(programItemId)
 	if err1 != nil || err2 != nil {
@@ -444,18 +354,28 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 
 	// 1) หา enrollment & programItem
 	var enrollment models.Enrollment
-	if err := DB.EnrollmentCollection.FindOne(context.TODO(),
+	if err := DB.EnrollmentCollection.FindOne(ctx,
 		bson.M{"studentId": uID, "programItemId": aID},
 	).Decode(&enrollment); err != nil {
 		return fmt.Errorf("ไม่พบการลงทะเบียนของกิจกรรมนี้")
 	}
 
 	var programItem models.ProgramItem
-	if err := DB.ProgramItemCollection.FindOne(context.TODO(), bson.M{"_id": aID}).Decode(&programItem); err != nil {
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": aID}).Decode(&programItem); err != nil {
 		return fmt.Errorf("ไม่พบข้อมูล program item")
 	}
 
-	// ✅ 1.1 อนุญาตเฉพาะวันที่อยู่ในตาราง Program_Items
+	// 1.1) ดึงข้อมูล Program เพื่อใช้ใน HourChangeHistory
+	var program models.Program
+	if err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programItem.ProgramID}).Decode(&program); err != nil {
+		return fmt.Errorf("ไม่พบข้อมูล program")
+	}
+	programName := deref(program.Name)
+	if programName == "" {
+		programName = "Unknown Program"
+	}
+
+	// ✅ 1.2 อนุญาตเฉพาะวันที่อยู่ในตาราง Program_Items
 	today := now.In(loc).Format("2006-01-02")
 	allowed := false
 	for _, d := range programItem.Dates {
@@ -503,6 +423,15 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 		} else {
 			records = append(records, models.CheckinoutRecord{ID: primitive.NewObjectID(), Checkin: &t})
 			targetIdx = len(records) - 1
+		}
+
+		// 📝 อัปเดต HourChangeHistory สำหรับ Checkin (UPDATE record เดิม)
+		if err := hourhistory.UpdateCheckinHourChange(
+			ctx,
+			enrollment.ID,
+			dateKey,
+		); err != nil {
+			log.Printf("⚠️ Warning: failed to update checkin hour change: %v", err)
 		}
 
 	case "checkout":
@@ -602,7 +531,24 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 		return err
 	}
 
-	// 6) เรียกอัปเดต SummaryReport แบบฟังก์ชันรวมที่เดียว
+	// 6) 📝 อัปเดต HourChangeHistory สำหรับ Checkout (UPDATE record เดิม)
+	if checkType == "checkout" {
+		totalHours := 0
+		if programItem.Hour != nil {
+			totalHours = *programItem.Hour
+		}
+		if err := hourhistory.UpdateCheckoutHourChange(
+			ctx,
+			enrollment.ID,
+			attendedAll,
+			totalHours,
+			dateKey,
+		); err != nil {
+			log.Printf("⚠️ Warning: failed to update checkout hour change: %v", err)
+		}
+	}
+
+	// 7) เรียกอัปเดต SummaryReport แบบฟังก์ชันรวมที่เดียว
 	curr := records[targetIdx] // สถานะหลังแก้
 	if err := updateSummaryReport(programItem.ProgramID, curr, loc); err != nil {
 		log.Printf("⚠️ Warning: failed to update summary report: %v", err)
