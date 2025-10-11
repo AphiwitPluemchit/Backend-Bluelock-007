@@ -264,7 +264,7 @@ func AddHoursForStudent(programItemId string) (*AddHoursForStudentResult, error)
 
 	// 5) Process each enrollment
 	for _, en := range enrollments {
-		h, err := processStudentHours(
+		_, err := processStudentHours(
 			ctx,
 			en.ID, // ส่ง enrollmentId เข้าไป
 			en.StudentID,
@@ -275,28 +275,28 @@ func AddHoursForStudent(programItemId string) (*AddHoursForStudentResult, error)
 		if err != nil {
 			result.ErrorCount++
 			// กรณี error: แนบข้อมูลเท่าที่รู้ (ไว้โชว์ใน response)
-			// ดึง Student เพื่อเติม studentCode กรณี model Enrollment ไม่มี field นี้
-			var st models.Student
-			_ = DB.StudentCollection.FindOne(ctx, bson.M{"_id": en.StudentID}).Decode(&st)
-
+			programName := deref(program.Name) // ใช้ชื่อ program จริง
+			if programName == "" {
+				programName = "Unknown Program"
+			}
 			result.Results = append(result.Results, models.HourChangeHistory{
-				StudentID:     en.StudentID,
-				StudentCode:   st.Code,
-				ProgramID:     programItem.ProgramID,
-				ProgramItemID: programItemObjID,
-				EnrollmentID:  &en.ID,
-				Type:          RecordTypeProgram,
-				SkillType:     program.Skill,
-				HoursChange:   0,
-				ChangeType:    ChangeTypeNoChange,
-				Remark:        fmt.Sprintf("Error: %v", err),
-				ChangedAt:     time.Now(),
+				ID:           primitive.NewObjectID(),
+				StudentID:    en.StudentID,
+				EnrollmentID: &en.ID,
+				SourceType:   "program",
+				SourceID:     programItem.ProgramID,
+				SkillType:    program.Skill,
+				HourChange:   0,
+				Title:        programName, // ใช้ชื่อ program แทน
+				Remark:       fmt.Sprintf("Error: %v", err),
+				ChangeAt:     time.Now(),
 			})
 			continue
 		}
 
 		result.SuccessCount++
-		result.Results = append(result.Results, *h)
+		// h is now nil, no need to append it
+		// result.Results = append(result.Results, *h)
 	}
 
 	return result, nil

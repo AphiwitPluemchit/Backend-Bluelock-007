@@ -4,6 +4,7 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/courses"
+	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/students"
 	"context"
 	"errors"
@@ -47,6 +48,111 @@ func UpdateUploadCertificate(id string, uploadCertificate *models.UploadCertific
 		return nil, errors.New("invalid upload certificate ID")
 	}
 	return DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": uploadCertificate})
+}
+
+// UpdateUploadCertificateStatus อัพเดทสถานะของ certificate และจัดการชั่วโมงให้อัตโนมัติ
+// ใช้โดย Admin เพื่อ approve/reject certificate
+func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remark string) (*models.UploadCertificate, error) {
+	ctx := context.Background()
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, errors.New("invalid upload certificate ID")
+	}
+
+	// 1. ดึงข้อมูล certificate เดิม
+	var oldCert models.UploadCertificate
+	err = DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&oldCert)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("upload certificate not found")
+		}
+		return nil, err
+	}
+
+	// 2. ตรวจสอบว่าสถานะเปลี่ยนจริงหรือไม่
+	if oldCert.Status == newStatus {
+		fmt.Printf("No status change for certificate %s (already %s)\n", id, newStatus)
+		return &oldCert, nil // ไม่มีการเปลี่ยนแปลง
+	}
+
+	// Validation: ตรวจสอบว่าเป็น duplicate certificate หรือไม่
+	if oldCert.IsDuplicate {
+		fmt.Printf("Warning: Attempting to change status of duplicate certificate %s\n", id)
+		// Allow status change but won't affect hours
+	}
+
+	// 3. ตรวจสอบ business rules และจัดการชั่วโมง
+	fmt.Printf("📝 Status change detected: %s -> %s for certificate %s\n", oldCert.Status, newStatus, id)
+
+	// สร้าง copy ของ oldCert เพื่อใช้ในการคำนวณชั่วโมง (เพราะจะใช้ข้อมูลเดิม)
+	certForHours := oldCert
+
+	// กรณีที่ 1: pending -> approved (Admin อนุมัติ)
+	if oldCert.Status == models.StatusPending && newStatus == models.StatusApproved {
+		fmt.Println("▶️ Adding hours for pending -> approved")
+		if err := addCertificateHours(ctx, &certForHours); err != nil {
+			return nil, fmt.Errorf("failed to add hours: %v", err)
+		}
+	}
+
+	// กรณีที่ 2: approved -> rejected (Admin ปฏิเสธ certificate ที่เคยอนุมัติแล้ว)
+	if oldCert.Status == models.StatusApproved && newStatus == models.StatusRejected {
+		fmt.Println("▶️ Removing hours for approved -> rejected")
+		if err := removeCertificateHours(ctx, &certForHours); err != nil {
+			return nil, fmt.Errorf("failed to remove hours: %v", err)
+		}
+	}
+
+	// กรณีที่ 3: rejected -> approved (Admin เปลี่ยนใจอนุมัติ)
+	if oldCert.Status == models.StatusRejected && newStatus == models.StatusApproved {
+		fmt.Println("▶️ Adding hours for rejected -> approved")
+		if err := addCertificateHours(ctx, &certForHours); err != nil {
+			return nil, fmt.Errorf("failed to add hours: %v", err)
+		}
+	}
+
+	// กรณีที่ 4: approved -> pending (Admin ถอนการอนุมัติ ต้องรอพิจารณาใหม่)
+	if oldCert.Status == models.StatusApproved && newStatus == models.StatusPending {
+		fmt.Println("▶️ Removing hours for approved -> pending")
+		if err := removeCertificateHours(ctx, &certForHours); err != nil {
+			return nil, fmt.Errorf("failed to remove hours: %v", err)
+		}
+	}
+
+	// กรณีที่ 5: pending -> rejected (Admin ปฏิเสธตั้งแต่แรก - ไม่ต้องลบชั่วโมงเพราะไม่เคยเพิ่ม)
+	if oldCert.Status == models.StatusPending && newStatus == models.StatusRejected {
+		fmt.Println("▶️ Rejecting pending certificate (no hours to remove)")
+	}
+
+	// กรณีที่ 6: rejected -> pending (Admin เปลี่ยนใจให้พิจารณาใหม่ - ไม่ต้องทำอะไร)
+	if oldCert.Status == models.StatusRejected && newStatus == models.StatusPending {
+		fmt.Println("▶️ Moving rejected certificate back to pending (no hours change)")
+	}
+
+	// 4. อัพเดทสถานะและข้อมูลอื่นๆ
+	now := time.Now()
+	update := bson.M{
+		"$set": bson.M{
+			"status":          newStatus,
+			"remark":          remark,
+			"changedStatusAt": now,
+		},
+	}
+
+	_, err = DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update certificate status: %v", err)
+	}
+
+	// 5. ดึงข้อมูล certificate ที่อัพเดทแล้ว
+	var updatedCert models.UploadCertificate
+	err = DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&updatedCert)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("✅ Certificate %s status updated successfully: %s -> %s\n", id, oldCert.Status, newStatus)
+	return &updatedCert, nil
 }
 
 func GetUploadCertificate(id string) (*models.UploadCertificate, error) {
@@ -490,5 +596,199 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	if err != nil {
 		return nil, err
 	}
+
+	// ถ้าสถานะเป็น approved ให้บันทึกชั่วโมงทันที (auto-approved)
+	if saved.Status == models.StatusApproved {
+		if err := addCertificateHours(context.Background(), saved); err != nil {
+			fmt.Printf("Warning: Failed to add certificate hours for auto-approved certificate %s: %v\n", saved.ID.Hex(), err)
+		}
+	}
+
 	return saved, nil
+}
+
+// addCertificateHours เพิ่มชั่วโมงให้กับนิสิตเมื่อ certificate ได้รับการอนุมัติ
+func addCertificateHours(ctx context.Context, certificate *models.UploadCertificate) error {
+	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
+	if certificate.IsDuplicate {
+		fmt.Printf("Skipping hours addition for duplicate certificate %s\n", certificate.ID.Hex())
+		return nil // ไม่ต้อง error แค่ไม่เพิ่มชั่วโมง
+	}
+
+	// 1. ดึงข้อมูล course เพื่อหาจำนวนชั่วโมงและประเภท skill
+	course, err := courses.GetCourseByID(certificate.CourseId)
+	if err != nil {
+		return fmt.Errorf("course not found: %v", err)
+	}
+
+	if course.Hour <= 0 {
+		fmt.Printf("Warning: Course %s has no hours defined (%d), skipping hours addition\n", course.ID.Hex(), course.Hour)
+		return nil // ไม่ error แต่ไม่เพิ่มชั่วโมง
+	}
+
+	// Validation: ตรวจสอบว่า course active
+	if !course.IsActive {
+		return fmt.Errorf("cannot add hours for inactive course: %s", course.Name)
+	}
+
+	// 2. ดึงข้อมูล student
+	student, err := students.GetStudentById(certificate.StudentId)
+	if err != nil {
+		return fmt.Errorf("student not found: %v", err)
+	}
+
+	// 3. กำหนด skill type
+	skillType := "soft"
+	if course.IsHardSkill {
+		skillType = "hard"
+	}
+
+	// 4. เพิ่มชั่วโมงให้กับนิสิต
+	var update bson.M
+	switch skillType {
+	case "soft":
+		update = bson.M{
+			"$inc": bson.M{
+				"softSkill": course.Hour,
+			},
+		}
+	case "hard":
+		update = bson.M{
+			"$inc": bson.M{
+				"hardSkill": course.Hour,
+			},
+		}
+	default:
+		return fmt.Errorf("invalid skill type: %s", skillType)
+	}
+
+	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": certificate.StudentId}, update)
+	if err != nil {
+		return fmt.Errorf("failed to update student hours: %v", err)
+	}
+
+	// 5. บันทึกประวัติการเปลี่ยนแปลงชั่วโมง
+	title := fmt.Sprintf("Certificate Approved: %s", course.Name)
+	remark := fmt.Sprintf("Name match: %d%%, Course match: %d%%", certificate.NameMatch, certificate.CourseMatch)
+	if err := hourhistory.SaveHourHistory(
+		ctx,
+		certificate.StudentId,
+		skillType,
+		course.Hour,
+		title,
+		remark,
+		"certificate",
+		certificate.ID,
+		nil, // certificate ไม่มี enrollmentID
+	); err != nil {
+		// Log warning but don't fail the operation
+		fmt.Printf("Warning: Failed to save certificate history: %v\n", err)
+	}
+
+	fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s\n",
+		course.Hour, skillType, student.Code, certificate.ID.Hex())
+
+	return nil
+}
+
+// removeCertificateHours ลบชั่วโมงจากนิสิตเมื่อ certificate ถูกปฏิเสธหรือยกเลิก
+func removeCertificateHours(ctx context.Context, certificate *models.UploadCertificate) error {
+	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
+	if certificate.IsDuplicate {
+		fmt.Printf("Skipping hours removal for duplicate certificate %s\n", certificate.ID.Hex())
+		return nil // ไม่ต้อง error แค่ไม่ลบชั่วโมง
+	}
+
+	// 1. ดึงข้อมูล course
+	course, err := courses.GetCourseByID(certificate.CourseId)
+	if err != nil {
+		return fmt.Errorf("course not found: %v", err)
+	}
+
+	if course.Hour <= 0 {
+		fmt.Printf("Warning: Course %s has no hours defined (%d), skipping hours removal\n", course.ID.Hex(), course.Hour)
+		return nil // ไม่ error แต่ไม่ลบชั่วโมง
+	}
+
+	// 2. ดึงข้อมูล student
+	student, err := students.GetStudentById(certificate.StudentId)
+	if err != nil {
+		return fmt.Errorf("student not found: %v", err)
+	}
+
+	// 3. กำหนด skill type
+	skillType := "soft"
+	if course.IsHardSkill {
+		skillType = "hard"
+	}
+
+	// 4. ลบชั่วโมงจากนิสิต (ไม่ให้ติดลบ)
+	var update bson.M
+	var hoursToRemove int
+
+	switch skillType {
+	case "soft":
+		hoursToRemove = course.Hour
+		if student.SoftSkill < course.Hour {
+			hoursToRemove = student.SoftSkill
+			fmt.Printf("Warning: Student %s has insufficient soft skill hours (%d < %d), removing only %d\n",
+				student.Code, student.SoftSkill, course.Hour, hoursToRemove)
+		}
+		update = bson.M{
+			"$inc": bson.M{
+				"softSkill": -hoursToRemove,
+			},
+		}
+	case "hard":
+		hoursToRemove = course.Hour
+		if student.HardSkill < course.Hour {
+			hoursToRemove = student.HardSkill
+			fmt.Printf("Warning: Student %s has insufficient hard skill hours (%d < %d), removing only %d\n",
+				student.Code, student.HardSkill, course.Hour, hoursToRemove)
+		}
+		update = bson.M{
+			"$inc": bson.M{
+				"hardSkill": -hoursToRemove,
+			},
+		}
+	default:
+		return fmt.Errorf("invalid skill type: %s", skillType)
+	}
+
+	// Skip if no hours to remove
+	if hoursToRemove <= 0 {
+		fmt.Printf("No hours to remove for student %s\n", student.Code)
+		return nil
+	}
+
+	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": certificate.StudentId}, update)
+	if err != nil {
+		return fmt.Errorf("failed to update student hours: %v", err)
+	}
+
+	// 5. บันทึกประวัติการเปลี่ยนแปลงชั่วโมง
+	title := fmt.Sprintf("Certificate Removed: %s", course.Name)
+	remark := fmt.Sprintf("Status changed to: %s", certificate.Status)
+	if certificate.Remark != "" {
+		remark += fmt.Sprintf(" - %s", certificate.Remark)
+	}
+	if err := hourhistory.SaveHourHistory(
+		ctx,
+		certificate.StudentId,
+		skillType,
+		-hoursToRemove,
+		title,
+		remark,
+		"certificate",
+		certificate.ID,
+		nil, // certificate ไม่มี enrollmentID
+	); err != nil {
+		// Log warning but don't fail the operation
+		fmt.Printf("Warning: Failed to save certificate history: %v\n", err)
+	}
+
+	fmt.Printf("❌ Removed %d hours (%s skill) from student %s for certificate %s\n",
+		hoursToRemove, skillType, student.Code, certificate.ID.Hex())
+
+	return nil
 }

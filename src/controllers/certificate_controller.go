@@ -97,3 +97,97 @@ func GetCertificates(c *fiber.Ctx) error {
 		"meta": paginationMeta,
 	})
 }
+
+// UpdateCertificateStatusRequest ใช้สำหรับ request body ในการอัพเดทสถานะ certificate
+type UpdateCertificateStatusRequest struct {
+	Status models.StatusType `json:"status" example:"approved" enums:"pending,approved,rejected"`
+	Remark string            `json:"remark" example:"Certificate verified by admin"`
+}
+
+// @Summary      Update Certificate Status
+// @Description  Update the status of a certificate (Admin only). This will automatically handle hours calculation.
+// @Tags         certificates
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string  true  "Certificate ID"
+// @Param        body  body      UpdateCertificateStatusRequest  true  "Status update request"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]interface{}
+// @Failure      404   {object}  map[string]interface{}
+// @Failure      500   {object}  map[string]interface{}
+// @Router       /certificates/{id}/status [put]
+func UpdateCertificateStatus(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Certificate ID is required",
+		})
+	}
+
+	var req UpdateCertificateStatusRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Validate status
+	if req.Status != models.StatusPending && req.Status != models.StatusApproved && req.Status != models.StatusRejected {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid status. Must be one of: pending, approved, rejected",
+		})
+	}
+
+	updatedCert, err := services.UpdateUploadCertificateStatus(id, req.Status, req.Remark)
+	if err != nil {
+		if err.Error() == "upload certificate not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Certificate status updated successfully",
+		"data":    updatedCert,
+	})
+}
+
+// @Summary      Get Certificate by ID
+// @Description  Get a single certificate by ID
+// @Tags         certificates
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string  true  "Certificate ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /certificates/{id} [get]
+func GetCertificate(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Certificate ID is required",
+		})
+	}
+
+	certificate, err := services.GetUploadCertificate(id)
+	if err != nil {
+		if err.Error() == "invalid upload certificate ID" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Certificate not found",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": certificate,
+	})
+}

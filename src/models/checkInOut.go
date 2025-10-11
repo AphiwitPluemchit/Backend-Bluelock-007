@@ -48,27 +48,18 @@ type QRClaim struct {
 	ExpireAt  time.Time          `bson:"expireAt" json:"expireAt"`
 }
 
-// models/hour_change_history.go
+// HourChangeHistory บันทึกประวัติการเปลี่ยนแปลงชั่วโมง
 type HourChangeHistory struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	StudentID   primitive.ObjectID `bson:"studentId" json:"studentId"`
-	StudentCode string             `bson:"studentCode,omitempty" json:"studentCode,omitempty"`
-
-	// สำหรับกิจกรรม (program)
-	ProgramID     primitive.ObjectID  `bson:"programId,omitempty" json:"programId,omitempty"`
-	ProgramItemID primitive.ObjectID  `bson:"programItemId,omitempty" json:"programItemId,omitempty"`
-	EnrollmentID  *primitive.ObjectID `bson:"enrollmentId,omitempty" json:"enrollmentId,omitempty"`
-	ProgramDate   string              `bson:"programDate,omitempty" json:"programDate,omitempty"`
-
-	// สำหรับ certificate
-	CertificateID *primitive.ObjectID `bson:"certificateId,omitempty" json:"certificateId,omitempty"`
-
-	Type        string    `bson:"type" json:"type"` // "program" | "certificate"
-	SkillType   string    `bson:"skillType" json:"skillType"`
-	HoursChange int       `bson:"hoursChange" json:"hoursChange"`
-	ChangeType  string    `bson:"changeType" json:"changeType"` // "add" | "remove" | "no_change"
-	Remark      string    `bson:"remark,omitempty" json:"remark,omitempty"`
-	ChangedAt   time.Time `bson:"changedAt" json:"changedAt"`
+	ID           primitive.ObjectID  `bson:"_id,omitempty" json:"id"`
+	SkillType    string              `bson:"skillType" json:"skillType"`                           // "soft" | "hard"
+	HourChange   int                 `bson:"hourChange" json:"hourChange"`                         // จำนวนชั่วโมงที่เปลี่ยน (บวก = เพิ่ม, ลบ = ลด)
+	Remark       string              `bson:"remark,omitempty" json:"remark,omitempty"`             // หมายเหตุ
+	ChangeAt     time.Time           `bson:"changeAt" json:"changeAt"`                             // เวลาที่เกิดการเปลี่ยนแปลง
+	Title        string              `bson:"title" json:"title"`                                   // หัวข้อ/ชื่อของการเปลี่ยนแปลง
+	StudentID    primitive.ObjectID  `bson:"studentId" json:"studentId"`                           // นิสิตที่ได้รับผลกระทบ
+	EnrollmentID *primitive.ObjectID `bson:"enrollmentId,omitempty" json:"enrollmentId,omitempty"` // enrollment ID (สำหรับ program)
+	SourceType   string              `bson:"sourceType" json:"sourceType"`                         // "program" | "certificate"
+	SourceID     primitive.ObjectID  `bson:"sourceId" json:"sourceId"`                             // ID ของ program/certificate ที่เป็นต้นเหตุ
 }
 
 // CheckinoutRecord สำหรับการแสดงข้อมูลการเช็คชื่อ
