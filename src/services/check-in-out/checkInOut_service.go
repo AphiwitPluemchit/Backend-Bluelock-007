@@ -310,36 +310,6 @@ func deref(p *string) string {
 	return *p
 }
 
-// GetHourChangeHistory ดึงประวัติการเปลี่ยนแปลงชั่วโมงของนักเรียน (wrapper function)
-func GetHourChangeHistory(studentID string, limit int) ([]models.HourChangeHistory, error) {
-	ctx := context.TODO()
-	studentObjID, err := primitive.ObjectIDFromHex(studentID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid student ID format: %v", err)
-	}
-	return hourhistory.GetHistoryByStudentWithLimit(ctx, studentObjID, limit)
-}
-
-// GetHourChangeHistoryByProgram ดึงประวัติการเปลี่ยนแปลงชั่วโมงของกิจกรรม (wrapper function)
-func GetHourChangeHistoryByProgram(programID string, limit int) ([]models.HourChangeHistory, error) {
-	ctx := context.TODO()
-	programObjID, err := primitive.ObjectIDFromHex(programID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid program ID format: %v", err)
-	}
-	return hourhistory.GetHistoryByProgram(ctx, programObjID, limit)
-}
-
-// GetHourChangeHistorySummary สรุปประวัติการเปลี่ยนแปลงชั่วโมง (wrapper function)
-func GetHourChangeHistorySummary(studentID string) (map[string]interface{}, error) {
-	ctx := context.TODO()
-	studentObjID, err := primitive.ObjectIDFromHex(studentID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid student ID format: %v", err)
-	}
-	return hourhistory.GetHistorySummary(ctx, studentObjID)
-}
-
 func SaveCheckInOut(userId, programItemId, checkType string) error {
 	ctx := context.TODO()
 	uID, err1 := primitive.ObjectIDFromHex(userId)

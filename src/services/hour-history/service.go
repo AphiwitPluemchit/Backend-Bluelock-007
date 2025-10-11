@@ -277,29 +277,6 @@ func GetHistoryByStudent(ctx context.Context, studentID primitive.ObjectID) ([]m
 	return histories, nil
 }
 
-// GetHistoryByStudentWithLimit ดึงประวัติการเปลี่ยนแปลงชั่วโมงของนักเรียน พร้อม limit
-func GetHistoryByStudentWithLimit(ctx context.Context, studentID primitive.ObjectID, limit int) ([]models.HourChangeHistory, error) {
-	filter := bson.M{"studentId": studentID}
-	opts := options.Find().SetSort(bson.D{{Key: "changeAt", Value: -1}})
-
-	if limit > 0 {
-		opts.SetLimit(int64(limit))
-	}
-
-	cursor, err := DB.HourChangeHistoryCollection.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("ไม่สามารถดึงประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	var histories []models.HourChangeHistory
-	if err := cursor.All(ctx, &histories); err != nil {
-		return nil, fmt.Errorf("ไม่สามารถถอดรหัสประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
-	}
-
-	return histories, nil
-}
-
 // GetHistoryBySource ดึงประวัติการเปลี่ยนแปลงชั่วโมงตาม source (program/certificate)
 func GetHistoryBySource(ctx context.Context, sourceType string, sourceID primitive.ObjectID) ([]models.HourChangeHistory, error) {
 	cursor, err := DB.HourChangeHistoryCollection.Find(ctx, bson.M{
@@ -392,4 +369,67 @@ func GetHistorySummary(ctx context.Context, studentID primitive.ObjectID) (map[s
 	}
 
 	return summary, nil
+}
+
+// GetHistoryWithFilters ดึงประวัติการเปลี่ยนแปลงชั่วโมงพร้อม filters
+func GetHistoryWithFilters(
+	ctx context.Context,
+	studentID *primitive.ObjectID,
+	sourceType string,
+	statuses []string,
+	searchTitle string,
+	limit int,
+	skip int,
+) ([]models.HourChangeHistory, int64, error) {
+	// สร้าง filter query
+	filter := bson.M{}
+
+	// Filter by studentID (optional)
+	if studentID != nil {
+		filter["studentId"] = *studentID
+	}
+
+	// Filter by sourceType (optional)
+	if sourceType != "" {
+		filter["sourceType"] = sourceType
+	}
+
+	// Filter by multiple statuses (optional)
+	if len(statuses) > 0 {
+		filter["status"] = bson.M{"$in": statuses}
+	}
+
+	// Search by title (optional, case-insensitive)
+	if searchTitle != "" {
+		filter["title"] = bson.M{"$regex": primitive.Regex{Pattern: searchTitle, Options: "i"}}
+	}
+
+	// Count total documents matching filter
+	totalCount, err := DB.HourChangeHistoryCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ไม่สามารถนับจำนวนประวัติได้: %v", err)
+	}
+
+	// Set options for pagination and sorting
+	opts := options.Find().
+		SetSort(bson.D{{Key: "changeAt", Value: -1}}).
+		SetSkip(int64(skip))
+
+	if limit > 0 {
+		opts.SetLimit(int64(limit))
+	}
+
+	// Execute query
+	cursor, err := DB.HourChangeHistoryCollection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ไม่สามารถดึงประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var histories []models.HourChangeHistory
+	if err := cursor.All(ctx, &histories); err != nil {
+		return nil, 0, fmt.Errorf("ไม่สามารถถอดรหัสประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
+	}
+
+	return histories, totalCount, nil
 }

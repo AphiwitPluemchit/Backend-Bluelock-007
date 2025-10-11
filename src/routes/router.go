@@ -29,6 +29,7 @@ func InitRoutes(app fiber.Router) {
 	courseRoutes(app) //
 	SubmissionRoutes(app, db)
 	SetupSummaryReportsRoutes(app)
+	hourHistoryRoutes(app)
 
 	// Route เช็คว่า API ทำงานอยู่
 	app.Get("/", func(c *fiber.Ctx) error {

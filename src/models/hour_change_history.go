@@ -30,3 +30,17 @@ const (
 	HCStatusApproved = "approved" // อนุมัติแล้ว
 	HCStatusRejected = "rejected" // ปฏิเสธแล้ว
 )
+
+// HourHistoryFilters ใช้เก็บค่าการกรองสำหรับ hour history
+type HourHistoryFilters struct {
+	StudentID  string `json:"studentId" query:"studentId"`   // Student ObjectID
+	SourceType string `json:"sourceType" query:"sourceType"` // "program" | "certificate"
+	Status     string `json:"status" query:"status"`         // Comma-separated statuses
+	Search     string `json:"search" query:"search"`         // Search by title
+}
+
+// HourHistoryPaginatedResponse is a concrete type for paginated hour history responses
+type HourHistoryPaginatedResponse struct {
+	Data []HourChangeHistory `json:"data"`
+	Meta PaginationMeta      `json:"meta"`
+}

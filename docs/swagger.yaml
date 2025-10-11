@@ -6,6 +6,20 @@ definitions:
       password:
         type: string
     type: object
+  controllers.UpdateCertificateStatusRequest:
+    properties:
+      remark:
+        example: Certificate verified by admin
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/models.StatusType'
+        enum:
+        - pending
+        - approved
+        - rejected
+        example: approved
+    type: object
   models.Admin:
     properties:
       id:
@@ -310,6 +324,16 @@ definitions:
       title:
         type: string
     type: object
+  models.StatusType:
+    enum:
+    - pending
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusApproved
+    - StatusRejected
   models.Student:
     properties:
       code:
@@ -724,6 +748,87 @@ paths:
             additionalProperties: true
             type: object
       summary: Get Certificates
+      tags:
+      - certificates
+  /certificates/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single certificate by ID
+      parameters:
+      - description: Certificate ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Certificate by ID
+      tags:
+      - certificates
+  /certificates/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: Update the status of a certificate (Admin only). This will automatically
+        handle hours calculation.
+      parameters:
+      - description: Certificate ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status update request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateCertificateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update Certificate Status
       tags:
       - certificates
   /certificates/url-verify:
@@ -1233,6 +1338,58 @@ paths:
       summary: Update a form
       tags:
       - forms
+  /hour-history:
+    get:
+      consumes:
+      - application/json
+      description: ดึงข้อมูล hour history พร้อม filter sourceType, multiple statuses,
+        และ search title
+      parameters:
+      - description: Student ID (ObjectID)
+        in: query
+        name: studentId
+        type: string
+      - description: Source type (program, certificate)
+        in: query
+        name: sourceType
+        type: string
+      - description: Comma-separated statuses (pending, attended, partial, absent)
+        in: query
+        name: status
+        type: string
+      - description: Search by title (case-insensitive)
+        in: query
+        name: search
+        type: string
+      - description: 'Limit results (default: 20)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get hour change history with filters
+      tags:
+      - HourHistory
   /programs:
     get:
       description: Get all programs with pagination, search, and sorting
