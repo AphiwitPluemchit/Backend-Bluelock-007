@@ -668,15 +668,13 @@ func addCertificateHours(ctx context.Context, certificate *models.UploadCertific
 	}
 
 	// 5. บันทึกประวัติการเปลี่ยนแปลงชั่วโมง
-	title := fmt.Sprintf("Certificate Approved: %s", course.Name)
-	remark := fmt.Sprintf("Name match: %d%%, Course match: %d%%", certificate.NameMatch, certificate.CourseMatch)
 	if err := hourhistory.SaveHourHistory(
 		ctx,
 		certificate.StudentId,
 		skillType,
 		course.Hour,
-		title,
-		remark,
+		course.Name,
+		"Certificate Approved",
 		"certificate",
 		certificate.ID,
 		nil, // certificate ไม่มี enrollmentID

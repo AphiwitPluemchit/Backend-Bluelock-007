@@ -330,9 +330,10 @@ func CreateGoogleUser(googleUser *GoogleUserInfo) (*models.User, error) {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			// ไม่เจอ => สร้างใหม่
 			student = models.Student{
+				Name:    googleUser.Name,
 				EngName: googleUser.Name,
 				Code:    code,
-				Major:   "",
+				Major:   "ยังไม่ถูกกำหนด",
 			}
 			fmt.Println("create student => :", student)
 
