@@ -170,14 +170,17 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 
 // RecordCheckin records a check-in or check-out for a student for all enrolled items in an program
 func RecordCheckin(studentId, programItemId, checkType string) error {
-	fmt.Println("RecordCheckin ===========>:", studentId, programItemId, checkType)
 	// ดึง programItemIds ทั้งหมดที่นิสิตลงทะเบียนใน program นี้
-
-	err := SaveCheckInOut(studentId, programItemId, checkType)
-	if err != nil {
-		return err
+	itemIDs, found := enrollments.FindEnrolledItems(studentId, programItemId)
+	if !found || len(itemIDs) == 0 {
+		return fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
 	}
-
+	for _, itemID := range itemIDs {
+		err := SaveCheckInOut(studentId, itemID, checkType)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
