@@ -2,9 +2,10 @@ import fitz
 from text_norm import normalize_min, strip_prefix 
 from fuzzy_match import best_score
 from ocr import pdf_to_images_with_fitz, ocr_images_tesseract
+from typing import Optional
 
 # --------- main verify (ไม่ใช้ OCR) ---------
-def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_name: str, course_name_en: str):
+def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: Optional[str], course_name: str, course_name_en: Optional[str]):
     # Step A: text layer (เร็ว/แม่นกว่า)
     raw_text = extract_textlayer(pdf_data)
     hay_text = ''
@@ -24,18 +25,18 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_na
     print(hay)
     stu_th = normalize_min(strip_prefix(student_th))
     print(stu_th)
-    stu_en = normalize_min(strip_prefix(student_en))
+    stu_en = normalize_min(strip_prefix(student_en)) if student_en else ""
     print(stu_en)
     crs    = normalize_min(course_name)
     print(crs)
-    crs_en = normalize_min(course_name_en)
+    crs_en = normalize_min(course_name_en) if course_name_en else ""
     print(crs_en)
 
     # ชื่อ: ใช้คะแนนที่ดีที่สุดระหว่าง TH/EN
     name_score_th = best_score(stu_th, hay)
-    name_score_en = best_score(stu_en, hay)
+    name_score_en = best_score(stu_en, hay) if stu_en else 0
     course_score = best_score(crs, hay)
-    course_score_en = best_score(crs_en, hay)
+    course_score_en = best_score(crs_en, hay) if crs_en else 0
 
     # เกณฑ์เบื้องต้น (ปรับได้ตามจริง)
     isNameMatch   = name_score_th >= 95 or name_score_en >= 95
@@ -47,9 +48,10 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_na
         "isNameMatch": isNameMatch,
         "isCourseMatch": isCourseMatch,
         "nameScoreTh": name_score_th,
-        "nameScoreEn": name_score_en,
+        # return null for missing english/course fields
+        "nameScoreEn": None if stu_en == "" else name_score_en,
         "courseScore": course_score,
-        "courseScoreEn": course_score_en,
+        "courseScoreEn": None if crs_en == "" else course_score_en,
         "usedOcr": used_ocr,
     }
 

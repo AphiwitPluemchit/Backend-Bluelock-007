@@ -17,10 +17,11 @@ type FastAPIResp struct {
 	IsVerified    bool `json:"isVerified"`
 	IsNameMatch   bool `json:"isNameMatch"`
 	IsCourseMatch bool `json:"isCourseMatch"`
-	NameScoreTh   int  `json:"nameScoreTh"`
-	NameScoreEn   int  `json:"nameScoreEn"`
-	CourseScore   int  `json:"courseScore"`
-	CourseScoreEn int  `json:"courseScoreEn"`
+	// score fields can be null when optional values are not provided by the verifier
+	NameScoreTh   *int `json:"nameScoreTh"`
+	NameScoreEn   *int `json:"nameScoreEn"`
+	CourseScore   *int `json:"courseScore"`
+	CourseScoreEn *int `json:"courseScoreEn"`
 	UsedOCR       bool `json:"usedOcr"`
 }
 

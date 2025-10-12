@@ -579,11 +579,28 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID, res *FastAPIResp) (*models.UploadCertificate, error) {
 	var uploadCertificate models.UploadCertificate
 
-	nameMax := max(res.NameScoreTh, res.NameScoreEn)
-	if nameMax >= 90 && res.CourseScore >= 90 {
+	// Helper to dereference nullable scores; treat nil as 0
+	getScore := func(p *int) int {
+		if p == nil {
+			return 0
+		}
+		return *p
+	}
+
+	nameScoreTh := getScore(res.NameScoreTh)
+	nameScoreEn := getScore(res.NameScoreEn)
+	courseScore := getScore(res.CourseScore)
+	courseScoreEn := getScore(res.CourseScoreEn)
+
+	nameMax := max(nameScoreTh, nameScoreEn)
+
+	// Decide status using available course scores: prefer courseScore, fallback to courseScoreEn
+	courseMax := max(courseScore, courseScoreEn)
+
+	if nameMax >= 90 && courseMax >= 90 {
 		uploadCertificate.Status = models.StatusApproved
 	} else if nameMax > 75 {
-		if res.CourseScore > 75 {
+		if courseMax > 75 {
 			uploadCertificate.Status = models.StatusPending
 		} else {
 			uploadCertificate.Status = models.StatusRejected
@@ -598,9 +615,9 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	uploadCertificate.CourseId = courseId
 	uploadCertificate.UploadAt = time.Now()
 	uploadCertificate.NameMatch = nameMax
-	uploadCertificate.NameEngMatch = res.NameScoreEn
-	uploadCertificate.CourseMatch = res.CourseScore
-	uploadCertificate.CourseEngMatch = res.CourseScoreEn
+	uploadCertificate.NameEngMatch = nameScoreEn
+	uploadCertificate.CourseMatch = courseScore
+	uploadCertificate.CourseEngMatch = courseScoreEn
 
 	saved, err := CreateUploadCertificate(&uploadCertificate)
 	if err != nil {

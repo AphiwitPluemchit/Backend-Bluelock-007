@@ -1,5 +1,6 @@
 # app.py
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from buumooc import buumooc_verify
 from models import BuuInput
@@ -28,9 +29,10 @@ async def buumooc_receive(payload: BuuInput):
 async def thaimooc_receive(
     pdf: UploadFile = File(...),
     student_th: str = Form(...),
-    student_en: str = Form(...),
+    # optional english name/course may be missing
+    student_en: Optional[str] = Form(None),
     course_name: str = Form(...),
-    course_name_en: str = Form(...),
+    course_name_en: Optional[str] = Form(None),
 ):
     # ตรวจ content-type แบบหลวม ๆ พอทดสอบ
     if pdf.content_type not in {"application/pdf", "application/octet-stream", "binary/octet-stream"}:
@@ -38,6 +40,7 @@ async def thaimooc_receive(
 
     pdf_data = await pdf.read()
 
+    # pass through potentially None optional fields
     return thaimooc_verify(pdf_data, student_th, student_en, course_name, course_name_en)
 
 # รันทดสอบ: uvicorn app:app --reload --host 0.0.0.0 --port 8000
