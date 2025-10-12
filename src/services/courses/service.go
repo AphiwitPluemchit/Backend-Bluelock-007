@@ -101,6 +101,7 @@ func UpdateCourse(id primitive.ObjectID, update models.Course) (*models.Course, 
 	defer cancel()
 	updateData := bson.M{
 		"name":        update.Name,
+		"name_en":     update.NameEN,
 		"description": update.Description,
 		"link":        update.Link,
 		"issuer":      update.Issuer,

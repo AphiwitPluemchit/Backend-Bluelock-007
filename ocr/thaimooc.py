@@ -4,7 +4,7 @@ from fuzzy_match import best_score
 from ocr import pdf_to_images_with_fitz, ocr_images_tesseract
 
 # --------- main verify (ไม่ใช้ OCR) ---------
-def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_name: str):
+def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_name: str, course_name_en: str):
     # Step A: text layer (เร็ว/แม่นกว่า)
     raw_text = extract_textlayer(pdf_data)
     hay_text = ''
@@ -28,15 +28,18 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_na
     print(stu_en)
     crs    = normalize_min(course_name)
     print(crs)
+    crs_en = normalize_min(course_name_en)
+    print(crs_en)
 
     # ชื่อ: ใช้คะแนนที่ดีที่สุดระหว่าง TH/EN
     name_score_th = best_score(stu_th, hay)
     name_score_en = best_score(stu_en, hay)
     course_score = best_score(crs, hay)
+    course_score_en = best_score(crs_en, hay)
 
     # เกณฑ์เบื้องต้น (ปรับได้ตามจริง)
     isNameMatch   = name_score_th >= 95 or name_score_en >= 95
-    isCourseMatch = course_score >= 95
+    isCourseMatch = course_score >= 95 or course_score_en >= 95
     isVerified    = isNameMatch and isCourseMatch
 
     return {
@@ -46,6 +49,7 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: str, course_na
         "nameScoreTh": name_score_th,
         "nameScoreEn": name_score_en,
         "courseScore": course_score,
+        "courseScoreEn": course_score_en,
         "usedOcr": used_ocr,
     }
 

@@ -30,6 +30,7 @@ async def thaimooc_receive(
     student_th: str = Form(...),
     student_en: str = Form(...),
     course_name: str = Form(...),
+    course_name_en: str = Form(...),
 ):
     # ตรวจ content-type แบบหลวม ๆ พอทดสอบ
     if pdf.content_type not in {"application/pdf", "application/octet-stream", "binary/octet-stream"}:
@@ -37,6 +38,6 @@ async def thaimooc_receive(
 
     pdf_data = await pdf.read()
 
-    return thaimooc_verify(pdf_data, student_th, student_en, course_name)
+    return thaimooc_verify(pdf_data, student_th, student_en, course_name, course_name_en)
 
 # รันทดสอบ: uvicorn app:app --reload --host 0.0.0.0 --port 8000

@@ -11,13 +11,14 @@ def buumooc_verify(payload: BuuInput):
     name_score   = best_score(student_norm, html_norm)
     name_score_en = best_score(payload.student_en, html_norm)
     course_score = best_score(course_norm, html_norm)
+    course_score_en = best_score(payload.course_name_en, html_norm)
 
     if name_score >= 95 or name_score_en >= 95:
         isNameMatch = True
     else:
         isNameMatch = False
 
-    isCourseMatch = course_score >= 95
+    isCourseMatch = course_score >= 95 or course_score_en >= 95
 
     return {
         "isVerified": True,
@@ -26,5 +27,6 @@ def buumooc_verify(payload: BuuInput):
         "nameScore": name_score,
         "nameScoreEn": name_score_en,
         "courseScore": course_score,
+        "courseScoreEn": course_score_en,
     }
 

@@ -440,6 +440,7 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 		studentNameTh,  // student_th
 		studentNameEng, // student_en
 		course.Name,    // course_name (ปรับตามฟิลด์จริง)
+		course.NameEN,  // course_name_en
 	)
 	if err != nil {
 		return nil, err
@@ -597,7 +598,9 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	uploadCertificate.CourseId = courseId
 	uploadCertificate.UploadAt = time.Now()
 	uploadCertificate.NameMatch = nameMax
+	uploadCertificate.NameEngMatch = res.NameScoreEn
 	uploadCertificate.CourseMatch = res.CourseScore
+	uploadCertificate.CourseEngMatch = res.CourseScoreEn
 
 	saved, err := CreateUploadCertificate(&uploadCertificate)
 	if err != nil {

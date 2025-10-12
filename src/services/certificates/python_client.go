@@ -20,22 +20,25 @@ type FastAPIResp struct {
 	NameScoreTh   int  `json:"nameScoreTh"`
 	NameScoreEn   int  `json:"nameScoreEn"`
 	CourseScore   int  `json:"courseScore"`
+	CourseScoreEn int  `json:"courseScoreEn"`
 	UsedOCR       bool `json:"usedOcr"`
 }
 
 type buuPayload struct {
-	HTML       string `json:"html"`
-	StudentTH  string `json:"student_th,omitempty"`
-	StudentEN  string `json:"student_en,omitempty"`
-	CourseName string `json:"course_name"`
+	HTML         string `json:"html"`
+	StudentTH    string `json:"student_th,omitempty"`
+	StudentEN    string `json:"student_en,omitempty"`
+	CourseName   string `json:"course_name"`
+	CourseNameEN string `json:"course_name_en,omitempty"`
 }
 
-func callBUUMoocFastAPI(fastAPIBase string, html, studentTH, studentEN, courseName string) (*FastAPIResp, error) {
+func callBUUMoocFastAPI(fastAPIBase string, html, studentTH, studentEN, courseName string, courseNameEN string) (*FastAPIResp, error) {
 	body := buuPayload{
-		HTML:       html,
-		StudentTH:  studentTH,
-		StudentEN:  studentEN,
-		CourseName: courseName,
+		HTML:         html,
+		StudentTH:    studentTH,
+		StudentEN:    studentEN,
+		CourseName:   courseName,
+		CourseNameEN: courseNameEN,
 	}
 	b, _ := json.Marshal(body)
 
