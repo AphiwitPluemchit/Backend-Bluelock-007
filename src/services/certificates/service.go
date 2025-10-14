@@ -175,12 +175,9 @@ func GetUploadCertificate(id string) (*models.UploadCertificate, error) {
 	}
 	return &result, nil
 }
+
 func GetUploadCertificates(params models.UploadCertificateQuery, pagination models.PaginationParams) ([]models.UploadCertificate, models.PaginationMeta, error) {
 	ctx := context.Background()
-
-	// Debug logs
-	fmt.Println("GetUploadCertificates called with params:")
-	fmt.Printf("  StudentID=%s CourseID=%s Status=%s\n", params.StudentID, params.CourseID, params.Status)
 
 	// 1) Build base filter
 	filter := bson.M{}
@@ -198,22 +195,27 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		}
 		filter["courseId"] = courseID
 	}
+	// Support multiple statuses separated by comma (e.g. status=pending,approved)
 	if params.Status != "" {
-		// เก็บใน DB เป็น string ("pending/approved/rejected") ใช่หรือไม่ ตรวจด้วย mongosh อีกที
-		filter["status"] = params.Status
+		statuses := strings.Split(params.Status, ",")
+		if len(statuses) == 1 {
+			filter["status"] = params.Status
+		} else {
+			// Trim spaces and use $in
+			for i := range statuses {
+				statuses[i] = strings.TrimSpace(statuses[i])
+			}
+			filter["status"] = bson.M{"$in": statuses}
+		}
 	}
 
 	// 2) Clean pagination
 	pagination = models.CleanPagination(pagination)
-	fmt.Printf("  Pagination: page=%d limit=%d search=%s sortBy=%s order=%s\n", pagination.Page, pagination.Limit, pagination.Search, pagination.SortBy, pagination.Order)
 
 	// 3) Build pipeline
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: filter}},
 	}
-
-	// print filter for debugging
-	fmt.Println("  Mongo filter:", filter)
 
 	pipeline = append(pipeline,
 		bson.D{{Key: "$lookup", Value: bson.M{
@@ -235,6 +237,10 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 
 	// ควร join เฉพาะตอน "ต้องใช้" (ค้นหาด้วยชื่อ หรือ sort ด้วย studentName)
 	needJoin := pagination.Search != "" || strings.EqualFold(pagination.SortBy, "studentname")
+	// If filtering by major is requested, we must join students to filter by their major
+	if params.Major != "" {
+		needJoin = true
+	}
 	fmt.Println("  needJoin for student lookup:", needJoin)
 	if needJoin {
 		if pagination.Search != "" {
@@ -245,6 +251,35 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 					},
 				}}},
 			)
+		}
+		// If major filter provided, add a match for student.major
+		if params.Major != "" {
+			// support comma-separated majors or single major
+			majors := strings.Split(params.Major, ",")
+			if len(majors) == 1 {
+				pipeline = append(pipeline,
+					bson.D{{Key: "$match", Value: bson.M{
+						"student.major": bson.M{"$regex": primitive.Regex{Pattern: strings.TrimSpace(majors[0]), Options: "i"}},
+					}}},
+				)
+			} else {
+				// build $in with regexes for case-insensitive matching
+				var regexes []interface{}
+				for _, m := range majors {
+					m = strings.TrimSpace(m)
+					if m == "" {
+						continue
+					}
+					regexes = append(regexes, primitive.Regex{Pattern: m, Options: "i"})
+				}
+				if len(regexes) > 0 {
+					pipeline = append(pipeline,
+						bson.D{{Key: "$match", Value: bson.M{
+							"student.major": bson.M{"$in": regexes},
+						}}},
+					)
+				}
+			}
 		}
 	}
 
@@ -278,10 +313,9 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		{Key: sortByField, Value: sortOrder},
 	}}})
 
-	fmt.Printf("  Sorting: field=%s order=%d\n", sortByField, sortOrder)
-
 	// Debug: print pipeline (best-effort)
 	pipelineBytes, _ := bson.MarshalExtJSON(pipeline, true, true)
+	fmt.Println(" major", params.Major)
 	fmt.Println("  Aggregation pipeline:", string(pipelineBytes))
 
 	rows, meta, err := models.AggregatePaginateGlobal[models.UploadCertificate](

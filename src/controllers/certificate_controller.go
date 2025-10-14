@@ -4,6 +4,8 @@ import (
 	models "Backend-Bluelock-007/src/models"
 	services "Backend-Bluelock-007/src/services/certificates"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -54,6 +56,7 @@ func VerifyURL(c *fiber.Ctx) error {
 // @Param        studentId query     string  false  "Student ID"
 // @Param        courseId  query     string  false  "Course ID"
 // @Param        status   query     string  false  "Status"
+// @Param        major    query     string  false  "Major"
 // @Success      200   {object}  map[string]interface{}
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      500   {object}  map[string]interface{}
@@ -67,7 +70,30 @@ func GetCertificates(c *fiber.Ctx) error {
 	studentId := c.Query("studentId", "")
 	courseId := c.Query("courseId", "")
 	status := c.Query("status", "")
+	// Support both ?status=pending,approved and repeated ?status[]=pending&status[]=approved
+	// Support both ?major=AAI and repeated ?major[]=AAI&major[]=ITDI
+	major := c.Query("major", "")
+	// Parse raw query string to get repeated params
+	qs := string(c.Request().URI().QueryString())
+	vals, _ := url.ParseQuery(qs)
+	majorsArr := vals["major"]
+	if len(majorsArr) == 0 {
+		majorsArr = vals["major[]"]
+	}
+	if len(majorsArr) > 0 {
+		major = strings.Join(majorsArr, ",")
+	}
 
+	// parse repeated status[] if present
+	statusesArr := vals["status"]
+	if len(statusesArr) == 0 {
+		statusesArr = vals["status[]"]
+	}
+	if len(statusesArr) > 0 {
+		status = strings.Join(statusesArr, ",")
+	}
+
+	fmt.Println("major", major)
 	fmt.Println("studentId", studentId)
 	fmt.Println("courseId", courseId)
 	fmt.Println("status", status)
@@ -83,6 +109,7 @@ func GetCertificates(c *fiber.Ctx) error {
 		StudentID: studentId,
 		CourseID:  courseId,
 		Status:    status,
+		Major:     major,
 	}
 
 	certificates, paginationMeta, err := services.GetUploadCertificates(uploadCertificateQuery, pagination)
