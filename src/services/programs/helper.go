@@ -18,6 +18,20 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// Set process default location to Asia/Bangkok once on package init.
+// This makes time.Local point to Bangkok so time.Parse/Now/ comparisons
+// that rely on the local location will use Asia/Bangkok consistently.
+func init() {
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		log.Println("⚠️ Failed to load Asia/Bangkok location, leaving time.Local as-is:", err)
+		return
+	}
+	// Override the package-local default timezone for the running process.
+	time.Local = loc
+	log.Println("✅ Set process timezone to Asia/Bangkok (time.Local)")
+}
+
 // Helper functions for programs service
 
 // ===== Pipeline Helper Functions =====
@@ -50,11 +64,8 @@ func GenerateStudentCodeFilter(studentYears []int) []string {
 
 // MaxEndTimeFromItem คำนวณเวลาสิ้นสุดที่มากที่สุดจาก ProgramItemDto
 func MaxEndTimeFromItem(item models.ProgramItemDto, latestTime time.Time) time.Time {
-	loc, err := time.LoadLocation("Asia/Bangkok")
-	if err != nil {
-		log.Println("❌ Failed to load location:", err)
-		return latestTime
-	}
+	// Use process local timezone (set in init) for parsing/comparisons.
+	loc := time.Local
 	for _, d := range item.Dates {
 		t, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Etime, loc)
 		if err != nil {
@@ -117,12 +128,13 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 	DeleteTask("close-enroll-"+programID, programID, redisURI)
 
 	// Schedule the "complete" state transition at the latest program end time
-	if !latestTime.IsZero() && latestTime.After(time.Now()) {
+	nowLocal := time.Now().In(time.Local)
+	if !latestTime.IsZero() && latestTime.After(nowLocal) {
 		if err := enqueueTask(
 			AsynqClient,
 			"complete-program-"+programID,
 			jobs.NewCompleteProgramTask,
-			latestTime.Add(time.Hour*1), // เพิ่ม 1 ชั่วโมงเพื่อให้ task ไม่ถูก run ทันที
+			latestTime.In(time.Local).Add(time.Hour*1), // เพิ่ม 1 ชั่วโมง
 			programID,
 			redisURI,
 		); err != nil {
@@ -134,6 +146,7 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 	}
 
 	// Schedule the "close" state transition at the endDateEnroll
+	// Parse endDateEnroll in process local timezone (Bangkok)
 	deadline, err := time.ParseInLocation("2006-01-02", endDateEnroll, time.Local)
 	if err != nil {
 		log.Println("⚠️ Invalid endDateEnroll format:", endDateEnroll, err)
@@ -145,7 +158,7 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 	log.Println("Enrollment deadline:", deadline.Format(time.RFC3339))
 
 	// Only schedule if deadline is in the future
-	if !deadline.IsZero() && deadline.After(time.Now()) {
+	if !deadline.IsZero() && deadline.After(time.Now().In(time.Local)) {
 		if err := enqueueTask(
 			AsynqClient,
 			"close-enroll-"+programID,

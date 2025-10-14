@@ -5,12 +5,24 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+// Ensure worker process uses Asia/Bangkok timezone for any time operations.
+func init() {
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		log.Println("⚠️ Failed to load Asia/Bangkok location in jobs package:", err)
+		return
+	}
+	time.Local = loc
+	log.Println("✅ Set jobs process timezone to Asia/Bangkok (time.Local)")
+}
 
 func HandleCompleteProgramTask(ctx context.Context, t *asynq.Task) error {
 	log.Println("🎯 Start task handler")
