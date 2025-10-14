@@ -23,12 +23,15 @@ type HourChangeHistory struct {
 
 // enum Status ของ HourChange (สำหรับ program และ certificate)
 const (
-	HCStatusPending  = "pending"  // ลงทะเบียนแล้ว program รอเข้าร่วม | certificate รออนุมัติ
-	HCStatusAttended = "attended" // เข้าร่วมครบถ้วน (checkin + checkout ครบ) → ได้ชั่วโมง
-	HCStatusPartial  = "partial"  // เข้าร่วมบางส่วน (checkin แต่ไม่ checkout หรือ checkout โดยไม่ checkin)
-	HCStatusAbsent   = "absent"   // ไม่เข้าร่วม (ไม่ checkin ไม่ checkout เลย)
-	HCStatusApproved = "approved" // อนุมัติแล้ว
-	HCStatusRejected = "rejected" // ปฏิเสธแล้ว
+	HCStatusPending       = "pending"       // ลงทะเบียนแล้ว - รอเข้าร่วมกิจกรรม | certificate รออนุมัติ
+	HCStatusParticipating = "participating" // กำลังเข้าร่วมกิจกรรม (เช็คอิน/เช็คเอาท์ก่อนวันสุดท้าย)
+	HCStatusVerifying     = "verifying"     // รอระบบดำเนินการตรวจสอบ (เช็คเอาท์วันสุดท้ายแล้ว)
+	HCStatusWaitingForm   = "waiting_form"  // ยังไม่ได้ทำแบบฟอร์ม (เข้าร่วมครบแล้ว แต่ยังไม่ได้ส่งฟอร์ม)
+	HCStatusAttended      = "attended"      // เข้าร่วมครบถ้วน + ทำฟอร์มแล้ว → ได้รับชั่วโมง
+	HCStatusPartial       = "partial"       // เข้าร่วมไม่ครบถ้วน → ไม่ได้รับชั่วโมง
+	HCStatusAbsent        = "absent"        // ไม่เข้าร่วม (ไม่ checkin ไม่ checkout เลย)
+	HCStatusApproved      = "approved"      // อนุมัติแล้ว (certificate)
+	HCStatusRejected      = "rejected"      // ปฏิเสธแล้ว (certificate)
 )
 
 // HourHistoryFilters ใช้เก็บค่าการกรองสำหรับ hour history

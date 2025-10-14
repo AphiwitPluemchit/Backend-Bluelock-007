@@ -116,6 +116,7 @@ func RecordEnrollmentHourChange(
 
 // UpdateCheckinHourChange อัปเดต HourChangeHistory ตอน Checkin (UPDATE record เดิม)
 // เปลี่ยน status: HCStatusPending → HCStatusAttended (เริ่มเข้าร่วม)
+// ⚠️ DEPRECATED: ใช้ UpdateCheckinToVerifying แทน (logic ใหม่)
 func UpdateCheckinHourChange(
 	ctx context.Context,
 	enrollmentID primitive.ObjectID,
@@ -149,10 +150,55 @@ func UpdateCheckinHourChange(
 	return nil
 }
 
+// RecordCheckinActivity บันทึกการเช็คอินเข้าร่วมกิจกรรม (แต่ละวัน)
+// เปลี่ยน status: HCStatusPending → HCStatusParticipating (กำลังเข้าร่วม)
+func RecordCheckinActivity(
+	ctx context.Context,
+	enrollmentID primitive.ObjectID,
+	checkinDate string,
+) error {
+	filter := bson.M{
+		"enrollmentId": enrollmentID,
+		"status":       models.HCStatusPending,
+		"sourceType":   "program",
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     models.HCStatusParticipating,
+			"hourChange": 0, // ยังไม่ได้ชั่วโมง
+			"remark":     fmt.Sprintf("กำลังเข้าร่วมกิจกรรม - เช็คอินวันที่ %s", checkinDate),
+			"changeAt":   time.Now(),
+		},
+	}
+
+	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to record checkin activity: %v", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("no pending hour change record found for enrollmentId: %s", enrollmentID.Hex())
+	}
+
+	return nil
+}
+
+// UpdateCheckinToVerifying เก็บไว้เพื่อ backward compatibility
+// ⚠️ DEPRECATED: ใช้ RecordCheckinActivity แทน
+func UpdateCheckinToVerifying(
+	ctx context.Context,
+	enrollmentID primitive.ObjectID,
+	checkinDate string,
+) error {
+	return RecordCheckinActivity(ctx, enrollmentID, checkinDate)
+}
+
 // UpdateCheckoutHourChange อัปเดต HourChangeHistory ตอน Checkout (UPDATE record เดิม)
 // เปลี่ยน status ตามเงื่อนไข:
 // - HCStatusAttended (checkin แล้ว + เข้าร่วมครบ) → ได้ชั่วโมง
 // - HCStatusPartial (checkin แล้ว + ไม่ครบ หรือ ไม่ checkin แต่ checkout) → ไม่ได้ชั่วโมง
+// ⚠️ DEPRECATED: ใช้ UpdateCheckoutToVerifying แทน (logic ใหม่)
 func UpdateCheckoutHourChange(
 	ctx context.Context,
 	enrollmentID primitive.ObjectID,
@@ -224,6 +270,79 @@ func UpdateCheckoutHourChange(
 	return nil
 }
 
+// RecordCheckoutActivity บันทึกการเช็คเอาท์ของกิจกรรม (แต่ละวัน)
+// เช็คว่าเป็นวันสุดท้ายหรือไม่ เพื่อกำหนดสถานะที่เหมาะสม
+func RecordCheckoutActivity(
+	ctx context.Context,
+	enrollmentID primitive.ObjectID,
+	programItemID primitive.ObjectID,
+	checkoutDate string,
+	isLastDay bool, // เป็นวันสุดท้ายของกิจกรรมหรือไม่
+) error {
+	// หา record ปัจจุบัน
+	var currentRecord models.HourChangeHistory
+	err := DB.HourChangeHistoryCollection.FindOne(ctx, bson.M{
+		"enrollmentId": enrollmentID,
+		"sourceType":   "program",
+		"status":       bson.M{"$in": []string{models.HCStatusPending, models.HCStatusParticipating}},
+	}).Decode(&currentRecord)
+
+	if err != nil {
+		return fmt.Errorf("no hour change record found for enrollmentId: %s", enrollmentID.Hex())
+	}
+
+	var status string
+	var remark string
+
+	if isLastDay {
+		// วันสุดท้าย → เปลี่ยนเป็น "รอระบบดำเนินการตรวจสอบ"
+		status = models.HCStatusVerifying
+		remark = fmt.Sprintf("%s | เช็คเอาท์วันที่ %s - รอระบบดำเนินการตรวจสอบ", currentRecord.Remark, checkoutDate)
+	} else {
+		// ยังไม่ใช่วันสุดท้าย → คงสถานะ "กำลังเข้าร่วม"
+		status = models.HCStatusParticipating
+		remark = fmt.Sprintf("%s | เช็คเอาท์วันที่ %s", currentRecord.Remark, checkoutDate)
+	}
+
+	filter := bson.M{
+		"enrollmentId": enrollmentID,
+		"sourceType":   "program",
+		"status":       bson.M{"$in": []string{models.HCStatusPending, models.HCStatusParticipating}},
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     status,
+			"hourChange": 0, // ยังไม่ได้ชั่วโมง
+			"remark":     remark,
+			"changeAt":   time.Now(),
+		},
+	}
+
+	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to record checkout activity: %v", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("no hour change record found for enrollmentId: %s", enrollmentID.Hex())
+	}
+
+	return nil
+}
+
+// UpdateCheckoutToVerifying เก็บไว้เพื่อ backward compatibility
+// ⚠️ DEPRECATED: ใช้ RecordCheckoutActivity แทน
+func UpdateCheckoutToVerifying(
+	ctx context.Context,
+	enrollmentID primitive.ObjectID,
+	attendedAllDays bool,
+	checkoutDate string,
+) error {
+	// สำหรับ backward compatibility ให้ถือว่าเป็นวันสุดท้ายเสมอ
+	return RecordCheckoutActivity(ctx, enrollmentID, primitive.NilObjectID, checkoutDate, true)
+}
+
 // MarkAsAbsent ทำเครื่องหมายเป็นขาดเรียน (ถ้ากิจกรรมจบแล้วแต่ยังเป็น pending)
 // เปลี่ยน status: HCStatusPending → HCStatusAbsent
 func MarkAsAbsent(
@@ -252,6 +371,153 @@ func MarkAsAbsent(
 
 	if result.MatchedCount == 0 {
 		return fmt.Errorf("no pending record found for enrollmentId: %s", enrollmentID.Hex())
+	}
+
+	return nil
+}
+
+// VerifyAndGrantHours ตรวจสอบและให้ชั่วโมงเมื่อกิจกรรมเสร็จสิ้น
+// เช็คว่านิสิตเข้าร่วมครบทุกวันและทำฟอร์มเสร็จหรือยัง
+func VerifyAndGrantHours(
+	ctx context.Context,
+	enrollmentID primitive.ObjectID,
+	programID primitive.ObjectID,
+	totalHours int,
+) error {
+	// 1) ดึง Enrollment เพื่อเช็ค attendedAllDays และ submissionId
+	var enrollment models.Enrollment
+	err := DB.EnrollmentCollection.FindOne(ctx, bson.M{"_id": enrollmentID}).Decode(&enrollment)
+	if err != nil {
+		return fmt.Errorf("enrollment not found: %v", err)
+	}
+
+	// 2) ดึง ProgramItem เพื่อเช็คจำนวนวันทั้งหมด
+	var programItem models.ProgramItem
+	err = DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ProgramItemID}).Decode(&programItem)
+	if err != nil {
+		return fmt.Errorf("program item not found: %v", err)
+	}
+
+	totalDays := len(programItem.Dates)
+
+	// 3) ตรวจสอบว่าเช็คชื่อครบทุกวันหรือไม่
+	checkinoutRecords := []models.CheckinoutRecord{}
+	if enrollment.CheckinoutRecord != nil {
+		checkinoutRecords = *enrollment.CheckinoutRecord
+	}
+
+	// นับจำนวนวันที่เช็คชื่อครบ (มีทั้ง checkin และ checkout)
+	validDays := 0
+	for _, record := range checkinoutRecords {
+		if record.Checkin != nil && record.Checkout != nil {
+			validDays++
+		}
+	}
+
+	hasAttendedAllDays := (validDays == totalDays)
+
+	// 4) หา HourChangeHistory record ที่เป็น verifying
+	var hourRecord models.HourChangeHistory
+	err = DB.HourChangeHistoryCollection.FindOne(ctx, bson.M{
+		"enrollmentId": enrollmentID,
+		"sourceType":   "program",
+		"sourceId":     programID,
+		"status":       models.HCStatusVerifying,
+	}).Decode(&hourRecord)
+
+	if err != nil {
+		// ถ้าไม่เจอ verifying record แสดงว่ายังไม่ได้ checkout วันสุดท้าย
+		return nil // skip
+	}
+
+	// 5) ตรวจสอบเงื่อนไข
+	hasSubmittedForm := enrollment.SubmissionID != nil
+
+	var newStatus string
+	var newHourChange int
+	var newRemark string
+
+	if hasAttendedAllDays && hasSubmittedForm {
+		// ✅ เข้าร่วมครบทุกวัน + ทำฟอร์มแล้ว → ได้ชั่วโมง
+		newStatus = models.HCStatusAttended
+		newHourChange = totalHours
+		newRemark = fmt.Sprintf("✅ ผ่านการตรวจสอบ - เข้าร่วมครบถ้วนทุกวัน (%d/%d วัน) และทำฟอร์มเสร็จสิ้น ได้รับ %d ชั่วโมง", validDays, totalDays, totalHours)
+	} else if hasAttendedAllDays && !hasSubmittedForm {
+		// ⚠️ เข้าร่วมครบทุกวัน แต่ยังไม่ได้ทำฟอร์ม
+		newStatus = models.HCStatusWaitingForm
+		newHourChange = 0
+		newRemark = fmt.Sprintf("ยังไม่ได้ทำแบบฟอร์ม - เข้าร่วมครบถ้วน (%d/%d วัน) รอการส่งแบบฟอร์ม", validDays, totalDays)
+	} else {
+		// ❌ เข้าร่วมไม่ครบทุกวัน
+		newStatus = models.HCStatusPartial
+		newHourChange = 0
+		newRemark = fmt.Sprintf("เข้าร่วมไม่ครบถ้วน (%d/%d วัน) - ไม่ได้รับชั่วโมง", validDays, totalDays)
+	}
+
+	// 6) อัปเดต HourChangeHistory
+	filter := bson.M{
+		"enrollmentId": enrollmentID,
+		"sourceType":   "program",
+		"sourceId":     programID,
+		"status":       models.HCStatusVerifying,
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     newStatus,
+			"hourChange": newHourChange,
+			"remark":     newRemark,
+			"changeAt":   time.Now(),
+		},
+	}
+
+	_, err = DB.HourChangeHistoryCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to verify and grant hours: %v", err)
+	}
+
+	return nil
+}
+
+// UpdateHoursOnFormSubmission อัปเดตชั่วโมงเมื่อนิสิตทำฟอร์มเสร็จ
+// เปลี่ยน status: HCStatusWaitingForm → HCStatusAttended (ได้ชั่วโมง)
+func UpdateHoursOnFormSubmission(
+	ctx context.Context,
+	enrollmentID primitive.ObjectID,
+	totalHours int,
+) error {
+	// หา record ที่เป็น waiting_form
+	var currentRecord models.HourChangeHistory
+	err := DB.HourChangeHistoryCollection.FindOne(ctx, bson.M{
+		"enrollmentId": enrollmentID,
+		"sourceType":   "program",
+		"status":       models.HCStatusWaitingForm,
+	}).Decode(&currentRecord)
+
+	if err != nil {
+		// ถ้าไม่เจอ waiting_form record แสดงว่าไม่จำเป็นต้องอัปเดต
+		return nil
+	}
+
+	// อัปเดตให้ชั่วโมง
+	filter := bson.M{
+		"enrollmentId": enrollmentID,
+		"sourceType":   "program",
+		"status":       models.HCStatusWaitingForm,
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     models.HCStatusAttended,
+			"hourChange": totalHours,
+			"remark":     fmt.Sprintf("✅ ทำแบบฟอร์มเสร็จสิ้น - ได้รับ %d ชั่วโมง", totalHours),
+			"changeAt":   time.Now(),
+		},
+	}
+
+	_, err = DB.HourChangeHistoryCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update hours on form submission: %v", err)
 	}
 
 	return nil

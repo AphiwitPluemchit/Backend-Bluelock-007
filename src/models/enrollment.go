@@ -15,6 +15,8 @@ type Enrollment struct {
 	StudentID        primitive.ObjectID  `json:"studentId" bson:"studentId"`
 	Food             *string             `json:"food" bson:"food"`
 	CheckinoutRecord *[]CheckinoutRecord `json:"checkinoutRecord" bson:"checkinoutRecord"`
+	SubmissionID     *primitive.ObjectID `json:"submissionId,omitempty" bson:"submissionId,omitempty"`
+	AttendedAllDays  *bool               `json:"attendedAllDays,omitempty" bson:"attendedAllDays,omitempty"`
 }
 
 // SuccessResponse ใช้เป็นโครงสร้าง JSON Response ที่ Swagger ใช้

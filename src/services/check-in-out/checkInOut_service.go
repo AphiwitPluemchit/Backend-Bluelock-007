@@ -358,6 +358,15 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 		return fmt.Errorf("ไม่อนุญาตเช็คชื่อ: วันนี้ (%s) ไม่มีตารางกิจกรรมของรายการนี้", today)
 	}
 
+	// 1.3) หาวันสุดท้ายของ programItem เพื่อใช้ในการเช็ค
+	var lastDate string
+	for _, d := range programItem.Dates {
+		if d.Date > lastDate {
+			lastDate = d.Date
+		}
+	}
+	isLastDay := (today == lastDate)
+
 	// 2) เตรียม records และหาดัชนีของวันเดียวกัน + เก็บ snapshot ก่อนแก้
 	records := []models.CheckinoutRecord{}
 	if enrollment.CheckinoutRecord != nil {
@@ -395,13 +404,13 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 			targetIdx = len(records) - 1
 		}
 
-		// 📝 อัปเดต HourChangeHistory สำหรับ Checkin (UPDATE record เดิม)
-		if err := hourhistory.UpdateCheckinHourChange(
+		// 📝 อัปเดต HourChangeHistory สำหรับ Checkin
+		if err := hourhistory.RecordCheckinActivity(
 			ctx,
 			enrollment.ID,
 			dateKey,
 		); err != nil {
-			log.Printf("⚠️ Warning: failed to update checkin hour change: %v", err)
+			log.Printf("⚠️ Warning: failed to record checkin activity: %v", err)
 		}
 
 	case "checkout":
@@ -416,6 +425,17 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 			t := now
 			records = append(records, models.CheckinoutRecord{ID: primitive.NewObjectID(), Checkout: &t})
 			targetIdx = len(records) - 1
+		}
+
+		// 📝 อัปเดต HourChangeHistory สำหรับ Checkout
+		if err := hourhistory.RecordCheckoutActivity(
+			ctx,
+			enrollment.ID,
+			aID,
+			dateKey,
+			isLastDay,
+		); err != nil {
+			log.Printf("⚠️ Warning: failed to record checkout activity: %v", err)
 		}
 
 	default:
@@ -501,22 +521,8 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 		return err
 	}
 
-	// 6) 📝 อัปเดต HourChangeHistory สำหรับ Checkout (UPDATE record เดิม)
-	if checkType == "checkout" {
-		totalHours := 0
-		if programItem.Hour != nil {
-			totalHours = *programItem.Hour
-		}
-		if err := hourhistory.UpdateCheckoutHourChange(
-			ctx,
-			enrollment.ID,
-			attendedAll,
-			totalHours,
-			dateKey,
-		); err != nil {
-			log.Printf("⚠️ Warning: failed to update checkout hour change: %v", err)
-		}
-	}
+	// 6) HourChangeHistory ถูกอัปเดตไปแล้วใน case "checkout" ด้านบน
+	// ไม่ต้องทำอะไรเพิ่มเติมที่นี่
 
 	// 7) เรียกอัปเดต SummaryReport แบบฟังก์ชันรวมที่เดียว
 	curr := records[targetIdx] // สถานะหลังแก้
