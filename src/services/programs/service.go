@@ -184,7 +184,15 @@ func updateSummaryReportsForProgramChanges(programID primitive.ObjectID, oldProg
 		datesChanged = true
 	}
 
-	// ถ้ามีการเปลี่ยนแปลง ให้สร้าง Summary Reports ใหม่
+	// ✅ ตรวจสอบการเปลี่ยนแปลงอื่นๆ ที่ไม่ใช่ ProgramItems หรือ Dates
+	onlyStateChanged := oldProgram.ProgramState != newProgram.ProgramState && !itemsChanged && !datesChanged
+	onlyBasicInfoChanged := (oldProgram.Name != newProgram.Name ||
+		oldProgram.Type != newProgram.Type ||
+		oldProgram.Skill != newProgram.Skill ||
+		oldProgram.File != newProgram.File ||
+		oldProgram.EndDateEnroll != newProgram.EndDateEnroll) && !itemsChanged && !datesChanged
+
+	// ถ้ามีการเปลี่ยนแปลง ProgramItems หรือ Dates ให้สร้าง Summary Reports ใหม่
 	if itemsChanged || datesChanged {
 		log.Printf("✅ Program items or dates changed for program %s, updating summary reports", programID.Hex())
 
@@ -201,6 +209,12 @@ func updateSummaryReportsForProgramChanges(programID primitive.ObjectID, oldProg
 		}
 
 		log.Printf("✅ Successfully updated summary reports for program %s", programID.Hex())
+	} else if onlyStateChanged {
+		log.Printf("✅ Only program state changed for program %s, keeping existing summary reports", programID.Hex())
+	} else if onlyBasicInfoChanged {
+		log.Printf("✅ Only basic program info changed for program %s, keeping existing summary reports", programID.Hex())
+	} else {
+		log.Printf("✅ No significant changes detected for program %s, keeping existing summary reports", programID.Hex())
 	}
 
 	return nil
@@ -450,6 +464,24 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 	if err != nil {
 		return nil, err
 	}
+
+	// ✅ ดึง ProgramItems ของ oldProgram เพื่อเปรียบเทียบ
+	var oldProgramItems []models.ProgramItem
+	oldCursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": id})
+	if err != nil {
+		return nil, err
+	}
+	if err := oldCursor.All(ctx, &oldProgramItems); err != nil {
+		return nil, err
+	}
+	oldCursor.Close(ctx)
+
+	// ✅ แปลง oldProgramItems เป็น ProgramItemDto เพื่อเปรียบเทียบ
+	var oldProgramItemDtos []models.ProgramItemDto
+	for _, item := range oldProgramItems {
+		oldProgramItemDtos = append(oldProgramItemDtos, models.ProgramItemDto(item))
+	}
+	oldProgram.ProgramItems = oldProgramItemDtos
 
 	// ✅ อัปเดต Program หลัก
 	update := bson.M{
