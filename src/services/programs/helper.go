@@ -127,24 +127,6 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 	DeleteTask("complete-program-"+programID, programID, redisURI)
 	DeleteTask("close-enroll-"+programID, programID, redisURI)
 
-	// Schedule the "complete" state transition at the latest program end time
-	nowLocal := time.Now().In(time.Local)
-	if !latestTime.IsZero() && latestTime.After(nowLocal) {
-		if err := enqueueTask(
-			AsynqClient,
-			"complete-program-"+programID,
-			jobs.NewCompleteProgramTask,
-			latestTime.In(time.Local).Add(time.Hour*1), // เพิ่ม 1 ชั่วโมง
-			programID,
-			redisURI,
-		); err != nil {
-			return err
-		}
-		log.Println("✅ Complete-program task scheduled: complete-program-" + programID)
-	} else {
-		log.Println("⏩ Skipped complete-program task (invalid or past time)")
-	}
-
 	// Schedule the "close" state transition at the endDateEnroll
 	// Parse endDateEnroll in process local timezone (Bangkok)
 	deadline, err := time.ParseInLocation("2006-01-02", endDateEnroll, time.Local)
@@ -157,12 +139,29 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 	deadline = time.Date(deadline.Year(), deadline.Month(), deadline.Day(), 23, 59, 59, 0, deadline.Location())
 	log.Println("Enrollment deadline:", deadline.Format(time.RFC3339))
 
+	// Fetch program name for more descriptive task payloads (best-effort)
+	var program models.Program
+	ctx := context.Background()
+	err = DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programID}).Decode(&program)
+	programName := ""
+	if err != nil {
+		log.Println("⚠️ Failed to fetch program name for scheduling payload:", err)
+		// continue without name
+	} else if program.Name != nil {
+		programName = *program.Name
+	}
+
 	// Only schedule if deadline is in the future
 	if !deadline.IsZero() && deadline.After(time.Now().In(time.Local)) {
+		// Use new helper to create a close-enroll task with name
+		createClose := func(id string) (*asynq.Task, error) {
+			return jobs.NewCloseEnrollTaskWithName(id, programName)
+		}
+
 		if err := enqueueTask(
 			AsynqClient,
 			"close-enroll-"+programID,
-			jobs.NewCloseEnrollTask,
+			createClose,
 			deadline,
 			programID,
 			redisURI,
@@ -174,6 +173,30 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 	} else {
 		log.Println("⏩ Skipped close-enroll task (invalid or past time)")
 	}
+
+	// Schedule the "complete" state transition at the latest program end time
+	nowLocal := time.Now().In(time.Local)
+	if !latestTime.IsZero() && latestTime.After(nowLocal) {
+		// Use new helper to create a complete-program task with name
+		createComplete := func(id string) (*asynq.Task, error) {
+			return jobs.NewCompleteProgramTaskWithName(id, programName)
+		}
+
+		if err := enqueueTask(
+			AsynqClient,
+			"complete-program-"+programID,
+			createComplete,
+			latestTime.In(time.Local).Add(time.Hour*1), // เพิ่ม 1 ชั่วโมง
+			programID,
+			redisURI,
+		); err != nil {
+			return err
+		}
+		log.Println("✅ Complete-program task scheduled: complete-program-" + programID)
+	} else {
+		log.Println("⏩ Skipped complete-program task (invalid or past time)")
+	}
+
 	return nil
 }
 
