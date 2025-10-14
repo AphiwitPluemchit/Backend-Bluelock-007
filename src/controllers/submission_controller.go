@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"log"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -99,27 +100,34 @@ func GetSubmission(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 
-	submission, err := submission.GetSubmissionByID(c.Context(), id)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Submission not found"})
-	}
-
-	return c.JSON(submission)
+	subm, err := submission.GetSubmissionByID(c.Context(), id)
+if err != nil {
+    return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Submission not found"})
+}
+return c.JSON(subm)
 }
 
-// GetSubmissionsByForm handles getting submissions by form ID
+
 func GetSubmissionsByForm(c *fiber.Ctx) error {
-	formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
-	}
+  formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
+  if err != nil {
+    return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
+  }
 
-	submissions, err := submission.GetSubmissionsByFormID(c.Context(), formID)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
+  // ⬇️ รับ query เพิ่มเติม (optional)
+  limit := int64(0)
+  if v := c.Query("limit"); v != "" {
+    if n, convErr := strconv.ParseInt(v, 10, 64); convErr == nil && n > 0 {
+      limit = n
+    }
+  }
+  sortField := c.Query("sort") // e.g. "createdAt" หรือ "-createdAt"
 
-	return c.JSON(submissions)
+  submissions, err := submission.GetSubmissionsByFormID(c.Context(), formID, limit, sortField)
+  if err != nil {
+    return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+  }
+  return c.JSON(submissions)
 }
 
 // DeleteSubmission handles submission deletion
@@ -134,4 +142,32 @@ func DeleteSubmission(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+// ===== Analytics ภายใต้ submission controller =====
+func GetFormBlocksAnalytics(c *fiber.Ctx) error {
+	formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
+	if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
+	}
+	items, err := submission.GetFormBlocksAnalytics(c.Context(), formID)
+	if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(items)
+}
+
+func GetBlockAnalytics(c *fiber.Ctx) error {
+	formID, err := primitive.ObjectIDFromHex(c.Params("formId"))
+	if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid form ID"})
+	}
+	blockID, err := primitive.ObjectIDFromHex(c.Params("blockId"))
+	if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid block ID"})
+	}
+	items, err := submission.GetBlockAnalytics(c.Context(), formID, blockID)
+	if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(items)
 }
