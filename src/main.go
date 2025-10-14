@@ -90,7 +90,7 @@ func main() {
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// ✅ ให้บริการไฟล์ใน uploads/program/images/
-	app.Static("/uploads/program/images", "./uploads/program/images")
+	app.Static("/uploads", "./uploads")
 
 	// เริ่มเซิร์ฟเวอร์
 	log.Println("Server is running on port " + appURI)
