@@ -140,7 +140,11 @@ func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
 	// Schedule state transitions if program is created with "open" state
 	if DB.AsynqClient != nil && program.ProgramState == "open" {
 		log.Println("✅ Scheduling state transitions for new program:", program.ID.Hex())
-		err = ScheduleChangeProgramStateJob(DB.AsynqClient, DB.RedisURI, latestTime, program.EndDateEnroll, program.ID.Hex())
+		programName := ""
+		if program.Name != nil {
+			programName = *program.Name
+		}
+		err = ScheduleChangeProgramStateJob(DB.AsynqClient, DB.RedisURI, latestTime, program.EndDateEnroll, program.ID.Hex(), programName)
 		if err != nil {
 			log.Println("❌ Failed to schedule state transitions for new program:", err)
 			// Don't return error here, just log it - we don't want to fail program creation
@@ -589,7 +593,11 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 			// - State was already "open" but dates or items changed
 			if stateChanged || datesChanged || itemsChanged {
 				log.Println("✅ Scheduling state transitions for program:", id.Hex())
-				err = ScheduleChangeProgramStateJob(DB.AsynqClient, DB.RedisURI, latestTime, program.EndDateEnroll, program.ID.Hex())
+				programName := ""
+				if program.Name != nil {
+					programName = *program.Name
+				}
+				err = ScheduleChangeProgramStateJob(DB.AsynqClient, DB.RedisURI, latestTime, program.EndDateEnroll, program.ID.Hex(), programName)
 				if err != nil {
 					log.Println("❌ Failed to schedule state transitions:", err)
 					return nil, err

@@ -117,7 +117,7 @@ func enqueueTask(
 }
 
 // ScheduleChangeProgramStateJob สร้าง schedule งานเปลี่ยนสถานะ program
-func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, latestTime time.Time, endDateEnroll string, programID string) error {
+func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, latestTime time.Time, endDateEnroll string, programID string, programName string) error {
 	if AsynqClient == nil {
 		return errors.New("asynq client is not initialized")
 	}
@@ -139,17 +139,7 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 	deadline = time.Date(deadline.Year(), deadline.Month(), deadline.Day(), 23, 59, 59, 0, deadline.Location())
 	log.Println("Enrollment deadline:", deadline.Format(time.RFC3339))
 
-	// Fetch program name for more descriptive task payloads (best-effort)
-	var program models.Program
-	ctx := context.Background()
-	err = DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programID}).Decode(&program)
-	programName := ""
-	if err != nil {
-		log.Println("⚠️ Failed to fetch program name for scheduling payload:", err)
-		// continue without name
-	} else if program.Name != nil {
-		programName = *program.Name
-	}
+	// programName is provided by the caller (avoids extra DB lookup)
 
 	// Only schedule if deadline is in the future
 	if !deadline.IsZero() && deadline.After(time.Now().In(time.Local)) {
