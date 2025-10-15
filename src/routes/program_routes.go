@@ -21,4 +21,7 @@ func programRoutes(router fiber.Router) {
 	programRoutes.Get("/:id/enrollment-summary", controllers.GetEnrollmentSummaryByProgramID)
 
 	programRoutes.Get("/calendar/:month/:year", controllers.GetAllProgramCalendar)
+	// Testing endpoints to trigger job handlers
+	programRoutes.Post("/:id/trigger-complete", controllers.TriggerCompleteProgram)
+	programRoutes.Post("/:id/run-complete-now", controllers.RunCompleteProgramNow)
 }

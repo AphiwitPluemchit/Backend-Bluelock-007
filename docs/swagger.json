@@ -552,6 +552,12 @@
                         "description": "Status",
                         "name": "status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Major",
+                        "name": "major",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1476,38 +1482,66 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Student ID (ObjectID)",
-                        "name": "studentId",
+                        "name": "lastId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 10,
+                        "description": "จำนวนรายการต่อหน้า",
+                        "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Source type (program, certificate)",
+                        "example": "desc",
+                        "description": "ทิศทางการเรียง (asc/desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "หมายเลขหน้าที่ต้องการ",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "",
+                        "description": "คำค้นหา (Optional)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "_id",
+                        "description": "ฟิลด์ที่ใช้เรียงลำดับ",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by title",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "\"program\" | \"certificate\"",
                         "name": "sourceType",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated statuses (pending, attended, partial, absent)",
+                        "description": "Comma-separated statuses",
                         "name": "status",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Search by title (case-insensitive)",
-                        "name": "search",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Limit results (default: 20)",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number (default: 1)",
-                        "name": "page",
+                        "description": "Student ObjectID",
+                        "name": "studentId",
                         "in": "query"
                     }
                 ],
@@ -1515,22 +1549,19 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.HourHistoryPaginatedResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     }
                 }
@@ -1974,6 +2005,109 @@
                 }
             }
         },
+        "/programs/{id}/run-complete-now": {
+            "post": {
+                "description": "Run the complete-program handler synchronously in-process for quick testing. This does not require Redis/Asynq and will execute the same logic as the background worker.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Execute program completion now (in-process)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/programs/{id}/trigger-complete": {
+            "post": {
+                "description": "Enqueue a complete-program task to run after delaySec seconds. Requires Asynq (Redis) configured. Use for testing scheduling behavior.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "programs"
+                ],
+                "summary": "Enqueue program completion job (test)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Delay in seconds",
+                        "name": "delaySec",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/students": {
             "get": {
                 "description": "Get all students with optional filters",
@@ -2378,6 +2512,10 @@
                     "type": "string",
                     "example": "Introduction to Programming"
                 },
+                "name_en": {
+                    "type": "string",
+                    "example": "Introduction to Programming"
+                },
                 "type": {
                     "type": "string",
                     "enum": [
@@ -2496,6 +2634,68 @@
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "models.HourChangeHistory": {
+            "type": "object",
+            "properties": {
+                "changeAt": {
+                    "description": "เวลาที่เกิดการเปลี่ยนแปลง",
+                    "type": "string"
+                },
+                "enrollmentId": {
+                    "description": "enrollment ID (สำหรับ program)",
+                    "type": "string"
+                },
+                "hourChange": {
+                    "description": "จำนวนชั่วโมงที่เปลี่ยน (บวก = เพิ่ม, ลบ = ลด)",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "remark": {
+                    "description": "หมายเหตุ",
+                    "type": "string"
+                },
+                "skillType": {
+                    "description": "\"soft\" | \"hard\"",
+                    "type": "string"
+                },
+                "sourceId": {
+                    "description": "ID ของ program/certificate ที่เป็นต้นเหตุ",
+                    "type": "string"
+                },
+                "sourceType": {
+                    "description": "\"program\" | \"certificate\"",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "HCStatus* constants",
+                    "type": "string"
+                },
+                "studentId": {
+                    "description": "นิสิตที่ได้รับผลกระทบ",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "หัวข้อ/ชื่อของการเปลี่ยนแปลง",
+                    "type": "string"
+                }
+            }
+        },
+        "models.HourHistoryPaginatedResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.HourChangeHistory"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/models.PaginationMeta"
                 }
             }
         },

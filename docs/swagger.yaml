@@ -92,6 +92,9 @@ definitions:
       name:
         example: Introduction to Programming
         type: string
+      name_en:
+        example: Introduction to Programming
+        type: string
       type:
         enum:
         - lms
@@ -172,6 +175,50 @@ definitions:
         type: boolean
       title:
         type: string
+    type: object
+  models.HourChangeHistory:
+    properties:
+      changeAt:
+        description: เวลาที่เกิดการเปลี่ยนแปลง
+        type: string
+      enrollmentId:
+        description: enrollment ID (สำหรับ program)
+        type: string
+      hourChange:
+        description: จำนวนชั่วโมงที่เปลี่ยน (บวก = เพิ่ม, ลบ = ลด)
+        type: integer
+      id:
+        type: string
+      remark:
+        description: หมายเหตุ
+        type: string
+      skillType:
+        description: '"soft" | "hard"'
+        type: string
+      sourceId:
+        description: ID ของ program/certificate ที่เป็นต้นเหตุ
+        type: string
+      sourceType:
+        description: '"program" | "certificate"'
+        type: string
+      status:
+        description: HCStatus* constants
+        type: string
+      studentId:
+        description: นิสิตที่ได้รับผลกระทบ
+        type: string
+      title:
+        description: หัวข้อ/ชื่อของการเปลี่ยนแปลง
+        type: string
+    type: object
+  models.HourHistoryPaginatedResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/models.HourChangeHistory'
+        type: array
+      meta:
+        $ref: '#/definitions/models.PaginationMeta'
     type: object
   models.MajorEnrollment:
     properties:
@@ -728,6 +775,10 @@ paths:
       - description: Status
         in: query
         name: status
+        type: string
+      - description: Major
+        in: query
+        name: major
         type: string
       produces:
       - application/json
@@ -1345,48 +1396,65 @@ paths:
       description: ดึงข้อมูล hour history พร้อม filter sourceType, multiple statuses,
         และ search title
       parameters:
-      - description: Student ID (ObjectID)
-        in: query
-        name: studentId
+      - in: query
+        name: lastId
         type: string
-      - description: Source type (program, certificate)
-        in: query
-        name: sourceType
-        type: string
-      - description: Comma-separated statuses (pending, attended, partial, absent)
-        in: query
-        name: status
-        type: string
-      - description: Search by title (case-insensitive)
-        in: query
-        name: search
-        type: string
-      - description: 'Limit results (default: 20)'
+      - description: จำนวนรายการต่อหน้า
+        example: 10
         in: query
         name: limit
         type: integer
-      - description: 'Page number (default: 1)'
+      - description: ทิศทางการเรียง (asc/desc)
+        example: desc
+        in: query
+        name: order
+        type: string
+      - description: หมายเลขหน้าที่ต้องการ
+        example: 1
         in: query
         name: page
         type: integer
+      - description: คำค้นหา (Optional)
+        example: ""
+        in: query
+        name: search
+        type: string
+      - description: ฟิลด์ที่ใช้เรียงลำดับ
+        example: _id
+        in: query
+        name: sortBy
+        type: string
+      - description: Search by title
+        in: query
+        name: search
+        type: string
+      - description: '"program" | "certificate"'
+        in: query
+        name: sourceType
+        type: string
+      - description: Comma-separated statuses
+        in: query
+        name: status
+        type: string
+      - description: Student ObjectID
+        in: query
+        name: studentId
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.HourHistoryPaginatedResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
       summary: Get hour change history with filters
       tags:
       - HourHistory
@@ -1650,6 +1718,78 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Upload an image for an program
+      tags:
+      - programs
+  /programs/{id}/run-complete-now:
+    post:
+      consumes:
+      - application/json
+      description: Run the complete-program handler synchronously in-process for quick
+        testing. This does not require Redis/Asynq and will execute the same logic
+        as the background worker.
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Execute program completion now (in-process)
+      tags:
+      - programs
+  /programs/{id}/trigger-complete:
+    post:
+      consumes:
+      - application/json
+      description: Enqueue a complete-program task to run after delaySec seconds.
+        Requires Asynq (Redis) configured. Use for testing scheduling behavior.
+      parameters:
+      - description: Program ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 5
+        description: Delay in seconds
+        in: query
+        name: delaySec
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Enqueue program completion job (test)
       tags:
       - programs
   /programs/calendar/{month}/{year}:
