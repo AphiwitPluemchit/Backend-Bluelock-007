@@ -585,13 +585,14 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		stateChanged := oldProgram.ProgramState != program.ProgramState
 		datesChanged := oldProgram.EndDateEnroll != program.EndDateEnroll
 		itemsChanged := len(program.ProgramItems) != len(oldProgram.ProgramItems)
+		isTest := true
 
 		// Case 1: Program is set to "open" (either newly or was something else before)
 		if program.ProgramState == "open" {
 			// Schedule state transitions when:
 			// - State changed to "open" from something else
 			// - State was already "open" but dates or items changed
-			if stateChanged || datesChanged || itemsChanged {
+			if stateChanged || datesChanged || itemsChanged || isTest {
 				log.Println("✅ Scheduling state transitions for program:", id.Hex())
 				programName := ""
 				if program.Name != nil {
