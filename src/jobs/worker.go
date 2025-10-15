@@ -62,7 +62,7 @@ func HandleCompleteProgramTask(ctx context.Context, t *asynq.Task) error {
 	log.Println("✅ Program closed:", id.Hex())
 
 	// 📝 ตรวจสอบและให้ชั่วโมงนิสิตที่เข้าร่วมกิจกรรม
-	if err := processEnrollmentsForCompletedProgram(ctx, id); err != nil {
+	if err := hourhistory.ProcessEnrollmentsForCompletedProgram(ctx, id); err != nil {
 		log.Printf("⚠️ Warning: failed to process enrollments for program %s: %v", id.Hex(), err)
 		// ไม่ return error เพราะไม่ต้องการให้ task retry
 	}

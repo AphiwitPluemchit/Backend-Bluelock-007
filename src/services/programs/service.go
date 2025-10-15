@@ -3,6 +3,7 @@ package programs
 import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
+	"Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/summary_reports"
 	"context"
 	"crypto/sha1"
@@ -585,14 +586,13 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		stateChanged := oldProgram.ProgramState != program.ProgramState
 		datesChanged := oldProgram.EndDateEnroll != program.EndDateEnroll
 		itemsChanged := len(program.ProgramItems) != len(oldProgram.ProgramItems)
-		isTest := true
 
 		// Case 1: Program is set to "open" (either newly or was something else before)
 		if program.ProgramState == "open" {
 			// Schedule state transitions when:
 			// - State changed to "open" from something else
 			// - State was already "open" but dates or items changed
-			if stateChanged || datesChanged || itemsChanged || isTest {
+			if stateChanged || datesChanged || itemsChanged {
 				log.Println("✅ Scheduling state transitions for program:", id.Hex())
 				programName := ""
 				if program.Name != nil {
@@ -608,9 +608,18 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 			// Case 2: Program was "open" or "close" but manually changed to something else
 			// Delete any scheduled jobs since manual intervention takes precedence
 			programIDHex := id.Hex()
-			DeleteTask("complete-program-"+programIDHex, programIDHex, DB.RedisURI)
 			DeleteTask("close-enroll-"+programIDHex, programIDHex, DB.RedisURI)
 			log.Println("✅ Removed scheduled jobs due to manual state change for program:", programIDHex)
+		} else if stateChanged && oldProgram.ProgramState == "close" && program.ProgramState == "complete" {
+			// Case 3: Program was "close" and is now "complete"
+			programIDHex := id.Hex()
+			DeleteTask("complete-program-"+programIDHex, programIDHex, DB.RedisURI)
+			log.Println("✅ Ensured no scheduled jobs for complete program:", programIDHex)
+			// update student enrollment hours history
+			if err := hourhistory.ProcessEnrollmentsForCompletedProgram(ctx, id); err != nil {
+				log.Printf("⚠️ Warning: failed to process enrollments for program %s: %v", id.Hex(), err)
+				// don't return error - admin manual completion should succeed even if hour processing fails
+			}
 		}
 	}
 

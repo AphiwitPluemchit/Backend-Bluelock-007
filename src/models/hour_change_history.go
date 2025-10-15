@@ -21,17 +21,20 @@ type HourChangeHistory struct {
 	SourceID     primitive.ObjectID  `bson:"sourceId" json:"sourceId"`                             // ID ของ program/certificate ที่เป็นต้นเหตุ
 }
 
-// enum Status ของ HourChange (สำหรับ program และ certificate)
+// enum Status ของ HourChange
+// สำหรับ Program: upcoming, participating, attended, absent
+// สำหรับ Certificate: pending, approved, rejected
 const (
-	HCStatusPending       = "pending"       // ลงทะเบียนแล้ว - รอเข้าร่วมกิจกรรม | certificate รออนุมัติ
-	HCStatusParticipating = "participating" // กำลังเข้าร่วมกิจกรรม (เช็คอิน/เช็คเอาท์ก่อนวันสุดท้าย)
-	HCStatusVerifying     = "verifying"     // รอระบบดำเนินการตรวจสอบ (เช็คเอาท์วันสุดท้ายแล้ว)
-	HCStatusWaitingForm   = "waiting_form"  // ยังไม่ได้ทำแบบฟอร์ม (เข้าร่วมครบแล้ว แต่ยังไม่ได้ส่งฟอร์ม)
-	HCStatusAttended      = "attended"      // เข้าร่วมครบถ้วน + ทำฟอร์มแล้ว → ได้รับชั่วโมง
-	HCStatusPartial       = "partial"       // เข้าร่วมไม่ครบถ้วน → ไม่ได้รับชั่วโมง
-	HCStatusAbsent        = "absent"        // ไม่เข้าร่วม (ไม่ checkin ไม่ checkout เลย)
-	HCStatusApproved      = "approved"      // อนุมัติแล้ว (certificate)
-	HCStatusRejected      = "rejected"      // ปฏิเสธแล้ว (certificate)
+	// Program statuses
+	HCStatusUpcoming      = "upcoming"      // กำลังมาถึง - ลงทะเบียนแล้ว รอเข้าร่วมกิจกรรม
+	HCStatusParticipating = "participating" // กำลังเข้าร่วมกิจกรรม (เช็คอินแล้ว กำลังเข้าร่วม)
+	HCStatusAttended      = "attended"      // เข้าร่วมแล้ว (อาจได้หรือไม่ได้ชั่วโมง ขึ้นอยู่กับการเข้าร่วมและทำฟอร์ม)
+	HCStatusAbsent        = "absent"        // ไม่มาเข้าร่วม (ไม่ได้ checkin เลย → จะถูกลบชั่วโมง)
+
+	// Certificate statuses
+	HCStatusPending  = "pending"  // รออนุมัติ (certificate)
+	HCStatusApproved = "approved" // อนุมัติแล้ว (certificate)
+	HCStatusRejected = "rejected" // ปฏิเสธแล้ว (certificate)
 )
 
 // HourHistoryFilters ใช้เก็บค่าการกรองสำหรับ hour history

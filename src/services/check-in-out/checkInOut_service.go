@@ -358,15 +358,6 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 		return fmt.Errorf("ไม่อนุญาตเช็คชื่อ: วันนี้ (%s) ไม่มีตารางกิจกรรมของรายการนี้", today)
 	}
 
-	// 1.3) หาวันสุดท้ายของ programItem เพื่อใช้ในการเช็ค
-	var lastDate string
-	for _, d := range programItem.Dates {
-		if d.Date > lastDate {
-			lastDate = d.Date
-		}
-	}
-	isLastDay := (today == lastDate)
-
 	// 2) เตรียม records และหาดัชนีของวันเดียวกัน + เก็บ snapshot ก่อนแก้
 	records := []models.CheckinoutRecord{}
 	if enrollment.CheckinoutRecord != nil {
@@ -427,16 +418,8 @@ func SaveCheckInOut(userId, programItemId, checkType string) error {
 			targetIdx = len(records) - 1
 		}
 
-		// 📝 อัปเดต HourChangeHistory สำหรับ Checkout
-		if err := hourhistory.RecordCheckoutActivity(
-			ctx,
-			enrollment.ID,
-			aID,
-			dateKey,
-			isLastDay,
-		); err != nil {
-			log.Printf("⚠️ Warning: failed to record checkout activity: %v", err)
-		}
+		// ⚠️ Checkout ไม่ต้องอัปเดต HourChangeHistory อีกแล้ว
+		// จะตรวจสอบและให้ชั่วโมงพร้อมกันตอน program complete
 
 	default:
 		return fmt.Errorf("ประเภทการเช็คชื่อไม่ถูกต้อง")
