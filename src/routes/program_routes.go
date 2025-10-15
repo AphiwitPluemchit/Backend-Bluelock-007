@@ -2,7 +2,6 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
-	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -10,7 +9,7 @@ import (
 // ProgramRoutes กำหนดเส้นทางสำหรับ Program API
 func programRoutes(router fiber.Router) {
 	programRoutes := router.Group("/programs")
-	programRoutes.Use(middleware.AuthJWT)
+	// programRoutes.Use(middleware.AuthJWT)
 	programRoutes.Get("/", controllers.GetAllPrograms) // ดึงผู้ใช้ทั้งหมด
 	programRoutes.Post("/", controllers.CreateProgram) // สร้างผู้ใช้ใหม่
 	programRoutes.Post(":id/image", controllers.UploadProgramImage)
