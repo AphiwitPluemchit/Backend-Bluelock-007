@@ -690,6 +690,11 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	uploadCertificate.CourseMatch = courseScore
 	uploadCertificate.CourseEngMatch = courseScoreEn
 
+	// If FastAPI explicitly returned usedOcr, persist it. Otherwise leave nil (don't overwrite existing defaults).
+	if res.UsedOCR != nil {
+		uploadCertificate.UseOcr = res.UsedOCR
+	}
+
 	saved, err := CreateUploadCertificate(&uploadCertificate)
 	if err != nil {
 		return nil, err

@@ -16,11 +16,11 @@ type FastAPIResp struct {
 	IsNameMatch   bool `json:"isNameMatch"`
 	IsCourseMatch bool `json:"isCourseMatch"`
 	// score fields can be null when optional values are not provided by the verifier
-	NameScoreTh   *int `json:"nameScoreTh"`
-	NameScoreEn   *int `json:"nameScoreEn"`
-	CourseScore   *int `json:"courseScore"`
-	CourseScoreEn *int `json:"courseScoreEn"`
-	UsedOCR       bool `json:"usedOcr"`
+	NameScoreTh   *int  `json:"nameScoreTh"`
+	NameScoreEn   *int  `json:"nameScoreEn"`
+	CourseScore   *int  `json:"courseScore"`
+	CourseScoreEn *int  `json:"courseScoreEn"`
+	UsedOCR       *bool `json:"usedOcr"`
 }
 
 type buuPayload struct {

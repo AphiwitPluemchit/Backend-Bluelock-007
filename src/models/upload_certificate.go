@@ -22,6 +22,7 @@ type UploadCertificate struct {
 	IsDuplicate     bool               `bson:"isDuplicate" json:"isDuplicate" default:"false"`
 	UploadAt        time.Time          `bson:"uploadAt" json:"uploadAt" default:"time.Now()"`
 	ChangedStatusAt *time.Time         `bson:"changedStatusAt" json:"changedStatusAt"`
+	UseOcr          *bool              `bson:"useOcr,omitempty" json:"useOcr,omitempty"`
 }
 
 type StatusType string
