@@ -11,8 +11,9 @@ import (
 func enrollmentRoutes(router fiber.Router) {
 	enrollmentRoutes := router.Group("/enrollments")
 	enrollmentRoutes.Use(middleware.AuthJWT)
-	enrollmentRoutes.Post("/", controllers.RegisterStudent) // ✅ ลงทะเบียน
-	// enrollmentRoutes.Post("/many", controllers.CreateBulkEnrollment)       // ✅ ลงทะเบียนหลายคน                                              // ✅ ลงทะเบียนหลายคน
+	enrollmentRoutes.Post("/", controllers.RegisterStudent)                // ✅ ลงทะเบียน
+	enrollmentRoutes.Post("/by-admin", controllers.RegisterStudentByAdmin) // ✅ ลงทะเบียน
+	// enrollmentRoutes.Post("/many", controllers.RegisterStudentsByCodes)       // ✅ ลงทะเบียนหลายคน                                              // ✅ ลงทะเบียนหลายคน
 	enrollmentRoutes.Get("/student/:studentId", controllers.GetEnrollmentsByStudent) // ✅ ดูกิจกรรมที่ Student ลงทะเบียนไว้
 	enrollmentRoutes.Get("/:enrollmentId", controllers.GetEnrollmentById)
 	enrollmentRoutes.Patch("/:enrollmentId/checkinout", controllers.UpdateEnrollmentCheckinout)

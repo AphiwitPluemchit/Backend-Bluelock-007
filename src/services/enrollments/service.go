@@ -340,6 +340,174 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 
 	return nil
 }
+func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1) ตรวจว่า ProgramItem มีจริงไหม
+	var programItem models.ProgramItem
+	if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": programItemID}).Decode(&programItem); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return errors.New("program item not found")
+		}
+		return err
+	}
+
+	// 2) ถ้ามีการเลือกอาหาร: +1 vote ให้ foodName ที่ตรงกันใน Program
+	if food != nil {
+		programID := programItem.ProgramID
+
+		filter := bson.M{"_id": programID}
+		update := bson.M{
+			"$inc": bson.M{"foodVotes.$[elem].vote": 1},
+		}
+		arrayFilter := options.Update().SetArrayFilters(options.ArrayFilters{
+			Filters: []any{
+				bson.M{"elem.foodName": *food},
+			},
+		})
+
+		if _, err := DB.ProgramCollection.UpdateOne(ctx, filter, update, arrayFilter); err != nil {
+			return fmt.Errorf("update food vote failed: %w", err)
+		}
+		// fmt.Println("Updated food vote for:", *food)
+	}
+
+	// 3) กันเวลาทับซ้อนกับ enrollment ที่เคยลงไว้แล้ว
+	existingEnrollmentsCursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
+	if err != nil {
+		return err
+	}
+	defer existingEnrollmentsCursor.Close(ctx)
+
+	for existingEnrollmentsCursor.Next(ctx) {
+		var existing models.Enrollment
+		if err := existingEnrollmentsCursor.Decode(&existing); err != nil {
+			continue
+		}
+
+		// ดึง programItem เดิมที่เคยลง
+		var existingItem models.ProgramItem
+		if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": existing.ProgramItemID}).Decode(&existingItem); err != nil {
+			continue
+		}
+
+		// เปรียบเทียบวันเวลา
+		for _, dOld := range existingItem.Dates {
+			for _, dNew := range programItem.Dates {
+				if dOld.Date == dNew.Date { // วันเดียวกัน
+					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
+						return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว")
+					}
+				}
+			}
+		}
+	}
+
+	// 4) โหลด student และเช็ค major ให้ตรงกับ programItem.Majors (ถ้ามีจำกัด)
+	// var student models.Student
+	// if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
+	// 	if err == mongo.ErrNoDocuments {
+	// 		return errors.New("student not found")
+	// 	}
+	// 	return err
+	// }
+
+	// ✅ เช็คสาขา: กิจกรรมอนุญาตเฉพาะบาง major
+	// if len(programItem.Majors) > 0 {
+	// 	allowed := false
+	// 	for _, m := range programItem.Majors {
+	// 		log.Println(programItem.Majors)
+	// 		log.Println(student.Major)
+	// 		if strings.EqualFold(m, student.Major) { // ปลอดภัยต่อเคสตัวพิมพ์เล็ก/ใหญ่
+	// 			allowed = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if !allowed {
+	// 		return errors.New("ไม่สามารถลงทะเบียนได้: สาขาไม่ตรงกับเงื่อนไขของกิจกรรม")
+	// 	}
+	// }
+
+	// (ถ้าต้องการเช็คชั้นปีด้วย ให้เพิ่มเงื่อนไขจาก programItem.StudentYears ที่นี่ได้)
+
+	// 5) กันเต็มโควต้า
+	// if programItem.MaxParticipants != nil && programItem.EnrollmentCount >= *programItem.MaxParticipants {
+	// 	return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากจำนวนผู้เข้าร่วมเต็มแล้ว")
+	// }
+
+	// 6) กันลงซ้ำ
+	count, err := DB.EnrollmentCollection.CountDocuments(ctx, bson.M{
+		"programItemId": programItemID,
+		"studentId":     studentID,
+	})
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return errors.New("already enrolled in this program")
+	}
+
+	// 7) Insert enrollment
+	newEnrollment := models.Enrollment{
+		ID:               primitive.NewObjectID(),
+		StudentID:        studentID,
+		ProgramItemID:    programItemID,
+		RegistrationDate: time.Now(),
+		Food:             food,
+	}
+	if _, err := DB.EnrollmentCollection.InsertOne(ctx, newEnrollment); err != nil {
+		return err
+	}
+
+	// 8) เพิ่ม enrollmentcount +1 ใน programItems
+	if _, err := DB.ProgramItemCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": programItemID},
+		bson.M{"$inc": bson.M{"enrollmentcount": 1}},
+	); err != nil {
+		return fmt.Errorf("เพิ่ม enrollmentcount ไม่สำเร็จ: %w", err)
+	}
+
+	// 9) ✅ อัปเดต Summary Report - เพิ่ม Registered count สำหรับแต่ละ date ของ programItem
+	for _, date := range programItem.Dates {
+		err = summary_reports.UpdateRegisteredCount(programItemID, date.Date, 1)
+		if err != nil {
+			log.Printf("⚠️ Warning: Failed to update summary report registered count for date %s: %v", date.Date, err)
+			// Don't return error here, just log it - we don't want to fail enrollment
+			// if summary report update fails
+		}
+	}
+
+	fmt.Println("Before recording hour change history.................")
+
+	// 10) 📝 บันทึก HourChangeHistory สำหรับ Enrollment
+	var program models.Program
+	if err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programItem.ProgramID}).Decode(&program); err == nil {
+		programName := "Unknown Program"
+		if program.Name != nil {
+			programName = *program.Name
+		}
+		hours := 0
+
+		if err := hourhistory.RecordEnrollmentHourChange(
+			ctx,
+			studentID,
+			newEnrollment.ID,
+			programItem.ProgramID,
+			programName,
+			program.Skill,
+			hours,
+		); err != nil {
+			log.Printf("⚠️ Warning: Failed to record enrollment hour change: %v", err)
+			// Don't return error - we don't want to fail enrollment if hour history fails
+		}
+	} else {
+		log.Printf("⚠️ Warning: Failed to get program info for hour history: %v", err)
+	}
+
+	return nil
+}
 
 func GetEnrollmentById(enrollmentID primitive.ObjectID) (*models.Enrollment, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

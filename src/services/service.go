@@ -7,7 +7,7 @@ import (
 
 var collection = "V2"
 
-// var collection = "BluelockDB" // หรือ "UAT"
+// var collection = "V2" // หรือ "TestEmail"
 func init() {
 	if err := DB.ConnectMongoDB(); err != nil {
 		log.Fatal("MongoDB connection error:", err)

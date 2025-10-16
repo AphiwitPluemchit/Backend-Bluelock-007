@@ -114,6 +114,29 @@ func RegisterStudent(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Enrollment successful"})
 }
+
+func RegisterStudentByAdmin(c *fiber.Ctx) error {
+	var req struct {
+		ProgramItemID string  `json:"programItemId"`
+		StudentID     string  `json:"studentId"`
+		Food          *string `json:"food"` // ✅ รับชื่ออาหาร ถ้ามี
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
+	}
+
+	programItemID, _ := primitive.ObjectIDFromHex(req.ProgramItemID)
+	studentID, _ := primitive.ObjectIDFromHex(req.StudentID)
+
+	err := enrollments.RegisterStudentByAdmin(programItemID, studentID, req.Food) // ✅ ส่ง food ไปด้วย
+	if err != nil {
+		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Enrollment successful"})
+}
+
 func GetEnrollmentById(c *fiber.Ctx) error {
 	enrollmentID, err := primitive.ObjectIDFromHex(c.Params("enrollmentId"))
 	if err != nil {
