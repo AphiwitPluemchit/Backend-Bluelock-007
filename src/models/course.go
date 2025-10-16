@@ -9,7 +9,6 @@ type Course struct {
 	Name              string             `json:"name" bson:"name" example:"Introduction to Programming"`
 	CertificateName   string             `json:"certificateName" bson:"certificateName" example:"Introduction to Programming Certificate"`
 	CertificateNameEN string             `json:"certificateNameEng" bson:"certificateNameEng" example:"Introduction to Programming Certificate"`
-	Description       string             `json:"description" bson:"description" example:"Learn the basics of programming with this introductory course"`
 	Link              string             `json:"link" bson:"link" example:"https://www.example.com/course"`
 	Issuer            string             `json:"issuer" bson:"issuer" example:"Computer Science Department"`
 	Type              string             `json:"type" bson:"type" example:"lms" enums:"lms,buumooc,thaimooc"`
