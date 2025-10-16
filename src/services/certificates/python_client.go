@@ -8,8 +8,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -64,18 +62,12 @@ func callBUUMoocFastAPI(fastAPIBase string, html, studentTH, studentEN, courseNa
 	return &out, nil
 }
 
-func callThaiMoocFastAPI(fastAPIBase, pdfPath, studentTH, studentEN, courseName, courseNameEN string) (*FastAPIResp, error) {
-	f, err := os.Open(pdfPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
+func callThaiMoocFastAPI(fastAPIBase string, pdfData []byte, studentTH, studentEN, courseName, courseNameEN string) (*FastAPIResp, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 
-	fw, _ := w.CreateFormFile("pdf", filepath.Base(pdfPath))
-	if _, err := io.Copy(fw, f); err != nil {
+	fw, _ := w.CreateFormFile("pdf", "certificate.pdf")
+	if _, err := io.Copy(fw, bytes.NewReader(pdfData)); err != nil {
 		return nil, err
 	}
 	_ = w.WriteField("student_th", studentTH)

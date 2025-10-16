@@ -416,6 +416,13 @@ func ThaiMooc(publicPageURL string, student models.Student, course models.Course
 		chromedp.AttributeValue(`embed[type="application/pdf"]`, "src", &pdfSrc, nil, chromedp.ByQuery),
 	)
 	if err != nil {
+		// If it's a context deadline, persist an auto-rejected certificate and record history
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			fmt.Printf("ThaiMooc timeout after %v for URL %s\n", timeout, publicPageURL)
+			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "Auto-rejected due to timeout while verifying URL"); e != nil {
+				fmt.Printf("Warning: failed to save timeout rejection: %v\n", e)
+			}
+		}
 		return nil, err
 	}
 	if pdfSrc == "" {
@@ -426,24 +433,66 @@ func ThaiMooc(publicPageURL string, student models.Student, course models.Course
 		pdfSrc = pdfSrc[:i]
 	}
 
-	filePath, err := DownloadPDF(ctx, pdfSrc)
+	// Download PDF into memory (no disk write)
+	pdfBytes, err := DownloadPDFToBytes(ctx, pdfSrc)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			fmt.Printf("ThaiMooc timeout after %v for URL %s\n", timeout, publicPageURL)
+			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "Auto-rejected due to timeout while downloading PDF"); e != nil {
+				fmt.Printf("Warning: failed to save timeout rejection: %v\n", e)
+			}
+		}
 		return nil, err
 	}
 
-	// Ensure the FastAPI call respects the same context/timeout
+	// Ensure the FastAPI call respects the same context/timeout and send bytes
 	response, err := callThaiMoocFastAPIWithContext(ctx,
 		FastAPIURL(),
-		filePath,                 // path ของ PDF ที่ดาวน์โหลดมา
-		student.Name,             // student_th (ปรับตามฟิลด์จริง)
+		pdfBytes,                 // pdf bytes
+		student.Name,             // student_th
 		student.EngName,          // student_en
-		course.CertificateName,   // course_name (ใช้ชื่อจาก certificate)
+		course.CertificateName,   // course_name
 		course.CertificateNameEN, // course_name_en
 	)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			fmt.Printf("ThaiMooc timeout after %v for URL %s\n", timeout, publicPageURL)
+			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "Auto-rejected due to timeout while calling FastAPI"); e != nil {
+				fmt.Printf("Warning: failed to save timeout rejection: %v\n", e)
+			}
+		}
 		return nil, err
 	}
 	return response, nil
+}
+
+// saveTimeoutRejection creates an UploadCertificate record marked rejected and records rejection history.
+func saveTimeoutRejection(ctx context.Context, publicPageURL string, student models.Student, course models.Course, reason string) error {
+	uc := models.UploadCertificate{}
+	uc.ID = primitive.NewObjectID()
+	uc.IsDuplicate = false
+	uc.StudentId = student.ID
+	uc.CourseId = course.ID
+	uc.UploadAt = time.Now()
+	uc.NameMatch = 0
+	uc.NameEngMatch = 0
+	uc.CourseMatch = 0
+	uc.CourseEngMatch = 0
+	uc.Status = models.StatusRejected
+	uc.Remark = reason
+	uc.Url = publicPageURL
+
+	saved, err := CreateUploadCertificate(&uc)
+	if err != nil {
+		return fmt.Errorf("failed to save timeout-rejected upload certificate: %v", err)
+	}
+
+	if err := recordCertificateRejection(context.Background(), saved, reason); err != nil {
+		// log but don't fail
+		fmt.Printf("Warning: Failed to record certificate rejection history for timeout-rejected certificate %s: %v\n", saved.ID.Hex(), err)
+	}
+	fmt.Printf("Saved timeout-rejected certificate %s for URL %s\n", saved.ID.Hex(), publicPageURL)
+	return nil
 }
 
 func BuuMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
@@ -473,62 +522,6 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 		return nil, err
 	}
 	return response, nil
-}
-
-func DownloadPDF(ctx context.Context, pdfSrc string) (string, error) {
-	// Create a new HTTP client with timeout
-	client := &http.Client{
-		// Do not set a client-level timeout here; rely on ctx for cancellation
-		Timeout: 0,
-	}
-
-	// Create a new request
-	req, err := http.NewRequest("GET", pdfSrc, nil)
-	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
-	}
-
-	// Set headers to mimic a browser request
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-	// Attach context to the request for cancellation/timeout
-	req = req.WithContext(ctx)
-
-	// Send the request
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error downloading PDF: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// Check if the response status code is OK
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	// Create the uploads directory if it doesn't exist
-	uploadDir := "uploads/certificates"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		return "", fmt.Errorf("error creating upload directory: %v", err)
-	}
-
-	// Create a unique filename for the downloaded PDF
-	fileName := fmt.Sprintf("%s/%d.pdf", uploadDir, time.Now().UnixNano())
-
-	// Create the file
-	file, err := os.Create(fileName)
-	if err != nil {
-		return "", fmt.Errorf("error creating file: %v", err)
-	}
-	defer file.Close()
-
-	// Write the response body to the file
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("error saving PDF: %v", err)
-	}
-
-	return fileName, nil
 }
 
 func CheckStudentCourse(studentId string, courseId string) (models.Student, models.Course, error) {
@@ -569,7 +562,7 @@ func FastAPIURL() string {
 }
 
 // callThaiMoocFastAPIWithContext runs callThaiMoocFastAPI but returns early if ctx is done.
-func callThaiMoocFastAPIWithContext(ctx context.Context, url string, filePath string, studentTh string, studentEn string, courseName string, courseNameEn string) (*FastAPIResp, error) {
+func callThaiMoocFastAPIWithContext(ctx context.Context, url string, pdfBytes []byte, studentTh string, studentEn string, courseName string, courseNameEn string) (*FastAPIResp, error) {
 	type respWrap struct {
 		resp *FastAPIResp
 		err  error
@@ -577,7 +570,7 @@ func callThaiMoocFastAPIWithContext(ctx context.Context, url string, filePath st
 	ch := make(chan respWrap, 1)
 
 	go func() {
-		r, e := callThaiMoocFastAPI(url, filePath, studentTh, studentEn, courseName, courseNameEn)
+		r, e := callThaiMoocFastAPI(url, pdfBytes, studentTh, studentEn, courseName, courseNameEn)
 		ch <- respWrap{resp: r, err: e}
 	}()
 
@@ -587,6 +580,33 @@ func callThaiMoocFastAPIWithContext(ctx context.Context, url string, filePath st
 	case out := <-ch:
 		return out.resp, out.err
 	}
+}
+
+// DownloadPDFToBytes downloads a PDF from the given URL into memory and returns bytes.
+func DownloadPDFToBytes(ctx context.Context, pdfSrc string) ([]byte, error) {
+	req, err := http.NewRequest("GET", pdfSrc, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req = req.WithContext(ctx)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error downloading PDF: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading PDF body: %v", err)
+	}
+	return b, nil
 }
 
 func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID) (bool, *models.UploadCertificate, error) {
