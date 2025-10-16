@@ -5,3 +5,4 @@ tmp/build-errors.log
 .venv
 __pycache__
 .env.prod
+uploads
