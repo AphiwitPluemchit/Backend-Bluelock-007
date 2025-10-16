@@ -381,7 +381,15 @@ func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, b
 }
 
 func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
-	ctx := context.Background()
+	// Use a cancellable context with timeout to avoid hanging on bad URLs
+	timeout := 50 * time.Second
+	if v := os.Getenv("THAIMOOC_TIMEOUT"); v != "" {
+		if parsed, err := time.ParseDuration(v); err == nil {
+			timeout = parsed
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	// สร้าง browser context (headless)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
@@ -418,12 +426,13 @@ func ThaiMooc(publicPageURL string, student models.Student, course models.Course
 		pdfSrc = pdfSrc[:i]
 	}
 
-	filePath, err := DownloadPDF(pdfSrc)
+	filePath, err := DownloadPDF(ctx, pdfSrc)
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := callThaiMoocFastAPI(
+	// Ensure the FastAPI call respects the same context/timeout
+	response, err := callThaiMoocFastAPIWithContext(ctx,
 		FastAPIURL(),
 		filePath,                 // path ของ PDF ที่ดาวน์โหลดมา
 		student.Name,             // student_th (ปรับตามฟิลด์จริง)
@@ -466,10 +475,11 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 	return response, nil
 }
 
-func DownloadPDF(pdfSrc string) (string, error) {
+func DownloadPDF(ctx context.Context, pdfSrc string) (string, error) {
 	// Create a new HTTP client with timeout
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		// Do not set a client-level timeout here; rely on ctx for cancellation
+		Timeout: 0,
 	}
 
 	// Create a new request
@@ -480,6 +490,9 @@ func DownloadPDF(pdfSrc string) (string, error) {
 
 	// Set headers to mimic a browser request
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+	// Attach context to the request for cancellation/timeout
+	req = req.WithContext(ctx)
 
 	// Send the request
 	resp, err := client.Do(req)
@@ -553,6 +566,27 @@ func FastAPIURL() string {
 		return v
 	}
 	return "http://fastapi-ocr:8000"
+}
+
+// callThaiMoocFastAPIWithContext runs callThaiMoocFastAPI but returns early if ctx is done.
+func callThaiMoocFastAPIWithContext(ctx context.Context, url string, filePath string, studentTh string, studentEn string, courseName string, courseNameEn string) (*FastAPIResp, error) {
+	type respWrap struct {
+		resp *FastAPIResp
+		err  error
+	}
+	ch := make(chan respWrap, 1)
+
+	go func() {
+		r, e := callThaiMoocFastAPI(url, filePath, studentTh, studentEn, courseName, courseNameEn)
+		ch <- respWrap{resp: r, err: e}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case out := <-ch:
+		return out.resp, out.err
+	}
 }
 
 func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID) (bool, *models.UploadCertificate, error) {
