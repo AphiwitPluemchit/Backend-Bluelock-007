@@ -425,10 +425,11 @@ func ThaiMooc(publicPageURL string, student models.Student, course models.Course
 
 	response, err := callThaiMoocFastAPI(
 		FastAPIURL(),
-		filePath,        // path ของ PDF ที่ดาวน์โหลดมา
-		student.Name,    // student_th (ปรับตามฟิลด์จริง)
-		student.EngName, // student_en
-		course.Name,     // course_name (หรือ NameTH/NameEN ที่คุณต้องการ)
+		filePath,                 // path ของ PDF ที่ดาวน์โหลดมา
+		student.Name,             // student_th (ปรับตามฟิลด์จริง)
+		student.EngName,          // student_en
+		course.CertificateName,   // course_name (ใช้ชื่อจาก certificate)
+		course.CertificateNameEN, // course_name_en
 	)
 	if err != nil {
 		return nil, err
@@ -451,30 +452,13 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 		return nil, err
 	}
 
-	// // remove "นาย" "นาง" "นางสาว" and "Miss" "Mr."
-	// studentNameTh = strings.ReplaceAll(studentNameTh, "นาย", "")
-	// studentNameTh = strings.ReplaceAll(studentNameTh, "นางสาว", "")
-	// studentNameTh = strings.ReplaceAll(studentNameTh, "นาง", "")
-	// studentNameEng = strings.ReplaceAll(studentNameEng, "Miss", "")
-	// studentNameEng = strings.ReplaceAll(studentNameEng, "Mr.", "")
-
-	// // match student name th  and eng or both
-	// if !strings.Contains(string(body), studentNameTh) && !strings.Contains(string(body), studentNameEng) {
-	// 	return nil, errors.New("This Certificate is not for student name : " + studentNameTh + " | " + studentNameEng)
-	// }
-
-	// // match course name
-	// if !strings.Contains(string(body), course.Name) {
-	// 	return nil, errors.New("This Certificate is not for course name : " + course.Name)
-	// }
-
 	response, err := callBUUMoocFastAPI(
 		FastAPIURL(),
-		string(body),   // html ที่ดึงมา
-		studentNameTh,  // student_th
-		studentNameEng, // student_en
-		course.Name,    // course_name (ปรับตามฟิลด์จริง)
-		course.NameEN,  // course_name_en
+		string(body),             // html ที่ดึงมา
+		studentNameTh,            // student_th
+		studentNameEng,           // student_en
+		course.CertificateName,   // course_name (ใช้ชื่อจาก certificate)
+		course.CertificateNameEN, // course_name_en
 	)
 	if err != nil {
 		return nil, err

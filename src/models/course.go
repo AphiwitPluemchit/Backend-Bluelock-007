@@ -5,16 +5,17 @@ import (
 )
 
 type Course struct {
-	ID          primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty" swaggertype:"string" example:"507f1f77bcf86cd799439011"`
-	Name        string             `json:"name" bson:"name" example:"Introduction to Programming"`
-	NameEN      string             `json:"name_en" bson:"name_en" example:"Introduction to Programming"`
-	Description string             `json:"description" bson:"description" example:"Learn the basics of programming with this introductory course"`
-	Link        string             `json:"link" bson:"link" example:"https://www.example.com/course"`
-	Issuer      string             `json:"issuer" bson:"issuer" example:"Computer Science Department"`
-	Type        string             `json:"type" bson:"type" example:"lms" enums:"lms,buumooc,thaimooc"`
-	Hour        int                `json:"hour" bson:"hour" example:"4"`
-	IsHardSkill bool               `json:"isHardSkill" bson:"isHardSkill" example:"true"` // true = hard skill, false = soft skill
-	IsActive    bool               `json:"isActive" bson:"isActive" example:"true"`
+	ID                primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty" swaggertype:"string" example:"507f1f77bcf86cd799439011"`
+	Name              string             `json:"name" bson:"name" example:"Introduction to Programming"`
+	CertificateName   string             `json:"certificateName" bson:"certificateName" example:"Introduction to Programming Certificate"`
+	CertificateNameEN string             `json:"certificateNameEng" bson:"certificateNameEng" example:"Introduction to Programming Certificate"`
+	Description       string             `json:"description" bson:"description" example:"Learn the basics of programming with this introductory course"`
+	Link              string             `json:"link" bson:"link" example:"https://www.example.com/course"`
+	Issuer            string             `json:"issuer" bson:"issuer" example:"Computer Science Department"`
+	Type              string             `json:"type" bson:"type" example:"lms" enums:"lms,buumooc,thaimooc"`
+	Hour              int                `json:"hour" bson:"hour" example:"4"`
+	IsHardSkill       bool               `json:"isHardSkill" bson:"isHardSkill" example:"true"` // true = hard skill, false = soft skill
+	IsActive          bool               `json:"isActive" bson:"isActive" example:"true"`
 }
 
 // CourseFilters ใช้เก็บค่าการกรองสำหรับคอร์ส

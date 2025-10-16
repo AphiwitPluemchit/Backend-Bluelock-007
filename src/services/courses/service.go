@@ -100,15 +100,16 @@ func UpdateCourse(id primitive.ObjectID, update models.Course) (*models.Course, 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	updateData := bson.M{
-		"name":        update.Name,
-		"name_en":     update.NameEN,
-		"description": update.Description,
-		"link":        update.Link,
-		"issuer":      update.Issuer,
-		"type":        update.Type,
-		"hour":        update.Hour,
-		"isHardSkill": update.IsHardSkill,
-		"isActive":    update.IsActive,
+		"name":               update.Name,
+		"certificateName":    update.CertificateName,
+		"certificateNameEng": update.CertificateNameEN,
+		"description":        update.Description,
+		"link":               update.Link,
+		"issuer":             update.Issuer,
+		"type":               update.Type,
+		"hour":               update.Hour,
+		"isHardSkill":        update.IsHardSkill,
+		"isActive":           update.IsActive,
 	}
 	_, err := DB.CourseCollection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": updateData})
 	if err != nil {

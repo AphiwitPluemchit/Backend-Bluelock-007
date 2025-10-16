@@ -64,7 +64,7 @@ func callBUUMoocFastAPI(fastAPIBase string, html, studentTH, studentEN, courseNa
 	return &out, nil
 }
 
-func callThaiMoocFastAPI(fastAPIBase, pdfPath, studentTH, studentEN, courseName string) (*FastAPIResp, error) {
+func callThaiMoocFastAPI(fastAPIBase, pdfPath, studentTH, studentEN, courseName, courseNameEN string) (*FastAPIResp, error) {
 	f, err := os.Open(pdfPath)
 	if err != nil {
 		return nil, err
@@ -81,6 +81,7 @@ func callThaiMoocFastAPI(fastAPIBase, pdfPath, studentTH, studentEN, courseName 
 	_ = w.WriteField("student_th", studentTH)
 	_ = w.WriteField("student_en", studentEN)
 	_ = w.WriteField("course_name", courseName)
+	_ = w.WriteField("course_name_en", courseNameEN)
 	_ = w.Close()
 
 	req, _ := http.NewRequest("POST", fastAPIBase+"/thaimooc", &buf)
