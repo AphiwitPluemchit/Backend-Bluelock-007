@@ -560,7 +560,6 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 
 	var result models.UploadCertificate
 	filter := bson.M{"url": publicPageURL, "status": models.StatusApproved}
-	fmt.Println("checkDuplicateURL filter:", filter)
 	err := DB.UploadCertificateCollection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -568,7 +567,6 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 		}
 		return false, nil, err // Some other error occurred
 	}
-	fmt.Println("Found existing approved upload certificate:", result)
 
 	// copy result to new object remove _id
 	newResult := models.UploadCertificate{}
@@ -583,13 +581,14 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 	newResult.Url = publicPageURL
 	newResult.ID = primitive.NewObjectID()
 
-	fmt.Println("Creating duplicate upload certificate:", newResult)
 	createDuplicate, err := CreateUploadCertificate(&newResult)
 	if err != nil {
 		return false, nil, err
 	}
 
-	fmt.Println("Created duplicate upload certificate:", createDuplicate)
+	if err := recordCertificateRejection(context.Background(), createDuplicate, "Auto-rejected based on matching scores"); err != nil {
+		fmt.Printf("Warning: Failed to record certificate rejection for auto-rejected certificate %s: %v\n", createDuplicate.ID.Hex(), err)
+	}
 
 	return true, createDuplicate, nil // URL already exists
 }
@@ -646,6 +645,14 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	if saved.Status == models.StatusApproved {
 		if err := addCertificateHours(context.Background(), saved); err != nil {
 			fmt.Printf("Warning: Failed to add certificate hours for auto-approved certificate %s: %v\n", saved.ID.Hex(), err)
+		}
+	}
+
+	// ถ้าสถานะเป็น rejected ให้บันทึก history record ด้วย
+	if saved.Status == models.StatusRejected {
+		fmt.Println("Auto-rejected certificate, recording rejection history")
+		if err := recordCertificateRejection(context.Background(), saved, "Auto-rejected based on matching scores"); err != nil {
+			fmt.Printf("Warning: Failed to record certificate rejection for auto-rejected certificate %s: %v\n", saved.ID.Hex(), err)
 		}
 	}
 
@@ -852,9 +859,9 @@ func removeCertificateHours(ctx context.Context, certificate *models.UploadCerti
 // ไม่มีการเปลี่ยนแปลงชั่วโมงจริง (hourChange = 0) แต่บันทึกเป็นประวัติ
 func recordCertificateRejection(ctx context.Context, certificate *models.UploadCertificate, adminRemark string) error {
 	// ไม่ต้องบันทึกถ้าเป็น duplicate
-	if certificate.IsDuplicate {
-		return nil
-	}
+	// if certificate.IsDuplicate {
+	// 	return nil
+	// }
 
 	// ดึงข้อมูล course เพื่อหาประเภท skill
 	course, err := courses.GetCourseByID(certificate.CourseId)

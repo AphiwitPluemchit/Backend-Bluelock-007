@@ -1,11 +1,11 @@
-uvicorn==0.22.0
-fastapi==0.95.2
-rapidfuzz==3.0.0
-PyMuPDF==1.22.5
-pytesseract==0.3.10
-pdf2image==1.16.3
-python-multipart==0.0.6
+uvicorn
+fastapi
+rapidfuzz
+PyMuPDF
+pytesseract
+pdf2image
+python-multipart
 # fuzzywuzzy removed in favor of rapidfuzz
 # python-Levenshtein is optional; rapidfuzz doesn't require it
-python-dotenv==1.0.0
-numpy==1.26.4
+python-dotenv
+numpy
