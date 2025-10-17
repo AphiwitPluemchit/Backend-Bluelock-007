@@ -81,12 +81,16 @@ def _render_template_to_image(template_path: Path, width: int, height: int) -> O
             scale = 4
             target_w = max(1, int(width * scale))
             target_h = max(1, int(height * scale))
-            # Pillow resampling compatibility: prefer Resampling.LANCZOS, fallback to ANTIALIAS
-            try:
-                resample_filter = Image.Resampling.LANCZOS
-            except Exception:
-                # older Pillow exposes ANTIALIAS
-                resample_filter = getattr(Image, 'ANTIALIAS', Image.NEAREST)
+            # Pillow resampling compatibility: prefer Resampling.LANCZOS, else fallback
+            resample_filter = None
+            resampling = getattr(Image, 'Resampling', None)
+            if resampling is not None:
+                resample_filter = getattr(resampling, 'LANCZOS', None) or getattr(resampling, 'BICUBIC', None) or getattr(resampling, 'BILINEAR', None)
+            else:
+                resample_filter = getattr(Image, 'LANCZOS', None) or getattr(Image, 'BICUBIC', None) or getattr(Image, 'BILINEAR', None) or getattr(Image, 'ANTIALIAS', None) or getattr(Image, 'NEAREST', None)
+            if resample_filter is None:
+                # last resort
+                resample_filter = 1
             img = img.resize((target_w, target_h), resample=resample_filter)
             img.save(str(out_path))
         return str(out_path)
@@ -197,24 +201,31 @@ def synthesize_pdfs(names_th: List[str], courses_th: List[str], names_en: List[s
             c.rect(0, height * 0.6, width, height * 0.4, fill=1, stroke=0)
 
         # Thai name: centered, slightly smaller to avoid overlapping diacritics
-        name_y = height * 0.53
+        name_y = height * 0.50
         c.setFont(font_name, 28)
         c.drawCentredString(width / 2, name_y, name_th)
 
+        # Spacing configuration (increase gaps to avoid crowding)
+        gap_name_to_info = 48  # pixels between name and inserted sentence (was 36)
+        gap_info_to_course = 56  # pixels between inserted sentence and course (was 40)
+        gap_course_to_en = 22  # pixels between Thai course line and English name
+        gap_en_lines = 20  # gap between English name and English course
+
         # Insert requested Thai sentence under name (small)
-        info_y = name_y - 28
+        info_y = name_y - gap_name_to_info
         c.setFont(font_name, 14)
         c.drawCentredString(width / 2, info_y, "ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา")
 
         # Course name (Thai): centered below the info line
-        course_y = info_y - 30
+        course_y = info_y - gap_info_to_course
         c.setFont(font_name, 18)
         c.drawCentredString(width / 2, course_y, course_th)
 
         # English name and course: smaller and lower (if present)
         c.setFont(font_name, 12)
-        c.drawCentredString(width / 2, course_y - 30, name_en)
-        c.drawCentredString(width / 2, course_y - 48, course_en)
+        en_name_y = course_y - gap_course_to_en
+        c.drawCentredString(width / 2, en_name_y, name_en)
+        c.drawCentredString(width / 2, en_name_y - gap_en_lines, course_en)
 
         # Footer small text (left) and small generated id
         c.setFont(font_name, 10)
