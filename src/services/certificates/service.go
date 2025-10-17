@@ -382,7 +382,7 @@ func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, b
 
 func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
 	// Use a cancellable context with timeout to avoid hanging on bad URLs
-	timeout := 50 * time.Second
+	timeout := 180 * time.Second
 	if v := os.Getenv("THAIMOOC_TIMEOUT"); v != "" {
 		if parsed, err := time.ParseDuration(v); err == nil {
 			timeout = parsed

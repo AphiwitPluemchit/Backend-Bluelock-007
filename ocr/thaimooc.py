@@ -1,7 +1,7 @@
 import fitz
 from text_norm import normalize_min, strip_prefix 
 from fuzzy_match import best_score
-from ocr import pdf_to_images_with_fitz, ocr_images_tesseract
+from ocr import pdf_to_images_with_fitz, ocr_images
 from typing import Optional
 
 # --------- main verify (ไม่ใช้ OCR) ---------
@@ -18,7 +18,8 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: Optional[str],
         imgs = pdf_to_images_with_fitz(pdf_data, dpi=300, max_pages=2)  # ส่วนใหญ่ 1 หน้า
         if not imgs:
             return {"isVerified": False, "isNameMatch": False, "isCourseMatch": False}
-        hay_text = ocr_images_tesseract(imgs, psm=6)
+        hay_text = ocr_images(imgs, psm=6)
+    
  
     # normalize ข้อความรวมทั้ง expected
     hay = normalize_min(hay_text, remove_thai_internal_spaces=True,  remove_all_spaces=False)
@@ -28,9 +29,9 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: Optional[str],
     stu_en = normalize_min(strip_prefix(student_en)) if student_en else ""
     print(stu_en)
     crs    = normalize_min(course_name)
-    print(crs)
+    print( "Course Name:",crs)
     crs_en = normalize_min(course_name_en) if course_name_en else ""
-    print(crs_en)
+    print("Course Name (EN):", crs_en)
 
     # ชื่อ: ใช้คะแนนที่ดีที่สุดระหว่าง TH/EN
     name_score_th = best_score(stu_th, hay)
