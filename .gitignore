@@ -7,3 +7,4 @@ __pycache__
 .env.prod
 uploads
 ocr/pdf_generator/synth_pdfs
+ocr/pdf_generator/fonts
