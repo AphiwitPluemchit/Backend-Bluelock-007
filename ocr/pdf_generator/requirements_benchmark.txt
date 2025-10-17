@@ -1,0 +1,9 @@
+reportlab
+PyMuPDF
+pillow
+pytesseract
+easyocr
+paddlepaddle
+paddleocr
+sacrebleu
+nltk

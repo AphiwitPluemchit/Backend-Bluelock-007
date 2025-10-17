@@ -6,3 +6,4 @@ tmp/build-errors.log
 __pycache__
 .env.prod
 uploads
+ocr/pdf_generator/synth_pdfs
