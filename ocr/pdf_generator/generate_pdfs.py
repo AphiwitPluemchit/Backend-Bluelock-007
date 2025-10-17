@@ -256,6 +256,108 @@ def verify_pdf_text(pdf_path: Path, max_pages: int = 2):
         return ""
 
 
+def synthesize_from_records(records, template: Optional[str] = None):
+    """Create one PDF per record.
+    records: list of dicts with keys: pdf_filename (optional), name_th, course_th, name_en, course_en
+    Writes files into OUT_DIR; returns list of file paths written.
+    """
+    written = []
+    template_path = None
+    if template:
+        template_path = Path(template)
+    else:
+        for cand in (TEMPLATES_DIR / "template" / "template.pdf", TEMPLATES_DIR / "template" / "template.png", TEMPLATES_DIR / "template" / "template.jpg"):
+            if cand.exists():
+                template_path = cand
+                break
+        if template_path is None:
+            for cand in (TEMPLATES_DIR / "template.pdf", TEMPLATES_DIR / "template.png", TEMPLATES_DIR / "template.jpg"):
+                if cand.exists():
+                    template_path = cand
+                    break
+
+    # Ensure font is available (same logic as synthesize_pdfs)
+    font_path = None
+    local_sarabun = TEMPLATES_DIR / "fonts" / "Sarabun" / "Sarabun-Regular.ttf"
+    if local_sarabun.exists():
+        font_path = str(local_sarabun)
+    else:
+        candidates_pref = [
+            "C:/Windows/Fonts/THSarabunNew.ttf",
+            "C:/Windows/Fonts/Sarabun-Regular.ttf",
+            "C:/Windows/Fonts/TH Sarabun New.ttf",
+        ]
+        for p in candidates_pref:
+            if Path(p).exists():
+                font_path = p
+                break
+        if not font_path:
+            font_path = find_thai_font()
+    font_name = None
+    if font_path:
+        try:
+            font_name = "TH_FONT"
+            pdfmetrics.registerFont(TTFont(font_name, font_path))
+        except Exception:
+            font_name = None
+    if not font_name:
+        font_name = "Helvetica"
+
+    for idx, r in enumerate(records, start=1):
+        name_th = r.get('name_th', '')
+        course_th = r.get('course_th', '')
+        name_en = r.get('name_en', '')
+        course_en = r.get('course_en', '')
+
+        filename = r.get('pdf_filename') or f"labeled_{idx:03d}.pdf"
+        out = OUT_DIR / filename
+        c = canvas.Canvas(str(out), pagesize=landscape(A4))
+        width, height = landscape(A4)
+
+        if template_path:
+            img_path = _render_template_to_image(Path(template_path), int(width), int(height))
+            if img_path:
+                try:
+                    c.drawImage(img_path, 0, 0, width=width, height=height)
+                except Exception:
+                    pass
+        else:
+            c.setFillColorRGB(0.95, 0.95, 0.96)
+            c.rect(0, height * 0.6, width, height * 0.4, fill=1, stroke=0)
+
+        # Layout: reuse previous spacing choices
+        name_y = height * 0.50
+        c.setFont(font_name, 28)
+        c.drawCentredString(width / 2, name_y, name_th)
+
+        gap_name_to_info = 48
+        gap_info_to_course = 56
+        gap_course_to_en = 22
+        gap_en_lines = 20
+
+        info_y = name_y - gap_name_to_info
+        c.setFont(font_name, 14)
+        c.drawCentredString(width / 2, info_y, "ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา")
+
+        course_y = info_y - gap_info_to_course
+        c.setFont(font_name, 18)
+        c.drawCentredString(width / 2, course_y, course_th)
+
+        c.setFont(font_name, 12)
+        en_name_y = course_y - gap_course_to_en
+        c.drawCentredString(width / 2, en_name_y, name_en)
+        c.drawCentredString(width / 2, en_name_y - gap_en_lines, course_en)
+
+        c.setFont(font_name, 10)
+        c.drawString(40, 40, f"Generated ID: {filename}")
+
+        c.showPage()
+        c.save()
+        written.append(out)
+
+    return written
+
+
 if __name__ == '__main__':
     # small sample lists (Thai/EN)
     names_th = [
