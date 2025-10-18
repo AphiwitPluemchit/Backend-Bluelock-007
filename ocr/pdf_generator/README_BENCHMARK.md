@@ -9,6 +9,7 @@ Simple ways to run the helper scripts:
 ```powershell
 Set-Location .\pdf_generator
 ./setup_benchmark.bat
+./benchmark.py --limit 10
 ./bench.bat --limit 10
 ./bench.bat --limit 10 --labels my_labels.csv --debug
 ```
