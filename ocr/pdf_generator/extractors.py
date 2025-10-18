@@ -110,7 +110,59 @@ def extract_text_paddle(pdf_bytes: bytes, lang: str = 'th', max_pages: int = 2) 
             # New format: OCRResult object with 'rec_texts' attribute/key
             if hasattr(ocr_result, 'get') and 'rec_texts' in ocr_result:
                 texts = ocr_result['rec_texts']
-                if texts:
+                boxes = ocr_result.get('rec_polys', []) if 'rec_polys' in ocr_result else []
+                
+                if texts and boxes and len(texts) == len(boxes):
+                    # Group texts by their vertical position (y-coordinate) to form lines
+                    # This helps combine words that are on the same line
+                    text_with_pos = []
+                    for i, (text, box) in enumerate(zip(texts, boxes)):
+                        if isinstance(box, np.ndarray) and len(box) > 0:
+                            # Get average y coordinate of the box (for line grouping)
+                            y_coords = box[:, 1] if box.ndim == 2 else [box[1]]
+                            avg_y = float(np.mean(y_coords))
+                            # Get leftmost x coordinate (for sorting within a line)
+                            x_coords = box[:, 0] if box.ndim == 2 else [box[0]]
+                            min_x = float(np.min(x_coords))
+                            text_with_pos.append((avg_y, min_x, str(text)))
+                    
+                    # Sort by y coordinate first (top to bottom)
+                    text_with_pos.sort(key=lambda t: t[0])
+                    
+                    # Group texts that are on similar y-coordinates into lines
+                    lines = []
+                    current_line_items = []
+                    current_y = None
+                    y_threshold = 30  # pixels - adjust based on font size
+                    
+                    for y, x, text in text_with_pos:
+                        if current_y is None or abs(y - current_y) < y_threshold:
+                            # Same line - add with x position for later sorting
+                            current_line_items.append((x, text))
+                            if current_y is None:
+                                current_y = y
+                            else:
+                                # Update current_y to be average of items in line
+                                current_y = (current_y + y) / 2
+                        else:
+                            # New line - sort current line by x position (left to right) and join
+                            if current_line_items:
+                                current_line_items.sort(key=lambda t: t[0])
+                                line_text = ' '.join([t[1] for t in current_line_items])
+                                lines.append(line_text)
+                            current_line_items = [(x, text)]
+                            current_y = y
+                    
+                    # Don't forget the last line
+                    if current_line_items:
+                        current_line_items.sort(key=lambda t: t[0])
+                        line_text = ' '.join([t[1] for t in current_line_items])
+                        lines.append(line_text)
+                    
+                    if lines:
+                        parts.append("\n".join(lines))
+                elif texts:
+                    # Fallback if boxes not available
                     parts.append("\n".join([str(t) for t in texts]))
             # Old format: list of [box, (text, confidence)]
             elif isinstance(ocr_result, list) and len(ocr_result) > 0:
