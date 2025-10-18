@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 from generate_pdfs import OUT_DIR, synthesize_pdfs
 from extractors import extract_all
-from metrics import heuristic_extract_name_course, summarize_metrics, cer, wer, bleu_score
+from metrics import cer, wer, bleu_score
 try:
     from pythainlp.tokenize import word_tokenize as _thai_tokenize
 except Exception:
@@ -32,9 +32,7 @@ def load_labels_csv(path: Path):
             if not key:
                 print("Warning: CSV row missing pdf filename column; skipping row")
                 continue
-            # prefer Thai name/course columns but fall back to generic ones
-            name = (r.get('name_th') or r.get('name') or r.get('name_en') or '').strip()
-            course = (r.get('course_th') or r.get('course') or r.get('course_en') or '').strip()
+            # prefer full_text column; labels should contain only dynamic body text
             full_text = (r.get('full_text') or r.get('ref_full_text') or '').strip()
             include_template = True if (r.get('include_template') or '').strip().lower() in ('1', 'true', 'yes', 'y') else False
             # If the labels CSV includes the full_text and include_template is True,
@@ -67,8 +65,6 @@ def load_labels_csv(path: Path):
                 pass
 
             mapping[key] = {
-                'name': name,
-                'course': course,
                 'full_text': full_text,
                 'include_template': include_template,
                 'header_text': header_text,
@@ -87,7 +83,7 @@ def _validate_labels_map(mapping: dict) -> bool:
     for k, v in mapping.items():
         if not isinstance(v, dict):
             continue
-        if v.get('name') or v.get('course') or v.get('full_text'):
+        if v.get('full_text'):
             return True
     return False
 
@@ -195,9 +191,8 @@ def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_p
     """Run benchmark over PDFs.
 
     Behavior:
-    - If `labels_csv` is provided and contains mappings, use it as the ground-truth (ref_name/ref_course).
+    - If `labels_csv` is provided and contains mappings, use it as the ground-truth (full document text for the body).
     - Otherwise, use the PyMuPDF text-layer (`pymupdf`) as the reference and compare other methods to it.
-    - Always use `heuristic_extract_name_course` only to parse hypothesis/reference strings into (name, course).
     - Generate synthetic PDFs if none are present.
     """
     # Ensure PDFs exist (generate synthetic if necessary)
@@ -238,12 +233,12 @@ def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_p
         # Determine reference: prefer labels_map (csv) if available, else PyMuPDF text-layer
         if labels_map and pdf.name in labels_map:
             lm = labels_map[pdf.name]
-            # mapping entries are dicts with keys: name, course, full_text, include_template
-            ref_name = lm.get('name') or ""
-            ref_course = lm.get('course') or ""
+            # mapping entries are dicts with keys: full_text, include_template
+            ref_full_text = lm.get('full_text') or ""
+            full_include_template = bool(lm.get('include_template'))
         else:
-            ref_text = extracted.get('pymupdf', ("", 0.0))[0]
-            ref_name, ref_course = heuristic_extract_name_course(ref_text)
+            ref_full_text = extracted.get('pymupdf', ("", 0.0))[0] or ""
+            full_include_template = False
 
         def _normalize_for_match(s: str) -> str:
             if not s:
@@ -256,51 +251,7 @@ def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_p
             return s.lower()
 
 
-        def _best_line_match(ref: str, text: str) -> str:
-            """Return the best-matching line from text for the provided ref string.
-
-            Strategy:
-            - normalize ref and candidate lines (strip honorifics/punctuation, lowercase)
-            - fast-path: normalized substring match
-            - fallback: choose line with smallest CER (WER tie-breaker)
-            """
-            if not ref:
-                return ""
-            ref_n = _normalize_for_match(ref)
-            lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
-            if not lines:
-                return ""
-
-            # fast substring match
-            for l in lines:
-                if ref_n in _normalize_for_match(l):
-                    return l
-
-            best_line = ""
-            best_score = float('inf')
-            best_wer = float('inf')
-            for l in lines:
-                cand_n = _normalize_for_match(l)
-                try:
-                    sc = cer(ref_n, cand_n)
-                except Exception:
-                    sc = 1.0
-                if sc < best_score:
-                    best_score = sc
-                    try:
-                        best_wer = wer(ref_n, cand_n)
-                    except Exception:
-                        best_wer = 1.0
-                    best_line = l
-                elif sc == best_score:
-                    try:
-                        w = wer(ref_n, cand_n)
-                    except Exception:
-                        w = 1.0
-                    if w < best_wer:
-                        best_wer = w
-                        best_line = l
-            return best_line
+        # _best_line_match removed: not needed for body-only scoring
 
         def _tokenize_for_metric(s: str) -> str:
             """Return a space-joined token string suitable for WER/BLEU computation.
@@ -338,12 +289,8 @@ def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_p
                     return v
             # We treat the canonicalized body as the primary unit for scoring.
             # Determine full reference text (labels CSV preferred) then split to sections.
-            full_ref_text = ""
-            full_include_template = False
-            if labels_map and pdf.name in labels_map:
-                lm = labels_map[pdf.name]
-                full_ref_text = lm.get('full_text') or ""
-                full_include_template = bool(lm.get('include_template'))
+            # Use the reference full text determined earlier (labels preferred)
+            full_ref_text = ref_full_text if 'ref_full_text' in locals() else ""
             if not full_ref_text:
                 full_ref_text = extracted.get('pymupdf', ("", 0.0))[0] or ""
 

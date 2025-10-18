@@ -8,8 +8,9 @@ Simple ways to run the helper scripts:
 
 ```powershell
 Set-Location .\pdf_generator
-.\setup_benchmark.bat
-.\bench.bat --limit 10
+./setup_benchmark.bat
+./bench.bat --limit 10
+./bench.bat --limit 10 --labels my_labels.csv --debug
 ```
 
 - Or run using a relative path from the repo root:
@@ -89,6 +90,39 @@ bench -n 0
 bench -l my_labels.csv --limit 15
 ```
 
+### Using the included Windows wrapper (`bench.bat`)
+
+There is a small convenience wrapper `bench.bat` in this folder that resolves the project's `.venv` (relative to the script) and provides sensible defaults so you can run the benchmark from the repo root or from the `pdf_generator` folder without typing the full Python command.
+
+- Default behaviour (no args):
+
+```powershell
+# from repo root
+.\ocr\pdf_generator\bench.bat
+# or from inside the pdf_generator folder
+#.\bench.bat
+```
+
+This runs the equivalent of:
+
+```powershell
+# default args used by bench.bat when none supplied
+--limit 2 --labels labels_varied.csv --debug
+```
+
+- If you want to pass arguments, they are forwarded to `benchmark.py` unchanged. Examples:
+
+```powershell
+.\ocr\pdf_generator\bench.bat --limit 10
+.\ocr\pdf_generator\bench.bat --labels my_labels.csv --limit 5
+```
+
+Notes:
+
+- `bench.bat` will `pushd` into the script folder before running so relative files such as `synth_pdfs` and `labels_varied.csv` resolve correctly.
+- The wrapper attempts to locate a `.venv` Python one or two levels above the script folder and falls back to `python` on PATH if none is found. It echoes the Python it will use and the exact command before running.
+- If you prefer PowerShell script usage, `bench.ps1` is also included (you may need to set ExecutionPolicy to run it).
+
 ### 3. Alternative: Pre-built Scripts
 
 ```bash
@@ -113,6 +147,9 @@ pip install -r requirements_benchmark.txt
 
 # Run benchmark manually
 python benchmark.py --limit 10
+
+# Debug
+python benchmark.py --limit 2 --labels labels_varied.csv --debug
 ```
 
 ## Command Options
@@ -126,8 +163,7 @@ python benchmark.py --limit 10
 Results are saved to `benchmark_results.csv` with columns:
 
 - `pdf`, `method`, `time_s`
-- `ref_name`, `hyp_name`, `name_cer`, `name_wer`, `name_bleu`, `name_exact`
-- `ref_course`, `hyp_course`, `course_cer`, `course_wer`, `course_bleu`, `course_exact`
+- `ref_body`, `hyp_body`, `body_cer`, `body_wer`, `body_bleu`, `body_exact`
 
 Notes and recommended extra metrics:
 
