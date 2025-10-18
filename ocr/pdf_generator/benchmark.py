@@ -452,6 +452,7 @@ def main():
     parser.add_argument('--limit', type=int, default=None, help='limit number of PDFs to process (for quick testing)')
     parser.add_argument('--debug', action='store_true', help='print ref/hyp before and after header/footer stripping for first files')
     parser.add_argument('--debug-limit', type=int, default=2, help='number of files to print debug snippets for')
+    parser.add_argument('--no-summary', action='store_true', help='skip automatic summary metrics display')
     args = parser.parse_args()
 
     # Auto-detect labels_varied.csv if no labels path specified
@@ -470,6 +471,17 @@ def main():
         print(f"Warning: labels CSV provided but no usable name/course columns found: {labels_path}")
 
     run_benchmark(num_pdfs=args.num, labels_csv=labels_path, limit_pdfs=args.limit, debug=args.debug, debug_limit=args.debug_limit)
+    
+    # Auto-display summary metrics unless disabled
+    if not args.no_summary and RESULTS.exists():
+        try:
+            print("\n")
+            # Import and run summary metrics
+            import summary_metrics
+            summary_metrics.calculate_summary_metrics(str(RESULTS))
+        except Exception as e:
+            print(f"Note: Could not display summary metrics: {e}")
+            print(f"Run 'python summary_metrics.py' to see the summary.")
 
 
 if __name__ == '__main__':
