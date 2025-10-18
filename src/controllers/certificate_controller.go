@@ -57,6 +57,7 @@ func VerifyURL(c *fiber.Ctx) error {
 // @Param        courseId  query     string  false  "Course ID"
 // @Param        status   query     string  false  "Status"
 // @Param        major    query     string  false  "Major"
+// @Param        year     query     string  false  "Year"
 // @Success      200   {object}  map[string]interface{}
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      500   {object}  map[string]interface{}
@@ -73,6 +74,7 @@ func GetCertificates(c *fiber.Ctx) error {
 	// Support both ?status=pending,approved and repeated ?status[]=pending&status[]=approved
 	// Support both ?major=AAI and repeated ?major[]=AAI&major[]=ITDI
 	major := c.Query("major", "")
+	year := c.Query("year", "")
 	// Parse raw query string to get repeated params
 	qs := string(c.Request().URI().QueryString())
 	vals, _ := url.ParseQuery(qs)
@@ -93,7 +95,17 @@ func GetCertificates(c *fiber.Ctx) error {
 		status = strings.Join(statusesArr, ",")
 	}
 
+	// parse repeated year[] if present
+	yearsArr := vals["year"]
+	if len(yearsArr) == 0 {
+		yearsArr = vals["year[]"]
+	}
+	if len(yearsArr) > 0 {
+		year = strings.Join(yearsArr, ",")
+	}
+
 	fmt.Println("major", major)
+	fmt.Println("year", year)
 	fmt.Println("studentId", studentId)
 	fmt.Println("courseId", courseId)
 	fmt.Println("status", status)
@@ -110,6 +122,7 @@ func GetCertificates(c *fiber.Ctx) error {
 		CourseID:  courseId,
 		Status:    status,
 		Major:     major,
+		Year:      year,
 	}
 
 	certificates, paginationMeta, err := services.GetUploadCertificates(uploadCertificateQuery, pagination)

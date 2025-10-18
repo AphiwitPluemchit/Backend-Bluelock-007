@@ -237,8 +237,8 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 
 	// ควร join เฉพาะตอน "ต้องใช้" (ค้นหาด้วยชื่อ หรือ sort ด้วย studentName)
 	needJoin := pagination.Search != "" || strings.EqualFold(pagination.SortBy, "studentname")
-	// If filtering by major is requested, we must join students to filter by their major
-	if params.Major != "" {
+	// If filtering by major or year is requested, we must join students to filter by their fields
+	if params.Major != "" || params.Year != "" {
 		needJoin = true
 	}
 	fmt.Println("  needJoin for student lookup:", needJoin)
@@ -277,6 +277,37 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 						bson.D{{Key: "$match", Value: bson.M{
 							"student.major": bson.M{"$in": regexes},
 						}}},
+					)
+				}
+			}
+		}
+		// If year filter provided, filter by student code prefix (first 2 digits)
+		if params.Year != "" {
+			// support comma-separated years (e.g., "68,67,66")
+			years := strings.Split(params.Year, ",")
+			if len(years) == 1 {
+				// Single year: match student.code starting with the year prefix
+				yearPrefix := strings.TrimSpace(years[0])
+				pipeline = append(pipeline,
+					bson.D{{Key: "$match", Value: bson.M{
+						"student.code": bson.M{"$regex": primitive.Regex{Pattern: "^" + yearPrefix, Options: "i"}},
+					}}},
+				)
+			} else {
+				// Multiple years: use $or with multiple regex patterns
+				var orConditions []bson.M
+				for _, y := range years {
+					y = strings.TrimSpace(y)
+					if y == "" {
+						continue
+					}
+					orConditions = append(orConditions, bson.M{
+						"student.code": bson.M{"$regex": primitive.Regex{Pattern: "^" + y, Options: "i"}},
+					})
+				}
+				if len(orConditions) > 0 {
+					pipeline = append(pipeline,
+						bson.D{{Key: "$match", Value: bson.M{"$or": orConditions}}},
 					)
 				}
 			}

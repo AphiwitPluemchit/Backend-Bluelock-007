@@ -14,4 +14,5 @@ type Student struct {
 	SoftSkill int                `bson:"softSkill" json:"softSkill"`
 	HardSkill int                `bson:"hardSkill" json:"hardSkill"`
 	Major     string             `bson:"major" json:"major"`
+	Year      string             `bson:"year" json:"year"` // ปีการศึกษา เช่น "2567"
 }

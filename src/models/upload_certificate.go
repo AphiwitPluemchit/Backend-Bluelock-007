@@ -44,4 +44,5 @@ type UploadCertificateQuery struct {
 	CourseID  string `query:"courseId" example:"6890a82eebc423e6aeb56057"`
 	Status    string `query:"status" example:"pending"`
 	Major     string `query:"major" example:"CS"`
+	Year      string `query:"year" example:"2567"`
 }
