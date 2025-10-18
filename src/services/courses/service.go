@@ -110,6 +110,12 @@ func UpdateCourse(id primitive.ObjectID, update models.Course) (*models.Course, 
 		"isHardSkill":        update.IsHardSkill,
 		"isActive":           update.IsActive,
 	}
+
+	// Only update videoURL if provided
+	if update.VideoURL != nil {
+		updateData["videoUrl"] = *update.VideoURL
+	}
+
 	_, err := DB.CourseCollection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": updateData})
 	if err != nil {
 		return nil, err
