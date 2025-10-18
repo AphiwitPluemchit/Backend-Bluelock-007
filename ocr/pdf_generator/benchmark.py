@@ -15,6 +15,10 @@ import re
 PDF_DIR = OUT_DIR
 RESULTS = Path(__file__).parent / "benchmark_results.csv"
 
+# Default number of decimal places for numeric metrics (can be overridden by
+# passing `decimals` to run_benchmark or by editing this constant).
+METRIC_DECIMALS = 3
+
 
 def load_labels_csv(path: Path):
     mapping = {}
@@ -31,22 +35,163 @@ def load_labels_csv(path: Path):
             # prefer Thai name/course columns but fall back to generic ones
             name = (r.get('name_th') or r.get('name') or r.get('name_en') or '').strip()
             course = (r.get('course_th') or r.get('course') or r.get('course_en') or '').strip()
-            mapping[key] = (name, course)
+            full_text = (r.get('full_text') or r.get('ref_full_text') or '').strip()
+            include_template = True if (r.get('include_template') or '').strip().lower() in ('1', 'true', 'yes', 'y') else False
+            # If the labels CSV includes the full_text and include_template is True,
+            # provide header_text/footer_text entries so the benchmark can remove
+            # template header/footer lines before scoring. TEMPLATE_LINES is defined
+            # later in the file but is available at runtime when this function is used.
+            # Clean the provided full_text: remove any template/header/footer
+            # lines so label entries contain only the dynamic body text.
+            header_text = ''
+            footer_text = ''
+            try:
+                def _strip_template_blocks(s: str) -> str:
+                    if not s:
+                        return ''
+                    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+                    # remove any exact matches to TEMPLATE_LINES/HEADER_LINES/FOOTER_LINES
+                    filtered = [ln for ln in lines if ln not in (TEMPLATE_LINES + HEADER_LINES + FOOTER_LINES)]
+                    return "\n".join(filtered)
+
+                # Always attempt to remove template/header/footer from CSV-provided full_text
+                full_text = _strip_template_blocks(full_text)
+
+                if include_template:
+                    # expose header/footer labels for downstream stripping logic
+                    header_text = "\n".join([t for t in TEMPLATE_LINES if t])
+                    tpl_tail = [t for t in TEMPLATE_LINES if t][-2:]
+                    footer_text = "\n".join(tpl_tail) if tpl_tail else ''
+            except Exception:
+                # conservative fallback: leave as-is
+                pass
+
+            mapping[key] = {
+                'name': name,
+                'course': course,
+                'full_text': full_text,
+                'include_template': include_template,
+                'header_text': header_text,
+                'footer_text': footer_text,
+            }
     return mapping
 
 
 def _validate_labels_map(mapping: dict) -> bool:
-    """Return True if mapping looks valid (non-empty values for at least some entries)."""
+    """Return True if mapping looks valid (non-empty values for at least some entries).
+
+    Mapping now stores dicts with keys: name, course, full_text, include_template.
+    """
     if not mapping:
         return False
-    # check at least one entry has non-empty name or course
-    for k, (n, c) in mapping.items():
-        if (n or c):
+    for k, v in mapping.items():
+        if not isinstance(v, dict):
+            continue
+        if v.get('name') or v.get('course') or v.get('full_text'):
             return True
     return False
 
 
-def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_pdfs: Optional[int] = None):
+# Template lines used for canonicalization (if include_template requested)
+TEMPLATE_LINES = [
+    "CERTIFICATE OF COMPLETION",
+    "THAI MOOC",
+    "Thailand Massive Open Online Courses",
+    "THIS CERTIFICATE IS AWARDED TO",
+    "",
+    "Assoc.Prof.Dr. Thapanee Thammeter",
+    "Director of Thailand Cyber University Project (TCU)",
+]
+
+# Explicit header/footer constants used when labels do not provide them.
+HEADER_LINES = [
+    "CERTIFICATE OF COMPLETION",
+    "THAI MOOC",
+    "Thailand Massive Open Online Courses",
+    "THIS CERTIFICATE IS AWARDED TO",
+]
+
+FOOTER_LINES = [
+    "Assoc.Prof.Dr. Thapanee Thammeter",
+    "Director of Thailand Cyber University Project (TCU)",
+]
+
+
+def canonicalize_doc_text(text: str, include_template: bool = True) -> str:
+    """Canonicalize multi-line document text into header -> body -> footer order.
+
+    - Splits lines, trims and removes empty lines
+    - Classifies lines into header/body/footer by keyword heuristics
+    - If include_template True, ensure template lines are present at the top
+    """
+    if not text:
+        return ""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    header_keys = ("CERTIFICATE", "THAI MOOC", "THAILAND MASSIVE OPEN ONLINE COURSES")
+    footer_keys = ("ASSOC.PROF", "THAPANEE", "DIRECTOR", "TCU")
+    headers, bodies, footers = [], [], []
+    for l in lines:
+        u = l.upper()
+        if any(k in u for k in header_keys):
+            headers.append(l)
+        elif any(k in u for k in footer_keys):
+            footers.append(l)
+        else:
+            bodies.append(l)
+
+    ordered = []
+    if include_template:
+        for t in TEMPLATE_LINES:
+            if t and t not in ordered:
+                ordered.append(t)
+    ordered += headers + bodies + footers
+
+    # remove duplicates while preserving order
+    seen = set()
+    uniq = []
+    for l in ordered:
+        if l and l not in seen:
+            seen.add(l)
+            uniq.append(l)
+    return "\n".join(uniq)
+
+
+def split_doc_sections(text: str, include_template: bool = True):
+    """Return (header, body, footer) strings from the provided document text.
+
+    Uses same heuristics as canonicalize_doc_text. If include_template True,
+    template lines are prepended to the header.
+    """
+    if not text:
+        return "", "", ""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    header_keys = ("CERTIFICATE", "THAI MOOC", "THAILAND MASSIVE OPEN ONLINE COURSES")
+    footer_keys = ("ASSOC.PROF", "THAPANEE", "DIRECTOR", "TCU")
+    headers, bodies, footers = [], [], []
+    for l in lines:
+        u = l.upper()
+        if any(k in u for k in header_keys):
+            headers.append(l)
+        elif any(k in u for k in footer_keys):
+            footers.append(l)
+        else:
+            bodies.append(l)
+
+    if include_template:
+        # ensure template lines are included in header
+        tpl = [t for t in TEMPLATE_LINES if t]
+        # avoid duplicate appends
+        for t in tpl:
+            if t not in headers:
+                headers.insert(0, t)
+
+    header_text = "\n".join(headers)
+    body_text = "\n".join(bodies)
+    footer_text = "\n".join(footers)
+    return header_text, body_text, footer_text
+
+
+def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_pdfs: Optional[int] = None, decimals: Optional[int] = None, debug: bool = False, debug_limit: int = 2):
     """Run benchmark over PDFs.
 
     Behavior:
@@ -84,6 +229,7 @@ def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_p
 
     rows = []
 
+    dbg_count = 0
     for pdf in pdfs_to_process:
         print("Processing:", pdf)
         pdf_bytes = pdf.read_bytes()
@@ -91,7 +237,10 @@ def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_p
 
         # Determine reference: prefer labels_map (csv) if available, else PyMuPDF text-layer
         if labels_map and pdf.name in labels_map:
-            ref_name, ref_course = labels_map[pdf.name]
+            lm = labels_map[pdf.name]
+            # mapping entries are dicts with keys: name, course, full_text, include_template
+            ref_name = lm.get('name') or ""
+            ref_course = lm.get('course') or ""
         else:
             ref_text = extracted.get('pymupdf', ("", 0.0))[0]
             ref_name, ref_course = heuristic_extract_name_course(ref_text)
@@ -175,71 +324,160 @@ def run_benchmark(num_pdfs: int = 10, labels_csv: Optional[Path] = None, limit_p
             return ' '.join(s_n.split())
 
         for method, (text, duration) in extracted.items():
-            # If reference label exists, try to find best matching lines for name/course in the OCR text
-            if labels_map and pdf.name in labels_map and (ref_name or ref_course):
-                hyp_name = _best_line_match(ref_name, text) if ref_name else ""
-                hyp_course = _best_line_match(ref_course, text) if ref_course else ""
-                # if best-match failed, fallback to heuristic
-                if not hyp_name and not hyp_course:
-                    hyp_name, hyp_course = heuristic_extract_name_course(text)
-                else:
-                    # if one missing, attempt heuristic for the missing one
-                    if not hyp_name:
-                        hyp_name = heuristic_extract_name_course(text)[0]
-                    if not hyp_course:
-                        hyp_course = heuristic_extract_name_course(text)[1]
+            # determine decimals to use for this run
+            _dec = METRIC_DECIMALS if decimals is None else int(decimals)
+
+            def _format_num(v):
+                try:
+                    if isinstance(v, float):
+                        return round(v, _dec)
+                    # attempt cast to float then round
+                    fv = float(v)
+                    return round(fv, _dec)
+                except Exception:
+                    return v
+            # We treat the canonicalized body as the primary unit for scoring.
+            # Determine full reference text (labels CSV preferred) then split to sections.
+            full_ref_text = ""
+            full_include_template = False
+            if labels_map and pdf.name in labels_map:
+                lm = labels_map[pdf.name]
+                full_ref_text = lm.get('full_text') or ""
+                full_include_template = bool(lm.get('include_template'))
+            if not full_ref_text:
+                full_ref_text = extracted.get('pymupdf', ("", 0.0))[0] or ""
+
+            full_hyp_text = text or ""
+
+            # If debug mode requested, capture pre-strip snippets for the first
+            # `debug_limit` PDFs to help troubleshooting.
+            if debug and dbg_count < debug_limit:
+                pre_strip_ref = (full_ref_text or '')[:1000]
+                pre_strip_hyp = (full_hyp_text or '')[:1000]
             else:
-                hyp_name, hyp_course = heuristic_extract_name_course(text)
-            # compute metrics: CER on normalized raw strings; WER/BLEU on tokenized strings
-            ref_name_norm = _normalize_for_match(ref_name) if ref_name else ""
-            hyp_name_norm = _normalize_for_match(hyp_name) if hyp_name else ""
-            ref_course_norm = _normalize_for_match(ref_course) if ref_course else ""
-            hyp_course_norm = _normalize_for_match(hyp_course) if hyp_course else ""
+                pre_strip_ref = pre_strip_hyp = None
 
-            # tokenized forms for WER/BLEU
-            ref_name_tok = _tokenize_for_metric(ref_name)
-            hyp_name_tok = _tokenize_for_metric(hyp_name)
-            ref_course_tok = _tokenize_for_metric(ref_course)
-            hyp_course_tok = _tokenize_for_metric(hyp_course)
+            # canonicalize both (document-level)
+            # If labels CSV provides explicit header/footer text, remove those
+            # lines from both reference and hypothesis before computing body metrics.
+            # We don't expose removed_header/removed_footer flags in the CSV to keep
+            # output compact — benchmark simply ensures the body used for metrics
+            # excludes header/footer when possible.
+            # Prepare header/footer labels: prefer per-file labels from CSV, else fall
+            # back to global constants. Use normalized substring matching to be robust
+            # against small differences (punctuation/whitespace/case).
+            lm = labels_map.get(pdf.name, {}) if labels_map else {}
+            header_label_text = (lm.get('header') or lm.get('header_lines') or lm.get('header_text') or '')
+            footer_label_text = (lm.get('footer') or lm.get('footer_lines') or lm.get('footer_text') or '')
+            if not header_label_text:
+                header_label_text = "\n".join(HEADER_LINES)
+            if not footer_label_text:
+                footer_label_text = "\n".join(FOOTER_LINES)
 
-            name_cer = cer(ref_name_norm, hyp_name_norm)
-            try:
-                name_wer = wer(ref_name_tok, hyp_name_tok)
-            except Exception:
-                name_wer = 1.0
-            try:
-                name_bleu = bleu_score(ref_name_tok, hyp_name_tok)
-            except Exception:
-                name_bleu = 0.0
-            name_exact = (ref_name_norm == hyp_name_norm)
+            def _normalize_for_substr(s: str) -> str:
+                # reuse normalization but be a bit stricter for matching: remove
+                # punctuation and collapse spaces
+                if not s:
+                    return ""
+                s2 = _normalize_for_match(s)
+                s2 = re.sub(r'[\p{P}\p{S}]', '', s2) if False else s2
+                return re.sub(r'\s+', ' ', s2).strip()
 
-            course_cer = cer(ref_course_norm, hyp_course_norm)
+            def _remove_label_lines_normalized(src_text: str, label_text: str):
+                if not src_text or not label_text:
+                    return src_text, False
+                labs = [l for l in [ln.strip() for ln in label_text.splitlines()] if l]
+                if not labs:
+                    return src_text, False
+                norm_labs = [_normalize_for_substr(l) for l in labs]
+                out_lines = []
+                removed_any = False
+                for line in src_text.splitlines():
+                    norm_line = _normalize_for_substr(line)
+                    keep = True
+                    for nl in norm_labs:
+                        if nl and nl in norm_line:
+                            keep = False
+                            removed_any = True
+                            break
+                    if keep:
+                        out_lines.append(line)
+                return "\n".join(out_lines), removed_any
+
+            full_ref_text, _ = _remove_label_lines_normalized(full_ref_text, header_label_text)
+            full_hyp_text, _ = _remove_label_lines_normalized(full_hyp_text, header_label_text)
+            full_ref_text, _ = _remove_label_lines_normalized(full_ref_text, footer_label_text)
+            full_hyp_text, _ = _remove_label_lines_normalized(full_hyp_text, footer_label_text)
+
+            if debug and dbg_count < debug_limit:
+                post_strip_ref = (full_ref_text or '')[:1000]
+                post_strip_hyp = (full_hyp_text or '')[:1000]
+                # Print a clear PDF-level divider
+                print("\n" + "=" * 80)
+                print(f"DEBUG: PDF={pdf.name}  (sample {dbg_count+1}/{debug_limit})")
+                print("=" * 80)
+                # Print reference pre/post snippets
+                print("-- Reference (pre-strip) --")
+                print(pre_strip_ref or "<empty>")
+                print("-- Reference (post-strip) --")
+                print(post_strip_ref or "<empty>")
+                print("-" * 60)
+                # For hypotheses, print per-method labeled sections with durations
+                print("-- Hypotheses (per method) --")
+                for mtd, (mtext, mdur) in extracted.items():
+                    # show only short snippets to keep output readable
+                    m_pre = (mtext or '')[:800]
+                    # attempt to remove header/footer from this method's text for post view
+                    m_post_text, _ = _remove_label_lines_normalized(mtext or '', header_label_text)
+                    m_post_text, _ = _remove_label_lines_normalized(m_post_text, footer_label_text)
+                    m_post = (m_post_text or '')[:800]
+                    print(f"[{mtd}] duration={round(mdur, 3)}s")
+                    print("  pre: ")
+                    print("    " + (m_pre.replace('\n', '\n    ') or '<empty>'))
+                    print("  post: ")
+                    print("    " + (m_post.replace('\n', '\n    ') or '<empty>'))
+                    print("-" * 40)
+                dbg_count += 1
+
+            # After label-based stripping, split into sections and compute only body metrics
+            hdr_ref, body_ref, ftr_ref = split_doc_sections(full_ref_text, include_template=False)
+            hdr_hyp, body_hyp, ftr_hyp = split_doc_sections(full_hyp_text, include_template=False)
+
+            # Canonicalized body (no template/header/footer lines) for inspection
+            ref_body = canonicalize_doc_text(body_ref, include_template=False)
+            hyp_body = canonicalize_doc_text(body_hyp, include_template=False)
+
+            # Body-level normalization/tokenization for metrics
+            ref_body_norm = _normalize_for_match(ref_body) if ref_body else ""
+            hyp_body_norm = _normalize_for_match(hyp_body) if hyp_body else ""
+            ref_body_tok = _tokenize_for_metric(ref_body)
+            hyp_body_tok = _tokenize_for_metric(hyp_body)
+
+            # Compute body-level metrics (CER / WER / BLEU / exact)
             try:
-                course_wer = wer(ref_course_tok, hyp_course_tok)
+                body_cer = cer(ref_body_norm, hyp_body_norm)
             except Exception:
-                course_wer = 1.0
+                body_cer = 1.0
             try:
-                course_bleu = bleu_score(ref_course_tok, hyp_course_tok)
+                body_wer = wer(ref_body_tok, hyp_body_tok)
             except Exception:
-                course_bleu = 0.0
-            course_exact = (ref_course_norm == hyp_course_norm)
+                body_wer = 1.0
+            try:
+                body_bleu = bleu_score(ref_body_tok, hyp_body_tok)
+            except Exception:
+                body_bleu = 0.0
+            body_exact = (ref_body_norm == hyp_body_norm)
 
             rows.append({
                 'pdf': pdf.name,
                 'method': method,
-                'time_s': round(duration, 3),
-                'ref_name': ref_name,
-                'hyp_name': hyp_name,
-                'name_cer': name_cer,
-                'name_wer': name_wer,
-                'name_bleu': name_bleu,
-                'name_exact': name_exact,
-                'ref_course': ref_course,
-                'hyp_course': hyp_course,
-                'course_cer': course_cer,
-                'course_wer': course_wer,
-                'course_bleu': course_bleu,
-                'course_exact': course_exact,
+                'time_s': _format_num(duration),
+                'ref_body': ref_body,
+                'hyp_body': hyp_body,
+                'body_cer': _format_num(body_cer),
+                'body_wer': _format_num(body_wer),
+                'body_bleu': _format_num(body_bleu),
+                'body_exact': body_exact,
             })
 
     # write CSV if we have results
@@ -265,6 +503,8 @@ def main():
     parser.add_argument('-n', '--num', type=int, default=10, help='number of synthetic PDFs to generate if missing')
     parser.add_argument('-l', '--labels', type=str, default=None, help='path to labels CSV (uses csv order as reference)')
     parser.add_argument('--limit', type=int, default=None, help='limit number of PDFs to process (for quick testing)')
+    parser.add_argument('--debug', action='store_true', help='print ref/hyp before and after header/footer stripping for first files')
+    parser.add_argument('--debug-limit', type=int, default=2, help='number of files to print debug snippets for')
     args = parser.parse_args()
 
     # Auto-detect labels_varied.csv if no labels path specified
@@ -282,7 +522,7 @@ def main():
     if labels_path and not _validate_labels_map(labels_map):
         print(f"Warning: labels CSV provided but no usable name/course columns found: {labels_path}")
 
-    run_benchmark(num_pdfs=args.num, labels_csv=labels_path, limit_pdfs=args.limit)
+    run_benchmark(num_pdfs=args.num, labels_csv=labels_path, limit_pdfs=args.limit, debug=args.debug, debug_limit=args.debug_limit)
 
 
 if __name__ == '__main__':

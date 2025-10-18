@@ -1,5 +1,5 @@
 import io
-import io
+import csv
 import random
 from typing import List, Optional
 from pathlib import Path
@@ -177,6 +177,8 @@ def synthesize_pdfs(names_th: List[str], courses_th: List[str], names_en: List[s
                     template_path = cand
                     break
 
+    written = []
+    rows = []
     for i in range(n):
         name_th = random.choice(names_th)
         course_th = random.choice(courses_th)
@@ -235,8 +237,50 @@ def synthesize_pdfs(names_th: List[str], courses_th: List[str], names_en: List[s
 
         c.showPage()
         c.save()
+        written.append(out)
+
+        # Build a full_text reference for this synthetic page. Only include the
+        # dynamic/selectable text (name, info, course, English lines). Header/footer
+        # template lines are intentionally omitted here so benchmarking code can
+        # decide how to treat them.
+        full_text_lines = [
+            name_th,
+            "ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา",
+            course_th,
+        ]
+        if name_en:
+            full_text_lines.append(name_en)
+        if course_en:
+            full_text_lines.append(course_en)
+        full_text_lines.append(f"Generated ID: synth-{i+1:03d}")
+        full_text = "\n".join(full_text_lines)
+
+        rows.append({
+            'pdf_filename': out.name,
+            'name_th': name_th,
+            'course_th': course_th,
+            'name_en': name_en,
+            'course_en': course_en,
+            'full_text': full_text,
+            # Do not mark these generated labels as including the template; the
+            # benchmark script will manage header/footer handling centrally.
+            'include_template': False,
+        })
 
     print(f"Wrote {n} synth PDFs to: {OUT_DIR}")
+
+    # Write labels CSV (labels_varied.csv) in the generator folder so benchmark can auto-detect it.
+    labels_path = TEMPLATES_DIR / "labels_varied.csv"
+    try:
+        with open(labels_path, 'w', newline='', encoding='utf-8') as lf:
+            fieldnames = ['pdf_filename', 'name_th', 'course_th', 'name_en', 'course_en', 'full_text', 'include_template']
+            writer = csv.DictWriter(lf, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                writer.writerow(r)
+        print(f"Wrote labels CSV for synth PDFs: {labels_path}")
+    except Exception as e:
+        print("Warning: failed to write labels CSV for synthetic PDFs:", e)
 
 
 def verify_pdf_text(pdf_path: Path, max_pages: int = 2):
@@ -354,6 +398,41 @@ def synthesize_from_records(records, template: Optional[str] = None):
         c.showPage()
         c.save()
         written.append(out)
+
+    # For records-based synthesis, also emit a labels CSV mapping filenames to text
+    labels_path = TEMPLATES_DIR / "labels_varied.csv"
+    rows = []
+    for out_path, rec in zip(written, records):
+        # prefer explicit fields, fall back to composed full_text
+        name_th = rec.get('name_th', '')
+        course_th = rec.get('course_th', '')
+        name_en = rec.get('name_en', '')
+        course_en = rec.get('course_en', '')
+        full_text = rec.get('full_text')
+        if not full_text:
+            # Only include dynamic content in labels for records-based synthesis.
+            parts = [p for p in (name_th, "ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา", course_th, name_en, course_en, f"Generated ID: {out_path.name}") if p]
+            full_text = "\n".join(parts)
+        rows.append({
+            'pdf_filename': out_path.name,
+            'name_th': name_th,
+            'course_th': course_th,
+            'name_en': name_en,
+            'course_en': course_en,
+            'full_text': full_text,
+            'include_template': False,
+        })
+
+    try:
+        with open(labels_path, 'w', newline='', encoding='utf-8') as lf:
+            fieldnames = ['pdf_filename', 'name_th', 'course_th', 'name_en', 'course_en', 'full_text', 'include_template']
+            writer = csv.DictWriter(lf, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                writer.writerow(r)
+        print(f"Wrote labels CSV for record-based synth PDFs: {labels_path}")
+    except Exception as e:
+        print("Warning: failed to write labels CSV for records-based synthetic PDFs:", e)
 
     return written
 
