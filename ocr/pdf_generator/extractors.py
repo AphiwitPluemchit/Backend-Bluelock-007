@@ -4,6 +4,7 @@ from typing import List, Tuple, Optional
 
 import fitz  # PyMuPDF
 from PIL import Image
+import numpy as np
 
 try:
     import pytesseract
@@ -27,10 +28,12 @@ def extract_text_pymupdf(pdf_bytes: bytes, max_pages: int = 5) -> Tuple[str, flo
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     parts = []
     total = 0
-    for i, page in enumerate(doc):
-        parts.append(page.get_text("text"))
-        total += len(parts[-1])
-        if i + 1 >= max_pages or total > 8000:
+    for i in range(min(max_pages, doc.page_count)):
+        page = doc.load_page(i)
+        txt = page.get_text("text")
+        parts.append(txt)
+        total += len(txt)
+        if total > 8000:
             break
     duration = time.time() - start
     return "\n".join(parts), duration
@@ -39,12 +42,11 @@ def extract_text_pymupdf(pdf_bytes: bytes, max_pages: int = 5) -> Tuple[str, flo
 def pdf_to_images_with_fitz(pdf_bytes: bytes, dpi: int = 300, max_pages: int = 2) -> List[Image.Image]:
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     imgs = []
-    for i, page in enumerate(doc):
-        if i >= max_pages:
-            break
+    for i in range(min(max_pages, doc.page_count)):
+        page = doc.load_page(i)
         mat = fitz.Matrix(dpi / 72.0, dpi / 72.0)
         pix = page.get_pixmap(matrix=mat, alpha=False)
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
         imgs.append(img)
     return imgs
 
@@ -73,8 +75,13 @@ def extract_text_easyocr(pdf_bytes: bytes, lang_list=('th','en'), max_pages: int
     start = time.time()
     parts = []
     for im in imgs:
-        res = _easy_reader.readtext(im)
-        parts.append(" ".join([t[1] for t in res]))
+        # EasyOCR expects a file path, bytes, or a numpy array. Convert PIL Image -> numpy array
+        im_arr = np.array(im)
+        res = _easy_reader.readtext(im_arr, detail=0)
+        # res is now a list of strings (texts)
+        # Join each detected text with newline to preserve line structure
+        texts = [str(text) for text in res]
+        parts.append("\n".join(texts))
     duration = time.time() - start
     return "\n".join(parts), duration
 
@@ -85,13 +92,20 @@ def extract_text_paddle(pdf_bytes: bytes, lang: str = 'th', max_pages: int = 2) 
     if PaddleOCR is None:
         raise RuntimeError("paddleocr not installed")
     if _paddle is None:
-        _paddle = PaddleOCR(use_angle_cls=True, lang='th', use_gpu=False)
+        # Some paddleocr versions do not accept `use_gpu` in the constructor.
+        # Pass only supported args (use_angle_cls, lang). GPU usage is controlled elsewhere.
+        _paddle = PaddleOCR(use_angle_cls=True, lang=lang)
     imgs = pdf_to_images_with_fitz(pdf_bytes, max_pages=max_pages)
     start = time.time()
     parts = []
     for im in imgs:
-        res = _paddle.ocr(im, cls=True)
-        parts.append(" ".join([line[1][0] for line in res]))
+        # PaddleOCR expects file path or numpy array; convert PIL Image -> numpy array
+        im_arr = np.array(im)
+        # Call ocr without cls parameter (use use_angle_cls in constructor instead)
+        res = _paddle.ocr(im_arr)
+        # `res` is a list of lists: each element contains [box, (text, prob)]
+        if res and res[0]:
+            parts.append("\n".join([str(line[1][0]) for line in res[0]]))
     duration = time.time() - start
     return "\n".join(parts), duration
 

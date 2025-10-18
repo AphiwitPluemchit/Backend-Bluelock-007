@@ -60,7 +60,9 @@ def ocr_images_easyocr(images: List[Image.Image]) -> str:
             # If easyocr fails for a page, continue with empty result for that page
             logger.warning("easyocr readtext error on page %d: %s", idx, e)
             results = []
-        texts.append(" ".join(map(str, results)))
+        # Join each detected text block with newline to preserve document structure
+        # This is critical for downstream text processing that expects line breaks
+        texts.append("\n".join(map(str, results)))
 
     return "\n".join(texts)
 
