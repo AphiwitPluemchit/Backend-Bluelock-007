@@ -15,4 +15,8 @@ func courseRoutes(router fiber.Router) {
 	courseRoutes.Get("/:id", controllers.GetCourseByID)
 	courseRoutes.Put("/:id", controllers.UpdateCourse)
 	courseRoutes.Delete("/:id", controllers.DeleteCourse)
+
+	// Image upload/delete endpoints
+	courseRoutes.Post("/:id/image", controllers.UploadCourseImage)
+	courseRoutes.Delete("/:id/image", controllers.DeleteCourseImage)
 }

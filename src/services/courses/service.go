@@ -130,3 +130,38 @@ func DeleteCourse(id primitive.ObjectID) error {
 	_, err := DB.CourseCollection.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
+
+// UploadCourseImage - อัปเดตชื่อไฟล์รูปภาพของคอร์ส
+func UploadCourseImage(courseID string, fileName string) error {
+	// Convert string to primitive.ObjectID
+	objectID, err := primitive.ObjectIDFromHex(courseID)
+	if err != nil {
+		return fmt.Errorf("invalid course ID: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Update image path
+	filter := bson.M{"_id": objectID}
+	update := bson.M{}
+
+	if fileName == "" {
+		// Clear the image path if filename is empty
+		update = bson.M{"$unset": bson.M{"imagePath": ""}}
+	} else {
+		// Set new image path
+		update = bson.M{"$set": bson.M{"imagePath": fileName}}
+	}
+
+	result, err := DB.CourseCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update course image: %v", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("course not found")
+	}
+
+	return nil
+}

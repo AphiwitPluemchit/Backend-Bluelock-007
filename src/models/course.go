@@ -14,7 +14,8 @@ type Course struct {
 	Type              string             `json:"type" bson:"type" example:"lms" enums:"lms,buumooc,thaimooc"`
 	Hour              int                `json:"hour" bson:"hour" example:"4"`
 	IsHardSkill       bool               `json:"isHardSkill" bson:"isHardSkill" example:"true"`                                                  // true = hard skill, false = soft skill
-	IsActive          bool               `json:"isActive" bson:"isActive" example:"true"`                                                        // Made optional for backward compatibility
+	IsActive          bool               `json:"isActive" bson:"isActive" example:"true"`
+	ImagePath        *string            `json:"imagePath,omitempty" bson:"imagePath,omitempty" example:"upload/image.jpg"` // Image file URL for course
 	VideoURL          *string            `json:"videoUrl,omitempty" bson:"videoUrl,omitempty" example:"https://www.youtube.com/watch?v=example"` // Tutorial video URL for certificate claiming
 }
 
