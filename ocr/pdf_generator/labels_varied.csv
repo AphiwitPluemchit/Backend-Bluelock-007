@@ -1,101 +1,601 @@
-pdf_filename,name_th,course_th,name_en,course_en
-varied_001.pdf,นางสาว สมศรี ตัวอย่าง,,Somsri Example,Practical Software Development (32h)
-varied_002.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_003.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_004.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_005.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_006.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_007.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ #7,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_008.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_009.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_010.pdf,นาย สมหมาย ใจดี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_011.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_012.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_013.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_014.pdf,นพ. ภูมิพัฒน์ เมธี #14,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_015.pdf,นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_016.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_017.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_018.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_019.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_020.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_021.pdf,นางสาว สมศรี ตัวอย่าง #21,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_022.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_023.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_024.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_025.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_026.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_027.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_028.pdf,นาย กิตติพงษ์ (Kittipong) #28,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_029.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_030.pdf,นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_031.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_032.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_033.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_034.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_035.pdf,เด็กชาย ธันวา น้อย #35,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_036.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_037.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_038.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_039.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_040.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_041.pdf,นางสาว สมศรี ตัวอย่าง,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_042.pdf,ดร. วิทยา พิทักษ์ #42,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_043.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_044.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_045.pdf,นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_046.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_047.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_048.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_049.pdf,นาง Apinya-Somchai #49,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_050.pdf,นาย สมหมาย ใจดี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_051.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_052.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_053.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_054.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_055.pdf,เด็กชาย ธันวา น้อย,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_056.pdf,เด็กหญิง ดาวเรือง จิตร #56,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_057.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_058.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_059.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_060.pdf,นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_061.pdf,นางสาว สมศรี ตัวอย่าง,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_062.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_063.pdf,ผศ.ดร. วีระชัย ศรีสุข #63,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_064.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_065.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_066.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_067.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_068.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_069.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_070.pdf,นาย สมหมาย ใจดี #70,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_071.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_072.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_073.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_074.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_075.pdf,นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_076.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_077.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ #77,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_078.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_079.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_080.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_081.pdf,นางสาว สมศรี ตัวอย่าง,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_082.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_083.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_084.pdf,นพ. ภูมิพัฒน์ เมธี #84,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_085.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_086.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_087.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_088.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
-varied_089.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h)
-varied_090.pdf,นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h)
-varied_091.pdf,นางสาว สมศรี ตัวอย่าง #91,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h)
-varied_092.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h)
-varied_093.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h)
-varied_094.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h)
-varied_095.pdf,เด็กชาย ธันวา น้อย,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h)
-varied_096.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h)
-varied_097.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h)
-varied_098.pdf,นาย กิตติพงษ์ (Kittipong) #98,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h)
-varied_099.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h)
-varied_100.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h)
+pdf_filename,name_th,course_th,name_en,course_en,full_text,include_template
+varied_001.pdf,นางสาว สมศรี ตัวอย่าง,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_001.pdf",False
+varied_002.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_002.pdf",False
+varied_003.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_003.pdf",False
+varied_004.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_004.pdf",False
+varied_005.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"เด็กชาย ธันวา น้อย
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_005.pdf",False
+varied_006.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_006.pdf",False
+varied_007.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ #7,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"สุภาพสตรียอดเยี่ยม ภูมิใจ #7
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_007.pdf",False
+varied_008.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_008.pdf",False
+varied_009.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_009.pdf",False
+varied_010.pdf,นาย สมหมาย ใจดี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"นาย สมหมาย ใจดี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_010.pdf",False
+varied_011.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_011.pdf",False
+varied_012.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_012.pdf",False
+varied_013.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_013.pdf",False
+varied_014.pdf,นพ. ภูมิพัฒน์ เมธี #14,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"นพ. ภูมิพัฒน์ เมธี #14
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_014.pdf",False
+varied_015.pdf,นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_015.pdf",False
+varied_016.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_016.pdf",False
+varied_017.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_017.pdf",False
+varied_018.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_018.pdf",False
+varied_019.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_019.pdf",False
+varied_020.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"นาย สมหมาย ใจดี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_020.pdf",False
+varied_021.pdf,นางสาว สมศรี ตัวอย่าง #21,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"นางสาว สมศรี ตัวอย่าง #21
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_021.pdf",False
+varied_022.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_022.pdf",False
+varied_023.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_023.pdf",False
+varied_024.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_024.pdf",False
+varied_025.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"เด็กชาย ธันวา น้อย
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_025.pdf",False
+varied_026.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_026.pdf",False
+varied_027.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_027.pdf",False
+varied_028.pdf,นาย กิตติพงษ์ (Kittipong) #28,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"นาย กิตติพงษ์ (Kittipong) #28
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_028.pdf",False
+varied_029.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_029.pdf",False
+varied_030.pdf,นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_030.pdf",False
+varied_031.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_031.pdf",False
+varied_032.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_032.pdf",False
+varied_033.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_033.pdf",False
+varied_034.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_034.pdf",False
+varied_035.pdf,เด็กชาย ธันวา น้อย #35,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"เด็กชาย ธันวา น้อย #35
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_035.pdf",False
+varied_036.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_036.pdf",False
+varied_037.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_037.pdf",False
+varied_038.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_038.pdf",False
+varied_039.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_039.pdf",False
+varied_040.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"นาย สมหมาย ใจดี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_040.pdf",False
+varied_041.pdf,นางสาว สมศรี ตัวอย่าง,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_041.pdf",False
+varied_042.pdf,ดร. วิทยา พิทักษ์ #42,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"ดร. วิทยา พิทักษ์ #42
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_042.pdf",False
+varied_043.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_043.pdf",False
+varied_044.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_044.pdf",False
+varied_045.pdf,นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_045.pdf",False
+varied_046.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_046.pdf",False
+varied_047.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_047.pdf",False
+varied_048.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_048.pdf",False
+varied_049.pdf,นาง Apinya-Somchai #49,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"นาง Apinya-Somchai #49
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_049.pdf",False
+varied_050.pdf,นาย สมหมาย ใจดี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"นาย สมหมาย ใจดี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_050.pdf",False
+varied_051.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_051.pdf",False
+varied_052.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_052.pdf",False
+varied_053.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_053.pdf",False
+varied_054.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_054.pdf",False
+varied_055.pdf,เด็กชาย ธันวา น้อย,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"เด็กชาย ธันวา น้อย
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_055.pdf",False
+varied_056.pdf,เด็กหญิง ดาวเรือง จิตร #56,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"เด็กหญิง ดาวเรือง จิตร #56
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_056.pdf",False
+varied_057.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_057.pdf",False
+varied_058.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_058.pdf",False
+varied_059.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_059.pdf",False
+varied_060.pdf,นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_060.pdf",False
+varied_061.pdf,นางสาว สมศรี ตัวอย่าง,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_061.pdf",False
+varied_062.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_062.pdf",False
+varied_063.pdf,ผศ.ดร. วีระชัย ศรีสุข #63,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"ผศ.ดร. วีระชัย ศรีสุข #63
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_063.pdf",False
+varied_064.pdf,นพ. ภูมิพัฒน์ เมธี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_064.pdf",False
+varied_065.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"เด็กชาย ธันวา น้อย
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_065.pdf",False
+varied_066.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_066.pdf",False
+varied_067.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_067.pdf",False
+varied_068.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_068.pdf",False
+varied_069.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_069.pdf",False
+varied_070.pdf,นาย สมหมาย ใจดี #70,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"นาย สมหมาย ใจดี #70
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_070.pdf",False
+varied_071.pdf,นางสาว สมศรี ตัวอย่าง,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_071.pdf",False
+varied_072.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_072.pdf",False
+varied_073.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_073.pdf",False
+varied_074.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_074.pdf",False
+varied_075.pdf,นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"นางสาว ประภัสสร จันทร์จำปา วงศ์สุวรรณสกุล นักพัฒนาเทคโนโลยีสารสนเทศและการสื่อสาร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_075.pdf",False
+varied_076.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_076.pdf",False
+varied_077.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ #77,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"สุภาพสตรียอดเยี่ยม ภูมิใจ #77
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_077.pdf",False
+varied_078.pdf,นาย กิตติพงษ์ (Kittipong),การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_078.pdf",False
+varied_079.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_079.pdf",False
+varied_080.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"นาย สมหมาย ใจดี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_080.pdf",False
+varied_081.pdf,นางสาว สมศรี ตัวอย่าง,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"นางสาว สมศรี ตัวอย่าง
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_081.pdf",False
+varied_082.pdf,ดร. วิทยา พิทักษ์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_082.pdf",False
+varied_083.pdf,ผศ.ดร. วีระชัย ศรีสุข,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_083.pdf",False
+varied_084.pdf,นพ. ภูมิพัฒน์ เมธี #84,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"นพ. ภูมิพัฒน์ เมธี #84
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_084.pdf",False
+varied_085.pdf,เด็กชาย ธันวา น้อย,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"เด็กชาย ธันวา น้อย
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_085.pdf",False
+varied_086.pdf,เด็กหญิง ดาวเรือง จิตร,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_086.pdf",False
+varied_087.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_087.pdf",False
+varied_088.pdf,นาย กิตติพงษ์ (Kittipong),การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"นาย กิตติพงษ์ (Kittipong)
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_088.pdf",False
+varied_089.pdf,นาง Apinya-Somchai,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Apinya-Somchai,Practical Software Development (32h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Apinya-Somchai
+Practical Software Development (32h)
+Generated ID: varied_089.pdf",False
+varied_090.pdf,นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Sommai Jaidee,Intro to UX/UI (16h),"นาย สมชาย พิพัฒน์สมบูรณ์กิจ ผู้มีความยาวชื่อมากเป็นกรณีทดสอบเพื่อดูการตัดคำและวรรณยุกต์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Sommai Jaidee
+Intro to UX/UI (16h)
+Generated ID: varied_090.pdf",False
+varied_091.pdf,นางสาว สมศรี ตัวอย่าง #91,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Somsri Example,Thai for Professionals (12h),"นางสาว สมศรี ตัวอย่าง #91
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Somsri Example
+Thai for Professionals (12h)
+Generated ID: varied_091.pdf",False
+varied_092.pdf,ดร. วิทยา พิทักษ์,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Dr. Witya Pitak,Advanced Data Analysis (40h),"ดร. วิทยา พิทักษ์
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Dr. Witya Pitak
+Advanced Data Analysis (40h)
+Generated ID: varied_092.pdf",False
+varied_093.pdf,ผศ.ดร. วีระชัย ศรีสุข,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Practical Software Development (32h),"ผศ.ดร. วีระชัย ศรีสุข
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Practical Software Development (32h)
+Generated ID: varied_093.pdf",False
+varied_094.pdf,นพ. ภูมิพัฒน์ เมธี,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Kittipong (K.),Intro to UX/UI (16h),"นพ. ภูมิพัฒน์ เมธี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Kittipong (K.)
+Intro to UX/UI (16h)
+Generated ID: varied_094.pdf",False
+varied_095.pdf,เด็กชาย ธันวา น้อย,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Apinya-Somchai,Thai for Professionals (12h),"เด็กชาย ธันวา น้อย
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Apinya-Somchai
+Thai for Professionals (12h)
+Generated ID: varied_095.pdf",False
+varied_096.pdf,เด็กหญิง ดาวเรือง จิตร,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Sommai Jaidee,Advanced Data Analysis (40h),"เด็กหญิง ดาวเรือง จิตร
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Sommai Jaidee
+Advanced Data Analysis (40h)
+Generated ID: varied_096.pdf",False
+varied_097.pdf,สุภาพสตรียอดเยี่ยม ภูมิใจ,การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง),Somsri Example,Practical Software Development (32h),"สุภาพสตรียอดเยี่ยม ภูมิใจ
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การพัฒนาซอฟต์แวร์เชิงปฏิบัติ (32 ชั่วโมง)
+Somsri Example
+Practical Software Development (32h)
+Generated ID: varied_097.pdf",False
+varied_098.pdf,นาย กิตติพงษ์ (Kittipong) #98,การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง),Dr. Witya Pitak,Intro to UX/UI (16h),"นาย กิตติพงษ์ (Kittipong) #98
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การออกแบบ UX/UI สำหรับผู้เริ่มต้น (16 ชั่วโมง)
+Dr. Witya Pitak
+Intro to UX/UI (16h)
+Generated ID: varied_098.pdf",False
+varied_099.pdf,นาง Apinya-Somchai,ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง),Assoc. Prof. Weerachai Srisuk,Thai for Professionals (12h),"นาง Apinya-Somchai
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+ภาษาไทยสำหรับวิชาชีพ (12 ชั่วโมง)
+Assoc. Prof. Weerachai Srisuk
+Thai for Professionals (12h)
+Generated ID: varied_099.pdf",False
+varied_100.pdf,นาย สมหมาย ใจดี,การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง),Kittipong (K.),Advanced Data Analysis (40h),"นาย สมหมาย ใจดี
+ได้ผ่านเกณฑ์หลักสูตรออน์ไลน์จนได้รับประกาศนียบัตรในรายวิชา
+การวิเคราะห์ข้อมูลเชิงสถิติและการประยุกต์ (40 ชั่วโมง)
+Kittipong (K.)
+Advanced Data Analysis (40h)
+Generated ID: varied_100.pdf",False
