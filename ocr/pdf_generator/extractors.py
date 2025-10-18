@@ -92,20 +92,31 @@ def extract_text_paddle(pdf_bytes: bytes, lang: str = 'th', max_pages: int = 2) 
     if PaddleOCR is None:
         raise RuntimeError("paddleocr not installed")
     if _paddle is None:
-        # Some paddleocr versions do not accept `use_gpu` in the constructor.
-        # Pass only supported args (use_angle_cls, lang). GPU usage is controlled elsewhere.
-        _paddle = PaddleOCR(use_angle_cls=True, lang=lang)
+        # Use new parameter name for newer PaddleOCR versions
+        _paddle = PaddleOCR(use_textline_orientation=True, lang=lang)
     imgs = pdf_to_images_with_fitz(pdf_bytes, max_pages=max_pages)
     start = time.time()
     parts = []
     for im in imgs:
         # PaddleOCR expects file path or numpy array; convert PIL Image -> numpy array
         im_arr = np.array(im)
-        # Call ocr without cls parameter (use use_angle_cls in constructor instead)
+        # Call ocr - newer versions return OCRResult objects
         res = _paddle.ocr(im_arr)
-        # `res` is a list of lists: each element contains [box, (text, prob)]
-        if res and res[0]:
-            parts.append("\n".join([str(line[1][0]) for line in res[0]]))
+        
+        # Handle both old and new PaddleOCR result formats
+        if res and len(res) > 0:
+            ocr_result = res[0]
+            
+            # New format: OCRResult object with 'rec_texts' attribute/key
+            if hasattr(ocr_result, 'get') and 'rec_texts' in ocr_result:
+                texts = ocr_result['rec_texts']
+                if texts:
+                    parts.append("\n".join([str(t) for t in texts]))
+            # Old format: list of [box, (text, confidence)]
+            elif isinstance(ocr_result, list) and len(ocr_result) > 0:
+                if isinstance(ocr_result[0], (list, tuple)) and len(ocr_result[0]) >= 2:
+                    parts.append("\n".join([str(line[1][0]) for line in ocr_result]))
+    
     duration = time.time() - start
     return "\n".join(parts), duration
 
