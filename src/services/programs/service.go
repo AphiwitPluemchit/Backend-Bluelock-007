@@ -3,7 +3,7 @@ package programs
 import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
-	"Backend-Bluelock-007/src/services/hour-history"
+	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/summary_reports"
 	"context"
 	"crypto/sha1"
@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // --- Redis Cache Helper ---
@@ -567,18 +569,218 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		}
 	}
 
-	// ✅ ลบ `ProgramItems` ที่ไม่มีในรายการใหม่
+	// ✅ รวบรวม ProgramItem IDs ที่จะถูกลบ
+	var itemsToDelete []primitive.ObjectID
 	for existingID := range existingItemMap {
 		if !newItemIDs[existingID] {
-			objID, err := primitive.ObjectIDFromHex(existingID) // 🔥 แปลง `string` เป็น `ObjectID`
+			objID, err := primitive.ObjectIDFromHex(existingID)
 			if err != nil {
 				continue
 			}
-			_, err = DB.ProgramItemCollection.DeleteOne(ctx, bson.M{"_id": objID})
-			if err != nil {
-				return nil, err
+			itemsToDelete = append(itemsToDelete, objID)
+		}
+	}
+
+	// ✅ ลบข้อมูลที่เกี่ยวข้องกับ ProgramItems ที่จะถูกลบ
+	if len(itemsToDelete) > 0 {
+		// 1) ดึงข้อมูล Enrollments ที่จะถูกลบเพื่อคำนวณ Summary Reports
+		var enrollmentsToDelete []models.Enrollment
+		cursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"programItemId": bson.M{"$in": itemsToDelete}})
+		if err == nil {
+			if err := cursor.All(ctx, &enrollmentsToDelete); err != nil {
+				log.Printf("⚠️ Warning: Failed to fetch enrollments for calculation: %v", err)
 			}
 		}
+		cursor.Close(ctx)
+
+		// 2) คำนวณและอัปเดต Summary Reports ตามสถานะการเช็คชื่อ
+		if len(enrollmentsToDelete) > 0 {
+			// รวบรวมข้อมูลตาม ProgramID และ Date
+			summaryUpdates := make(map[string]map[string]int) // [programID][date] = {registered, checkin, checkout, notParticipating}
+
+			for _, enrollment := range enrollmentsToDelete {
+				// หา ProgramItem เพื่อหา ProgramID และ Dates
+				var programItem models.ProgramItem
+				if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ProgramItemID}).Decode(&programItem); err != nil {
+					continue
+				}
+
+				programIDStr := programItem.ProgramID.Hex()
+				if summaryUpdates[programIDStr] == nil {
+					summaryUpdates[programIDStr] = make(map[string]int)
+				}
+
+				// วิเคราะห์สถานะการเช็คชื่อสำหรับแต่ละ Date
+				for _, date := range programItem.Dates {
+					dateStr := date.Date
+
+					// เริ่มต้นด้วย registered -1 (ทุก enrollment ที่ถูกลบ)
+					summaryUpdates[programIDStr][dateStr] -= 1
+
+					// ตรวจสอบสถานะการเช็คชื่อ
+					if enrollment.CheckinoutRecord != nil && len(*enrollment.CheckinoutRecord) > 0 {
+						// ใช้ record แรก (เนื่องจาก CheckinoutRecord ไม่มี Date field)
+						record := (*enrollment.CheckinoutRecord)[0]
+
+						// ตรวจสอบสถานะ
+						if record.Checkin != nil && record.Checkout != nil {
+							// เช็คอินและเช็คเอาท์แล้ว
+							summaryUpdates[programIDStr][dateStr+"_checkout"] -= 1
+
+							// ตรวจสอบว่าสายหรือไม่ (ใช้ Participation field)
+							if record.Participation != nil && strings.Contains(*record.Participation, "ไม่ตรงเวลา") {
+								summaryUpdates[programIDStr][dateStr+"_checkinLate"] -= 1
+							} else {
+								summaryUpdates[programIDStr][dateStr+"_checkin"] -= 1
+							}
+						} else if record.Checkin != nil {
+							// เช็คอินแล้วแต่ยังไม่เช็คเอาท์
+							summaryUpdates[programIDStr][dateStr+"_checkin"] -= 1
+						} else {
+							// ไม่เช็คอินเลย
+							summaryUpdates[programIDStr][dateStr+"_notParticipating"] -= 1
+						}
+					} else {
+						// ไม่มี checkinoutRecord = ไม่เข้าร่วม
+						summaryUpdates[programIDStr][dateStr+"_notParticipating"] -= 1
+					}
+				}
+			}
+
+			// อัปเดต Summary Reports
+			for programIDStr, dateUpdates := range summaryUpdates {
+				programID, err := primitive.ObjectIDFromHex(programIDStr)
+				if err != nil {
+					continue
+				}
+
+				for dateKey, change := range dateUpdates {
+					if change == 0 {
+						continue
+					}
+
+					// แยก date และ field
+					parts := strings.Split(dateKey, "_")
+					dateStr := parts[0]
+					field := "registered"
+
+					if len(parts) > 1 {
+						switch parts[1] {
+						case "checkin":
+							field = "checkin"
+						case "checkinLate":
+							field = "checkinLate"
+						case "checkout":
+							field = "checkout"
+						case "notParticipating":
+							field = "notParticipating"
+						}
+					}
+
+					// อัปเดต Summary Report
+					_, err := DB.SummaryCheckInOutReportsCollection.UpdateOne(ctx, bson.M{
+						"programId": programID,
+						"date":      dateStr,
+					}, bson.M{
+						"$inc": bson.M{field: change},
+					})
+
+					if err != nil {
+						log.Printf("⚠️ Warning: Failed to update summary report for program %s, date %s, field %s: %v", programIDStr, dateStr, field, err)
+					} else {
+						log.Printf("✅ Updated summary report for program %s, date %s, %s: %d", programIDStr, dateStr, field, change)
+					}
+				}
+			}
+		}
+
+		// 3) ลบ Enrollments ที่เกี่ยวข้องกับ ProgramItems เหล่านี้
+		if _, err := DB.EnrollmentCollection.DeleteMany(ctx, bson.M{"programItemId": bson.M{"$in": itemsToDelete}}); err != nil {
+			log.Printf("⚠️ Warning: Failed to delete enrollments for programItems: %v", err)
+		}
+
+		// 4) ลบ Hour Change Histories ที่เกี่ยวข้องกับ ProgramItems เหล่านี้
+		if _, err := DB.HourChangeHistoryCollection.DeleteMany(ctx, bson.M{"enrollmentId": bson.M{"$in": itemsToDelete}}); err != nil {
+			log.Printf("⚠️ Warning: Failed to delete hour change histories for programItems: %v", err)
+		}
+
+		// 5) หา Dates ที่จะถูกลบ (จาก ProgramItems ที่จะถูกลบ)
+		var datesToCheck []string
+		dateCursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"_id": bson.M{"$in": itemsToDelete}}, options.Find().SetProjection(bson.M{"dates.date": 1}))
+		if err == nil {
+			var items []bson.M
+			if err := dateCursor.All(ctx, &items); err == nil {
+				for _, item := range items {
+					if dates, ok := item["dates"].([]interface{}); ok {
+						for _, date := range dates {
+							if dateMap, ok := date.(bson.M); ok {
+								if dateStr, ok := dateMap["date"].(string); ok {
+									datesToCheck = append(datesToCheck, dateStr)
+								}
+							}
+						}
+					}
+				}
+			}
+			dateCursor.Close(ctx)
+		}
+
+		// 6) ลบ Summary Reports เฉพาะ Dates ที่ไม่มี ProgramItem อื่นใช้
+		if len(datesToCheck) > 0 {
+			// หา Dates ที่ยังมี ProgramItem อื่นใช้อยู่
+			var datesStillInUse []string
+			for _, date := range datesToCheck {
+				count, err := DB.ProgramItemCollection.CountDocuments(ctx, bson.M{
+					"programId":  id,
+					"dates.date": date,
+					"_id":        bson.M{"$nin": itemsToDelete}, // ไม่นับ ProgramItems ที่กำลังจะลบ
+				})
+				if err != nil {
+					log.Printf("⚠️ Warning: Failed to check date %s: %v", date, err)
+					continue
+				}
+				if count > 0 {
+					datesStillInUse = append(datesStillInUse, date)
+				}
+			}
+
+			// ลบ Summary Reports เฉพาะ Dates ที่ไม่มีใครใช้
+			datesToDelete := make([]string, 0)
+			for _, date := range datesToCheck {
+				found := false
+				for _, usedDate := range datesStillInUse {
+					if date == usedDate {
+						found = true
+						break
+					}
+				}
+				if !found {
+					datesToDelete = append(datesToDelete, date)
+				}
+			}
+
+			if len(datesToDelete) > 0 {
+				if _, err := DB.SummaryCheckInOutReportsCollection.DeleteMany(ctx, bson.M{
+					"programId": id,
+					"date":      bson.M{"$in": datesToDelete},
+				}); err != nil {
+					log.Printf("⚠️ Warning: Failed to delete summary reports for dates: %v", err)
+				} else {
+					log.Printf("✅ Deleted summary reports for program %s, dates: %v", id.Hex(), datesToDelete)
+				}
+			}
+
+			if len(datesStillInUse) > 0 {
+				log.Printf("ℹ️ Keeping summary reports for program %s, dates: %v (still in use by other program items)", id.Hex(), datesStillInUse)
+			}
+		}
+
+		// 7) ลบ ProgramItems
+		if _, err := DB.ProgramItemCollection.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": itemsToDelete}}); err != nil {
+			return nil, err
+		}
+
+		log.Printf("✅ Deleted %d program items and related data for program %s", len(itemsToDelete), id.Hex())
 	}
 
 	// Handle scheduling of state transitions based on program state changes
@@ -642,19 +844,53 @@ func DeleteProgram(id primitive.ObjectID) error {
 		delCache("program:" + id.Hex())
 	}()
 
-	// ลบ ProgramItems ที่เชื่อมโยงกับ Program
-	_, err := DB.ProgramItemCollection.DeleteMany(ctx, bson.M{"programId": id})
+	// 1) หา ProgramItem IDs ทั้งหมดของโปรแกรมนี้
+	itemCursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": id}, options.Find().SetProjection(bson.M{"_id": 1}))
+	if err != nil {
+		return err
+	}
+	var itemIDs []primitive.ObjectID
+	for itemCursor.Next(ctx) {
+		var v struct {
+			ID primitive.ObjectID `bson:"_id"`
+		}
+		if derr := itemCursor.Decode(&v); derr == nil {
+			itemIDs = append(itemIDs, v.ID)
+		}
+	}
+	itemCursor.Close(ctx)
+
+	// 2) ลบ Enrollments ที่อยู่ใน ProgramItems ของโปรแกรมนี้
+	if len(itemIDs) > 0 {
+		if _, err := DB.EnrollmentCollection.DeleteMany(ctx, bson.M{"programItemId": bson.M{"$in": itemIDs}}); err != nil {
+			return err
+		}
+	}
+
+	// 3) ลบสรุปรายงานเช็คอินเช็คเอาท์ของโปรแกรมนี้
+	if err := summary_reports.DeleteAllSummaryReportsForProgram(id); err != nil {
+		// log แล้วไปต่อ เพื่อไม่ให้การลบหลักพัง
+		log.Printf("⚠️ Warning: Failed to delete summary reports for program %s: %v", id.Hex(), err)
+	}
+
+	// 4) ลบประวัติการเปลี่ยนแปลงชั่วโมงที่มาจากโปรแกรมนี้
+	if _, err := DB.HourChangeHistoryCollection.DeleteMany(ctx, bson.M{"sourceType": "program", "sourceId": id}); err != nil {
+		return err
+	}
+
+	// 5) ลบ ProgramItems ที่เชื่อมโยงกับ Program
+	_, err = DB.ProgramItemCollection.DeleteMany(ctx, bson.M{"programId": id})
 	if err != nil {
 		return err
 	}
 
-	// ลบ Program
+	// 6) ลบ Program
 	_, err = DB.ProgramCollection.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
 		return err
 	}
 
-	// ลบ scheduled jobs ที่เกี่ยวข้องกับ program นี้
+	// 7) ลบ scheduled jobs ที่เกี่ยวข้องกับ program นี้
 	if DB.RedisURI != "" {
 		programIDHex := id.Hex()
 		// ลบ task ที่เกี่ยวข้องโดยใช้ task ID ที่ถูกต้อง
