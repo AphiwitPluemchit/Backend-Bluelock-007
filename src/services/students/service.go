@@ -568,3 +568,52 @@ func FindExistingCodes(codes []string) ([]string, error) {
 	}
 	return exists, nil
 }
+
+// UpdateStudentStatus - อัปเดตสถานะนักเรียนจาก softSkill และ hardSkill
+func UpdateStudentStatus(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1️⃣ แปลง id เป็น ObjectID
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return fmt.Errorf("invalid student ID: %v", err)
+	}
+
+	// 2️⃣ ดึงข้อมูล softSkill และ hardSkill จาก student
+	var student models.Student
+
+	err = DB.StudentCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&student)
+	if err != nil {
+		return fmt.Errorf("student not found: %v", err)
+	}
+	log.Println("student", student)
+	// 3️⃣ คำนวณสถานะใหม่จาก softSkill และ hardSkill
+	newStatus := calculateStatus(student.SoftSkill, student.HardSkill)
+	log.Println("newStatus", newStatus)
+	// 4️⃣ อัปเดตสถานะในฐานข้อมูล
+	update := bson.M{"$set": bson.M{"status": newStatus}}
+	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		return fmt.Errorf("failed to update student status: %v", err)
+	}
+
+	log.Printf("Updated student %s Updated student %s-> softSkill=%d hardSkill=%d => status=%d",
+		student.ID.Hex(),student.Name, student.SoftSkill, student.HardSkill, newStatus)
+
+	return nil
+}
+
+
+func calculateStatus(softSkill, hardSkill int) int {
+	total := softSkill + hardSkill
+
+	switch {
+	case softSkill >= 30 && hardSkill >= 12:
+		return 3 // ครบ
+	case total >= 20:
+		return 2 // น้อย
+	default:
+		return 1 // น้อยมาก
+	}
+}
