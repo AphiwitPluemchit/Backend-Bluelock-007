@@ -324,7 +324,6 @@ func UpdateStudentStatusByIDs(studentIDs []string, status int) error {
 
 	// แปลง string IDs เป็น ObjectIDs
 	var objectIDs []primitive.ObjectID
-	var statusUpdate int
 	for _, id := range studentIDs {
 		objectID, err := primitive.ObjectIDFromHex(id)
 		if err != nil {
@@ -332,44 +331,34 @@ func UpdateStudentStatusByIDs(studentIDs []string, status int) error {
 		}
 		objectIDs = append(objectIDs, objectID)
 	}
-	statusUpdate = status
+
 	// อัปเดตสถานะนักเรียน
 	filter := bson.M{"_id": bson.M{"$in": objectIDs}}
-	update := bson.M{"$set": bson.M{"status": statusUpdate}}
+	update := bson.M{"$set": bson.M{"status": status}}
 
 	result, err := DB.StudentCollection.UpdateMany(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update students: %v", err)
 	}
 
-	// ถ้าสถานะเป็น 0 (จัดเก็บ) ให้อัปเดต isActive ใน users collection ด้วย
+	log.Printf("Updated %d students status to %d", result.ModifiedCount, status)
 
-	// ดึง student IDs ที่อัปเดตแล้ว
-	var students []models.Student
-	cursor, err := DB.StudentCollection.Find(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("failed to find updated students: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	if err = cursor.All(ctx, &students); err != nil {
-		return fmt.Errorf("failed to decode students: %v", err)
-	}
-
-	// อัปเดต isActive ใน users collection
-	for _, student := range students {
-		userFilter := bson.M{"refId": student.ID}
+	// ✅ เฉพาะกรณีสถานะ = 0 (จัดเก็บ) เท่านั้นถึงจะอัปเดต isActive ใน users collection
+	if status == 0 {
+		userFilter := bson.M{"refId": bson.M{"$in": objectIDs}}
 		userUpdate := bson.M{"$set": bson.M{"isActive": false}}
 
-		_, err := DB.UserCollection.UpdateOne(ctx, userFilter, userUpdate)
+		userResult, err := DB.UserCollection.UpdateMany(ctx, userFilter, userUpdate)
 		if err != nil {
-			log.Printf("Failed to update user isActive for student %s: %v", student.ID.Hex(), err)
+			return fmt.Errorf("failed to update user isActive: %v", err)
 		}
+
+		log.Printf("Deactivated %d users linked to students", userResult.ModifiedCount)
 	}
 
-	log.Printf("Updated %d students status to %d", result.ModifiedCount, 0)
 	return nil
 }
+
 
 // GetSammaryByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code
 func GetSammaryByCode(code string) (bson.M, error) {
