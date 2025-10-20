@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // @Summary      Verify a URL
@@ -29,16 +31,49 @@ func VerifyURL(c *fiber.Ctx) error {
 
 	fmt.Println("url", url)
 
-	isVerified, isDuplicate, err := services.VerifyURL(url, studentId, courseId)
+	// Create a placeholder UploadCertificate record with pending status
+	// so the API returns immediately and processing happens in background.
+	// Convert IDs to ObjectID
+	sid, err := primitive.ObjectIDFromHex(studentId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid studentId"})
+	}
+	cid, err := primitive.ObjectIDFromHex(courseId)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid courseId"})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"isVerified":  isVerified,
-		"isDuplicate": isDuplicate,
+	placeholder := models.UploadCertificate{
+		ID:             primitive.NewObjectID(),
+		IsDuplicate:    false,
+		StudentId:      sid,
+		CourseId:       cid,
+		UploadAt:       time.Now(),
+		NameMatch:      0,
+		NameEngMatch:   0,
+		CourseMatch:    0,
+		CourseEngMatch: 0,
+		Status:         models.StatusPending,
+		Url:            url,
+	}
+
+	saved, err := services.CreateUploadCertificate(&placeholder)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Fire-and-forget: process the saved certificate in background
+	go func(idHex string) {
+		if e := services.ProcessPendingUpload(idHex); e != nil {
+			// Log error but do not affect requester
+			fmt.Printf("Background processing failed for upload %s: %v\n", idHex, e)
+		}
+	}(saved.ID.Hex())
+
+	// Return accepted with the created placeholder ID — frontend can poll or show notice
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"message": "Upload received. Verification is being processed in background.",
+		"id":      saved.ID.Hex(),
 	})
 
 }

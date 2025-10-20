@@ -749,6 +749,145 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	return saved, nil
 }
 
+// ProcessPendingUpload finds an existing UploadCertificate by its hex ID and performs
+// the full verification (calling fastapi/browser as needed), updates the document with
+// scores, status and records history or hours. This is intended to be called as a
+// background job so the HTTP request can return immediately.
+func ProcessPendingUpload(uploadIDHex string) error {
+	ctx := context.Background()
+	objID, err := primitive.ObjectIDFromHex(uploadIDHex)
+	if err != nil {
+		return fmt.Errorf("invalid upload id: %v", err)
+	}
+
+	var uc models.UploadCertificate
+	if err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&uc); err != nil {
+		return fmt.Errorf("upload certificate not found: %v", err)
+	}
+
+	// Only process if status is pending
+	if uc.Status != models.StatusPending {
+		fmt.Printf("Upload %s is not pending (status=%s), skipping background processing\n", uploadIDHex, uc.Status)
+		return nil
+	}
+
+	// Load student and course
+	student, course, err := CheckStudentCourse(uc.StudentId.Hex(), uc.CourseId.Hex())
+	if err != nil {
+		return fmt.Errorf("failed to load student/course: %v", err)
+	}
+
+	// Check duplicate URL against already approved certificates
+	isDuplicate, duplicateUpload, err := checkDuplicateURL(uc.Url, uc.StudentId, uc.CourseId)
+	if err != nil {
+		return fmt.Errorf("duplicate check failed: %v", err)
+	}
+
+	if isDuplicate {
+		// Update current upload as rejected duplicate
+		update := bson.M{"$set": bson.M{
+			"isDuplicate":     true,
+			"status":          models.StatusRejected,
+			"remark":          "Certificate URL already exists",
+			"changedStatusAt": time.Now(),
+		}}
+		if _, err := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
+			return fmt.Errorf("failed to mark duplicate upload: %v", err)
+		}
+		// record rejection history
+		if err := recordCertificateRejection(context.Background(), &uc, "Auto-rejected based on matching scores"); err != nil {
+			fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, err)
+		}
+		fmt.Printf("Marked upload %s as duplicate (created duplicate record %s)\n", uploadIDHex, duplicateUpload.ID.Hex())
+		return nil
+	}
+
+	// Perform verification depending on course type
+	var res *FastAPIResp
+	switch course.Type {
+	case "buumooc":
+		res, err = BuuMooc(uc.Url, student, course)
+	case "thaimooc":
+		res, err = ThaiMooc(uc.Url, student, course)
+	default:
+		return fmt.Errorf("invalid course type: %s", course.Type)
+	}
+	if err != nil {
+		// On timeout or other errors, mark rejected with remark
+		remark := fmt.Sprintf("Auto-rejected due to verification error: %v", err)
+		update := bson.M{"$set": bson.M{"status": models.StatusRejected, "remark": remark, "changedStatusAt": time.Now()}}
+		if _, uerr := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); uerr != nil {
+			return fmt.Errorf("failed to update upload after error: %v (update err: %v)", err, uerr)
+		}
+		// record rejection
+		if rerr := recordCertificateRejection(context.Background(), &uc, remark); rerr != nil {
+			fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, rerr)
+		}
+		return nil
+	}
+	if res == nil {
+		return fmt.Errorf("nil response from fastapi for upload %s", uploadIDHex)
+	}
+
+	// Prepare fields to update on the existing upload record
+	getScore := func(p *int) int {
+		if p == nil {
+			return 0
+		}
+		return *p
+	}
+	nameScoreTh := getScore(res.NameScoreTh)
+	nameScoreEn := getScore(res.NameScoreEn)
+	courseScore := getScore(res.CourseScore)
+	courseScoreEn := getScore(res.CourseScoreEn)
+	nameMax := max(nameScoreTh, nameScoreEn)
+	courseMax := max(courseScore, courseScoreEn)
+
+	newStatus := models.StatusRejected
+	if nameMax >= 80 && courseMax >= 80 {
+		newStatus = models.StatusApproved
+	} else if nameMax >= 50 && courseMax >= 50 {
+		newStatus = models.StatusPending
+	}
+
+	updateFields := bson.M{
+		"nameMatch":       nameMax,
+		"nameEngMatch":    nameScoreEn,
+		"courseMatch":     courseScore,
+		"courseEngMatch":  courseScoreEn,
+		"status":          newStatus,
+		"usedOcr":         res.UsedOCR,
+		"changedStatusAt": time.Now(),
+	}
+
+	_, err = DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": updateFields})
+	if err != nil {
+		return fmt.Errorf("failed to update upload certificate: %v", err)
+	}
+
+	// Re-fetch updated doc for history/hours operations
+	var updated models.UploadCertificate
+	if err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&updated); err != nil {
+		return fmt.Errorf("failed to fetch updated upload: %v", err)
+	}
+
+	// If approved, add hours
+	if updated.Status == models.StatusApproved {
+		if err := addCertificateHours(context.Background(), &updated); err != nil {
+			fmt.Printf("Warning: Failed to add hours for %s: %v\n", uploadIDHex, err)
+		}
+	}
+
+	// If rejected, record rejection history
+	if updated.Status == models.StatusRejected {
+		if err := recordCertificateRejection(context.Background(), &updated, "Auto-rejected based on matching scores"); err != nil {
+			fmt.Printf("Warning: Failed to record rejection for %s: %v\n", uploadIDHex, err)
+		}
+	}
+
+	return nil
+}
+
 // addCertificateHours เพิ่มชั่วโมงให้กับนิสิตเมื่อ certificate ได้รับการอนุมัติ
 func addCertificateHours(ctx context.Context, certificate *models.UploadCertificate) error {
 	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
