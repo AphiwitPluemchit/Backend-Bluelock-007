@@ -361,56 +361,6 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 	return rows, meta, nil
 }
 
-func VerifyURL(publicPageURL string, studentId string, courseId string) (bool, bool, error) {
-	fmt.Println("VerifyURL ")
-	fmt.Println("studentId", studentId)
-	fmt.Println("courseId", courseId)
-	student, course, err := CheckStudentCourse(studentId, courseId)
-	if err != nil {
-		return false, false, err
-	}
-
-	isDuplicate, duplicateUpload, err := checkDuplicateURL(publicPageURL, student.ID, course.ID)
-	if err != nil {
-		return false, false, err
-	}
-
-	if isDuplicate {
-		fmt.Println("Duplicate URL found", duplicateUpload)
-		return false, true, nil
-	}
-
-	var res *FastAPIResp
-	switch course.Type {
-	case "buumooc":
-		fmt.Println("Verify URL for BuuMooc")
-		res, err = BuuMooc(publicPageURL, student, course)
-	case "thaimooc":
-		fmt.Println("Verify URL for ThaiMooc")
-		res, err = ThaiMooc(publicPageURL, student, course)
-	default:
-		return false, false, fmt.Errorf("invalid course type: %s", course.Type)
-	}
-	if err != nil {
-		fmt.Println("Error verifying URL", err)
-		return false, false, err
-	}
-	if res == nil {
-		fmt.Println("nil response from", course.Type)
-		return false, false, fmt.Errorf("nil response from %s", course.Type)
-	}
-
-	uploadCertificate, err := saveUploadCertificate(publicPageURL, student.ID, course.ID, res)
-	if err != nil {
-		fmt.Println("Error saving upload certificate", err)
-		return false, false, err
-	}
-
-	fmt.Println(uploadCertificate)
-
-	return res.IsVerified, false, nil
-}
-
 func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
 	// Use a cancellable context with timeout to avoid hanging on bad URLs
 	timeout := 180 * time.Second
@@ -749,6 +699,9 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	return saved, nil
 }
 
+// Reference to avoid "unused function" staticcheck when function is kept for future use
+var _ = saveUploadCertificate
+
 // ProcessPendingUpload finds an existing UploadCertificate by its hex ID and performs
 // the full verification (calling fastapi/browser as needed), updates the document with
 // scores, status and records history or hours. This is intended to be called as a
@@ -794,9 +747,13 @@ func ProcessPendingUpload(uploadIDHex string) error {
 		if _, err := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
 			return fmt.Errorf("failed to mark duplicate upload: %v", err)
 		}
-		// record rejection history
-		if err := recordCertificateRejection(context.Background(), &uc, "Auto-rejected based on matching scores"); err != nil {
-			fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, err)
+		// Finalize pending history as rejected (reuse helper)
+		if err := finalizePendingHistoryRejected(context.Background(), &uc, course, "Certificate URL already exists"); err != nil {
+			// fallback: still attempt to record rejection
+			fmt.Printf("Warning: failed to finalize pending history for duplicate %s: %v\n", uploadIDHex, err)
+			if rerr := recordCertificateRejection(context.Background(), &uc, "Auto-rejected based on matching scores"); rerr != nil {
+				fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, rerr)
+			}
 		}
 		fmt.Printf("Marked upload %s as duplicate (created duplicate record %s)\n", uploadIDHex, duplicateUpload.ID.Hex())
 		return nil
@@ -819,9 +776,13 @@ func ProcessPendingUpload(uploadIDHex string) error {
 		if _, uerr := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); uerr != nil {
 			return fmt.Errorf("failed to update upload after error: %v (update err: %v)", err, uerr)
 		}
-		// record rejection
-		if rerr := recordCertificateRejection(context.Background(), &uc, remark); rerr != nil {
-			fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, rerr)
+		// finalize pending history as rejected (update existing pending record if any)
+		if ferr := finalizePendingHistoryRejected(context.Background(), &uc, course, remark); ferr != nil {
+			fmt.Printf("Warning: failed to finalize pending rejection history for %s: %v\n", uploadIDHex, ferr)
+			// fallback: insert rejection history
+			if rerr := recordCertificateRejection(context.Background(), &uc, remark); rerr != nil {
+				fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, rerr)
+			}
 		}
 		return nil
 	}
@@ -871,18 +832,19 @@ func ProcessPendingUpload(uploadIDHex string) error {
 		return fmt.Errorf("failed to fetch updated upload: %v", err)
 	}
 
-	// If approved, add hours
-	if updated.Status == models.StatusApproved {
-		if err := addCertificateHours(context.Background(), &updated); err != nil {
-			fmt.Printf("Warning: Failed to add hours for %s: %v\n", uploadIDHex, err)
+	// Update pending hour-history to final status and update student hours if approved
+	// Finalize hour history and student hours using helper functions for clarity
+	switch updated.Status {
+	case models.StatusApproved:
+		if err := finalizePendingHistoryApproved(context.Background(), &updated, course); err != nil {
+			fmt.Printf("Warning: finalize approved history failed for %s: %v\n", uploadIDHex, err)
 		}
-	}
-
-	// If rejected, record rejection history
-	if updated.Status == models.StatusRejected {
-		if err := recordCertificateRejection(context.Background(), &updated, "Auto-rejected based on matching scores"); err != nil {
-			fmt.Printf("Warning: Failed to record rejection for %s: %v\n", uploadIDHex, err)
+	case models.StatusRejected:
+		if err := finalizePendingHistoryRejected(context.Background(), &updated, course, "Auto-rejected based on matching scores"); err != nil {
+			fmt.Printf("Warning: finalize rejected history failed for %s: %v\n", uploadIDHex, err)
 		}
+	default:
+		// pending -> leave pending history as-is
 	}
 
 	return nil
@@ -1177,5 +1139,108 @@ func recordCertificatePending(ctx context.Context, certificate *models.UploadCer
 	}
 
 	fmt.Printf("📝 Recorded pending status for certificate %s (no hour changes)\n", certificate.ID.Hex())
+	return nil
+}
+
+// RecordUploadPending is an exported helper that controllers can call to record
+// a pending-hour-history entry for a newly created upload certificate.
+func RecordUploadPending(certificate *models.UploadCertificate, remark string) error {
+	return recordCertificatePending(context.Background(), certificate, remark)
+}
+
+// finalizePendingHistoryApproved applies hours to the student (if applicable)
+// and updates the pending HourChangeHistory for the given upload to approved.
+func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCertificate, course models.Course) error {
+	// determine skill type
+	skillType := "soft"
+	if course.IsHardSkill {
+		skillType = "hard"
+	}
+
+	// apply student hours if not duplicate
+	if !upload.IsDuplicate && course.Hour > 0 && course.IsActive {
+		var inc bson.M
+		if skillType == "soft" {
+			inc = bson.M{"$inc": bson.M{"softSkill": course.Hour}}
+		} else {
+			inc = bson.M{"$inc": bson.M{"hardSkill": course.Hour}}
+		}
+		if _, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": upload.StudentId}, inc); err != nil {
+			return fmt.Errorf("failed to update student hours: %v", err)
+		}
+	}
+
+	// Match any existing history for this upload (don't require status=pending)
+	histFilter := bson.M{"sourceType": "certificate", "sourceId": upload.ID, "studentId": upload.StudentId}
+	histUpdate := bson.M{"$set": bson.M{
+		"status":     models.HCStatusApproved,
+		"hourChange": course.Hour,
+		"remark":     "Certificate Approved",
+		"changeAt":   time.Now(),
+		"title":      course.Name,
+		"studentId":  upload.StudentId,
+		"skillType":  skillType,
+	}}
+
+	res, _ := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
+	if res != nil && res.MatchedCount == 0 {
+		// fallback: insert history
+		_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, models.HourChangeHistory{
+			ID:         primitive.NewObjectID(),
+			StudentID:  upload.StudentId,
+			SkillType:  skillType,
+			Status:     models.HCStatusApproved,
+			HourChange: course.Hour,
+			Remark:     "Certificate Approved",
+			ChangeAt:   time.Now(),
+			Title:      course.Name,
+			SourceType: "certificate",
+			SourceID:   upload.ID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to insert approved history: %v", err)
+		}
+	}
+	return nil
+}
+
+// finalizePendingHistoryRejected updates the pending HourChangeHistory to rejected.
+// If none exists, it inserts a rejected history record.
+func finalizePendingHistoryRejected(ctx context.Context, upload *models.UploadCertificate, course models.Course, remark string) error {
+	skillType := "soft"
+	if course.IsHardSkill {
+		skillType = "hard"
+	}
+
+	// Match any existing history for this upload (don't require status=pending)
+	histFilter := bson.M{"sourceType": "certificate", "sourceId": upload.ID, "studentId": upload.StudentId}
+	histUpdate := bson.M{"$set": bson.M{
+		"status":     models.HCStatusRejected,
+		"hourChange": 0,
+		"remark":     remark,
+		"changeAt":   time.Now(),
+		"title":      course.Name,
+		"studentId":  upload.StudentId,
+		"skillType":  skillType,
+	}}
+
+	res, _ := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
+	if res != nil && res.MatchedCount == 0 {
+		_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, models.HourChangeHistory{
+			ID:         primitive.NewObjectID(),
+			StudentID:  upload.StudentId,
+			SkillType:  skillType,
+			Status:     models.HCStatusRejected,
+			HourChange: 0,
+			Remark:     remark,
+			ChangeAt:   time.Now(),
+			Title:      course.Name,
+			SourceType: "certificate",
+			SourceID:   upload.ID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to insert rejected history: %v", err)
+		}
+	}
 	return nil
 }

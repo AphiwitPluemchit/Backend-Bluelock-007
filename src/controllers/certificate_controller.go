@@ -62,6 +62,12 @@ func VerifyURL(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	// Record pending hour history immediately for the newly created upload
+	if err := services.RecordUploadPending(saved, "Submitted by user - pending verification"); err != nil {
+		// Log but don't fail the request
+		fmt.Printf("Warning: failed to record pending history for upload %s: %v\n", saved.ID.Hex(), err)
+	}
+
 	// Fire-and-forget: process the saved certificate in background
 	go func(idHex string) {
 		if e := services.ProcessPendingUpload(idHex); e != nil {
