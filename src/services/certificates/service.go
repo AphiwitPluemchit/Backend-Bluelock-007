@@ -696,17 +696,17 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 
 	nameMax := max(nameScoreTh, nameScoreEn)
 
-	// Decide status using available course scores: prefer courseScore, fallback to courseScoreEn
+	// Decide status using available course scores: take the max of Thai/EN course score
 	courseMax := max(courseScore, courseScoreEn)
 
-	if nameMax >= 90 && courseMax >= 90 {
+	// New simplified thresholds:
+	// - If both nameMax and courseMax >= 85 => Approved
+	// - Else if both nameMax and courseMax >= 50 => Pending
+	// - Otherwise => Rejected
+	if nameMax >= 80 && courseMax >= 80 {
 		uploadCertificate.Status = models.StatusApproved
-	} else if nameMax > 75 {
-		if courseMax > 75 {
-			uploadCertificate.Status = models.StatusPending
-		} else {
-			uploadCertificate.Status = models.StatusRejected
-		}
+	} else if nameMax >= 50 && courseMax >= 50 {
+		uploadCertificate.Status = models.StatusPending
 	} else {
 		uploadCertificate.Status = models.StatusRejected
 	}
