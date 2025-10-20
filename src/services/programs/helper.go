@@ -287,7 +287,21 @@ func aggregatePrograms(ctx context.Context, pipeline mongo.Pipeline) ([]models.P
 }
 
 func countPrograms(ctx context.Context, filter bson.M, majors []string, studentYears []int, isSortNearest bool) (int64, error) {
-	countPipeline := getLightweightProgramsPipeline(filter, "", 0, isSortNearest, 0, 0, majors, studentYears)
+	// When sorting by nearest date (isSortNearest), the aggregation uses the
+	// special 'dates' pipeline which unwinds dates and groups by program to
+	// compute the nextDate. To get an accurate total for pagination we must
+	// use the same pipeline shape here. Otherwise the count will be larger
+	// (or different) than the returned aggregation and can cause empty last
+	// pages.
+	sortField := ""
+	sortOrder := 0
+	if isSortNearest {
+		sortField = "dates"
+		// sort order doesn't matter for counting but pass a valid order
+		sortOrder = 1
+	}
+
+	countPipeline := getLightweightProgramsPipeline(filter, sortField, sortOrder, isSortNearest, 0, 0, majors, studentYears)
 	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
 	cursor, err := DB.ProgramCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
