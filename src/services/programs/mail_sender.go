@@ -1,7 +1,7 @@
 package programs
 
 import (
-	"crypto/tls"
+	// "crypto/tls"
 	gomail "gopkg.in/gomail.v2"
 	"os"
 	"strconv"
@@ -39,10 +39,10 @@ func (s *SMTPSender) Send(to, subject, html string) error {
 
 	d := gomail.NewDialer(s.Host, s.Port, s.User, s.Pass)
 
-	d.TLSConfig = &tls.Config{
-		ServerName: s.Host,
-		MinVersion: tls.VersionTLS12,
-	}
+	// d.TLSConfig = &tls.Config{
+	// 	ServerName: s.Host,
+	// 	MinVersion: tls.VersionTLS12,
+	// }
 
 	return d.DialAndSend(m)
 }
