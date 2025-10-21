@@ -1,0 +1,26 @@
+<div style="font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;line-height:1.6;color:#222;">
+  <h2 style="color:#0056b3;">📢 เปิดลงทะเบียนกิจกรรม: {{.ProgramName}}</h2>
+
+  <p>เรียน คุณ{{.StudentName}} (สาขา {{.Major}})</p>
+  <p>กิจกรรมนี้เปิดลงทะเบียนสำหรับนิสิตที่มีสาขาและชั้นปีตรงกับคุณ 🎓</p>
+
+  <p><b>📅 วัน–เวลาโดยสรุป</b><br>
+  {{range .ProgramItems}}
+    {{if .Name}}<b>{{.Name}}</b><br>{{end}}
+    {{range .Dates}}• {{.Date}} {{.Stime}}–{{.Etime}}<br/>{{end}}
+    <br>
+  {{end}}
+  </p>
+
+  <p><b>⏰ ปิดรับสมัคร:</b> {{.EndDateEnroll}} เวลา 23:59 น.</p>
+
+  <p>
+    <a href="{{.RegisterLink}}" target="_blank"
+       style="display:inline-block;padding:10px 18px;background-color:#007bff;color:white;text-decoration:none;border-radius:6px;">
+      คลิกเพื่อลงทะเบียน
+    </a>
+  </p>
+
+  <hr style="border:none;border-top:1px solid #ccc;margin:20px 0;">
+  <small style="color:#666;">อีเมลนี้ส่งอัตโนมัติจากระบบกิจกรรมนิสิต กรุณาอย่าตอบกลับ</small>
+</div>

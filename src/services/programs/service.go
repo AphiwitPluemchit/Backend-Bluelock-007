@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -66,18 +68,14 @@ func invalidateAllProgramsListCache() {
 
 var ctx = context.Background()
 
-// CreateProgram - สร้าง Program และ ProgramItems
 func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
-	// หลังจาก insert DB สำเร็จ ให้ invalidate cache list
 	defer invalidateAllProgramsListCache()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// ✅ สร้าง ID สำหรับ Program
 	program.ID = primitive.NewObjectID()
 
-	// ✅ สร้าง Program ที่ต้องบันทึกลง MongoDB
 	programToInsert := models.Program{
 		ID:            program.ID,
 		FormID:        program.FormID,
@@ -90,20 +88,15 @@ func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
 		EndDateEnroll: program.EndDateEnroll,
 	}
 
-	// ✅ บันทึก Program และรับค่า InsertedID กลับมา
-	_, err := DB.ProgramCollection.InsertOne(ctx, programToInsert)
-	if err != nil {
+	if _, err := DB.ProgramCollection.InsertOne(ctx, programToInsert); err != nil {
 		return nil, err
 	}
 
-	// ✅ บันทึก ProgramItems
 	var itemsToInsert []any
-
-	// ✅ วนหาเวลาสิ้นสุดที่มากที่สุด
 	var latestTime time.Time
 
 	for _, item := range program.ProgramItems {
-		itemToInsert := models.ProgramItem{
+		itemsToInsert = append(itemsToInsert, models.ProgramItem{
 			ID:              primitive.NewObjectID(),
 			ProgramID:       program.ID,
 			Name:            item.Name,
@@ -115,47 +108,64 @@ func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
 			Operator:        item.Operator,
 			Dates:           item.Dates,
 			Hour:            item.Hour,
-		}
-		itemsToInsert = append(itemsToInsert, itemToInsert)
-
-		// ✅ คำนวณ latestTime
+		})
 		latestTime = MaxEndTimeFromItem(item, latestTime)
 	}
 
-	// ✅ Insert ทั้งหมดในครั้งเดียว เร็วขึ้นมากในการ insert หลายรายการ ลดจำนวนการ round-trip ไปยัง MongoDB
-	_, err = DB.ProgramItemCollection.InsertMany(ctx, itemsToInsert)
-	if err != nil {
-		return nil, err
+	if len(itemsToInsert) > 0 {
+		if _, err := DB.ProgramItemCollection.InsertMany(ctx, itemsToInsert); err != nil {
+			return nil, err
+		}
 	}
 
 	log.Println("Program and ProgramItems created successfully")
 
-	// ✅ สร้าง Summary Report สำหรับ Program ใหม่
-	err = summary_reports.CreateSummaryReport(program.ID)
-	if err != nil {
+	if err := summary_reports.CreateSummaryReport(program.ID); err != nil {
 		log.Printf("⚠️ Warning: Failed to create summary report for program %s: %v", program.ID.Hex(), err)
-		// Don't return error here, just log it - we don't want to fail program creation
-		// if summary report creation fails
 	} else {
 		log.Printf("✅ Created summary report for program: %s", program.ID.Hex())
 	}
 
-	// Schedule state transitions if program is created with "open" state
+	// 🔔 1) ส่งอีเมลแจ้งเตือนถ้า state = open ตั้งแต่แรก
 	if DB.AsynqClient != nil && program.ProgramState == "open" {
-		log.Println("✅ Scheduling state transitions for new program:", program.ID.Hex())
-		programName := ""
+		progName := ""
 		if program.Name != nil {
-			programName = *program.Name
+			progName = *program.Name
 		}
-		err = ScheduleChangeProgramStateJob(DB.AsynqClient, DB.RedisURI, latestTime, program.EndDateEnroll, program.ID.Hex(), programName)
-		if err != nil {
-			log.Println("❌ Failed to schedule state transitions for new program:", err)
-			// Don't return error here, just log it - we don't want to fail program creation
-			// if scheduling fails
+		if task, err := NewNotifyOpenProgramTask(program.ID.Hex(), progName); err != nil {
+			log.Println("❌ Failed to create notify-open task:", err)
+		} else {
+			if _, err := DB.AsynqClient.Enqueue(
+				task,
+				asynq.TaskID("notify-open-"+program.ID.Hex()),
+				asynq.MaxRetry(3),
+			); err != nil {
+				log.Println("❌ Failed to enqueue notify-open task:", err)
+			} else {
+				log.Println("✅ Enqueued notify-open task for program:", program.ID.Hex())
+			}
 		}
 	}
 
-	// ✅ ดึงข้อมูล Program ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
+	// ⏱️ 2) ตั้ง schedule เปลี่ยนสถานะ (close-enroll / complete)
+	if DB.AsynqClient != nil && program.ProgramState == "open" {
+		progName := ""
+		if program.Name != nil {
+			progName = *program.Name
+		}
+		if err := ScheduleChangeProgramStateJob(
+			DB.AsynqClient,
+			DB.RedisURI,
+			latestTime,
+			program.EndDateEnroll,
+			program.ID.Hex(),
+			progName,
+		); err != nil {
+			log.Println("❌ Failed to schedule state transitions:", err)
+			// ไม่ return error เพื่อไม่ให้การสร้างโปรแกรม fail
+		}
+	}
+
 	return GetProgramByID(program.ID.Hex())
 }
 
@@ -800,7 +810,8 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 				if program.Name != nil {
 					programName = *program.Name
 				}
-				err = ScheduleChangeProgramStateJob(DB.AsynqClient, DB.RedisURI, latestTime, program.EndDateEnroll, program.ID.Hex(), programName)
+				err = ScheduleChangeProgramStateJob(DB.AsynqClient, DB.RedisURI, latestTime, program.EndDateEnroll, id.Hex(), programName)
+
 				if err != nil {
 					log.Println("❌ Failed to schedule state transitions:", err)
 					return nil, err
@@ -821,6 +832,60 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 			if err := hourhistory.ProcessEnrollmentsForCompletedProgram(ctx, id); err != nil {
 				log.Printf("⚠️ Warning: failed to process enrollments for program %s: %v", id.Hex(), err)
 				// don't return error - admin manual completion should succeed even if hour processing fails
+			}
+		}
+	}
+	newState := strings.ToLower(program.ProgramState)
+	oldState := strings.ToLower(oldProgram.ProgramState)
+
+	// ✅ เมื่อสถานะเปลี่ยนจากอื่น -> open
+	if oldState != "open" && newState == "open" {
+		progName := ""
+		if program.Name != nil {
+			progName = *program.Name
+		}
+
+		// ถ้ามี Redis → ใช้คิวปกติ
+		if DB.AsynqClient != nil {
+			if task, err := NewNotifyOpenProgramTask(id.Hex(), progName); err != nil {
+				log.Println("❌ Failed to create notify-open task:", err)
+			} else {
+				if _, err := DB.AsynqClient.Enqueue(
+					task,
+					asynq.TaskID("notify-open-"+id.Hex()),
+					asynq.MaxRetry(3),
+				); err != nil {
+					log.Println("❌ Failed to enqueue notify-open task:", err)
+				} else {
+					log.Println("✅ Enqueued notify-open task:", id.Hex())
+				}
+			}
+		} else {
+			// 🚀 DEV MODE: ไม่มี Redis → ส่งเมลทันที
+			log.Println("⚠️ Redis not available → sending open-notify emails synchronously")
+
+			sender, err := NewSMTPSenderFromEnv()
+			if err != nil {
+				log.Println("❌ DEV fallback: cannot init mail sender:", err)
+			} else {
+				handler := HandleNotifyOpenProgram(sender, func(pid string) string {
+					base := strings.TrimRight(os.Getenv("APP_BASE_URL"), "/")
+					if base == "" {
+						base = "http://localhost:9000"
+					}
+					return base + "/Student/Programs/" + pid
+				})
+				payload, _ := json.Marshal(NotifyOpenProgramPayload{
+					ProgramID:   id.Hex(),
+					ProgramName: progName,
+				})
+				task := asynq.NewTask(TypeNotifyOpenProgram, payload)
+
+				if err := handler(context.Background(), task); err != nil {
+					log.Printf("❌ DEV fallback: failed to send emails: %v", err)
+				} else {
+					log.Printf("✅ DEV fallback: sent open-notify emails for program %s", id.Hex())
+				}
 			}
 		}
 	}
