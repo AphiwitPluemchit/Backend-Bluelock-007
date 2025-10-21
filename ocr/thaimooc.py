@@ -8,7 +8,7 @@ from typing import Optional
 def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: Optional[str], course_name: str, course_name_en: Optional[str]):
     # Step A: text layer (เร็ว/แม่นกว่า)
     raw_text = extract_textlayer(pdf_data)
-    hay_text = ''
+    hay_text = raw_text
 
     # ถ้า text layer ว่างมาก ให้ถือว่าไม่ผ่าน (ภายหลังค่อย fallback เป็น OCR)
     used_ocr = False
@@ -39,17 +39,8 @@ def thaimooc_verify(pdf_data: bytes, student_th: str, student_en: Optional[str],
     course_score = best_score(crs, hay)
     course_score_en = best_score(crs_en, hay) if crs_en else 0
 
-    # เกณฑ์เบื้องต้น (ปรับได้ตามจริง)
-    isNameMatch   = name_score_th >= 95 or name_score_en >= 95
-    isCourseMatch = course_score >= 95 or course_score_en >= 95
-    isVerified    = isNameMatch and isCourseMatch
-
     return {
-        "isVerified": isVerified,
-        "isNameMatch": isNameMatch,
-        "isCourseMatch": isCourseMatch,
         "nameScoreTh": name_score_th,
-        # return null for missing english/course fields
         "nameScoreEn": None if stu_en == "" else name_score_en,
         "courseScore": course_score,
         "courseScoreEn": None if crs_en == "" else course_score_en,

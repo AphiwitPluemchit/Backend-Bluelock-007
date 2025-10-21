@@ -14,11 +14,38 @@ import (
 	"strings"
 	"time"
 
+	"strconv"
+
 	"github.com/chromedp/chromedp"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+// Thresholds controlled by environment variables. Defaults kept for backward compatibility.
+var (
+	nameApproveThreshold   = 80
+	courseApproveThreshold = 80
+	pendingThreshold       = 50
+)
+
+func init() {
+	if v := os.Getenv("NAME_APPROVE"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			nameApproveThreshold = parsed
+		}
+	}
+	if v := os.Getenv("COURSE_APPROVE"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			courseApproveThreshold = parsed
+		}
+	}
+	if v := os.Getenv("PENDING"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			pendingThreshold = parsed
+		}
+	}
+}
 
 func CreateUploadCertificate(uploadCertificate *models.UploadCertificate) (*models.UploadCertificate, error) {
 	ctx := context.Background()
@@ -594,7 +621,8 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 	ctx := context.Background()
 
 	var result models.UploadCertificate
-	filter := bson.M{"url": publicPageURL, "status": models.StatusApproved}
+	// Consider both already approved and currently pending uploads as duplicates
+	filter := bson.M{"url": publicPageURL, "status": bson.M{"$in": bson.A{models.StatusApproved, models.StatusPending}}}
 	err := DB.UploadCertificateCollection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -649,13 +677,20 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	// Decide status using available course scores: take the max of Thai/EN course score
 	courseMax := max(courseScore, courseScoreEn)
 
-	// New simplified thresholds:
-	// - If both nameMax and courseMax >= 85 => Approved
-	// - Else if both nameMax and courseMax >= 50 => Pending
+	// log thresholds and scores
+	fmt.Printf("  Thresholds: NAME_APPROVE=%d, COURSE_APPROVE=%d, PENDING=%d\n", nameApproveThreshold, courseApproveThreshold, pendingThreshold)
+	fmt.Printf("  Scores: nameMax=%d (TH=%d, EN=%d), courseMax=%d (TH=%d, EN=%d)\n",
+		nameMax, nameScoreTh, nameScoreEn,
+		courseMax, courseScore, courseScoreEn,
+	)
+
+	// Decide status using centralized thresholds from environment
+	// - If both nameMax and courseMax >= NAME_APPROVE & COURSE_APPROVE => Approved
+	// - Else if both nameMax and courseMax >= PENDING => Pending
 	// - Otherwise => Rejected
-	if nameMax >= 80 && courseMax >= 80 {
+	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
 		uploadCertificate.Status = models.StatusApproved
-	} else if nameMax >= 50 && courseMax >= 50 {
+	} else if nameMax >= pendingThreshold && courseMax >= pendingThreshold {
 		uploadCertificate.Status = models.StatusPending
 	} else {
 		uploadCertificate.Status = models.StatusRejected
@@ -805,9 +840,9 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	courseMax := max(courseScore, courseScoreEn)
 
 	newStatus := models.StatusRejected
-	if nameMax >= 80 && courseMax >= 80 {
+	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
 		newStatus = models.StatusApproved
-	} else if nameMax >= 50 && courseMax >= 50 {
+	} else if nameMax >= pendingThreshold && courseMax >= pendingThreshold {
 		newStatus = models.StatusPending
 	}
 
