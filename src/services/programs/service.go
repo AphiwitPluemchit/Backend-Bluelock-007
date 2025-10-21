@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/hibiken/asynq"
+	email "Backend-Bluelock-007/src/services/programs/email"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -125,28 +125,6 @@ func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
 	} else {
 		log.Printf("✅ Created summary report for program: %s", program.ID.Hex())
 	}
-
-	// 🔔 1) ส่งอีเมลแจ้งเตือนถ้า state = open ตั้งแต่แรก
-	if DB.AsynqClient != nil && program.ProgramState == "open" {
-		progName := ""
-		if program.Name != nil {
-			progName = *program.Name
-		}
-		if task, err := NewNotifyOpenProgramTask(program.ID.Hex(), progName); err != nil {
-			log.Println("❌ Failed to create notify-open task:", err)
-		} else {
-			if _, err := DB.AsynqClient.Enqueue(
-				task,
-				asynq.TaskID("notify-open-"+program.ID.Hex()),
-				asynq.MaxRetry(3),
-			); err != nil {
-				log.Println("❌ Failed to enqueue notify-open task:", err)
-			} else {
-				log.Println("✅ Enqueued notify-open task for program:", program.ID.Hex())
-			}
-		}
-	}
-
 	// ⏱️ 2) ตั้ง schedule เปลี่ยนสถานะ (close-enroll / complete)
 	if DB.AsynqClient != nil && program.ProgramState == "open" {
 		progName := ""
@@ -835,60 +813,22 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 			}
 		}
 	}
-	newState := strings.ToLower(program.ProgramState)
-	oldState := strings.ToLower(oldProgram.ProgramState)
+// newState := strings.ToLower(program.ProgramState)
+// oldState := strings.ToLower(oldProgram.ProgramState)
 
-	// ✅ เมื่อสถานะเปลี่ยนจากอื่น -> open
-	if oldState != "open" && newState == "open" {
-		progName := ""
-		if program.Name != nil {
-			progName = *program.Name
-		}
-
-		// ถ้ามี Redis → ใช้คิวปกติ
-		if DB.AsynqClient != nil {
-			if task, err := NewNotifyOpenProgramTask(id.Hex(), progName); err != nil {
-				log.Println("❌ Failed to create notify-open task:", err)
-			} else {
-				if _, err := DB.AsynqClient.Enqueue(
-					task,
-					asynq.TaskID("notify-open-"+id.Hex()),
-					asynq.MaxRetry(3),
-				); err != nil {
-					log.Println("❌ Failed to enqueue notify-open task:", err)
-				} else {
-					log.Println("✅ Enqueued notify-open task:", id.Hex())
-				}
-			}
-		} else {
-			// 🚀 DEV MODE: ไม่มี Redis → ส่งเมลทันที
-			log.Println("⚠️ Redis not available → sending open-notify emails synchronously")
-
-			sender, err := NewSMTPSenderFromEnv()
-			if err != nil {
-				log.Println("❌ DEV fallback: cannot init mail sender:", err)
-			} else {
-				handler := HandleNotifyOpenProgram(sender, func(pid string) string {
-					base := strings.TrimRight(os.Getenv("APP_BASE_URL"), "/")
-					if base == "" {
-						base = "http://localhost:9000"
-					}
-					return base + "/Student/Programs/" + pid
-				})
-				payload, _ := json.Marshal(NotifyOpenProgramPayload{
-					ProgramID:   id.Hex(),
-					ProgramName: progName,
-				})
-				task := asynq.NewTask(TypeNotifyOpenProgram, payload)
-
-				if err := handler(context.Background(), task); err != nil {
-					log.Printf("❌ DEV fallback: failed to send emails: %v", err)
-				} else {
-					log.Printf("✅ DEV fallback: sent open-notify emails for program %s", id.Hex())
-				}
-			}
-		}
-	}
+// if oldState != "open" && newState == "open" {
+//     progName := ""
+//     if program.Name != nil {
+//         progName = *program.Name
+//     }
+//     // เรียก wrapper → จะเลือก Enqueue หรือส่งตรงให้อัตโนมัติ
+//     email.NotifyStudentsOnOpen(
+//         id.Hex(),
+//         progName,
+//         GetProgramByID,            // resolver อยู่ใน package เดียวกัน
+//         GenerateStudentCodeFilter, // ฟังก์ชันสร้าง code prefixes
+//     )
+// }
 
 	// ✅ อัปเดต Summary Reports เมื่อมีการเปลี่ยนแปลง ProgramItems หรือ Dates
 	err = updateSummaryReportsForProgramChanges(id, &oldProgram, &program)

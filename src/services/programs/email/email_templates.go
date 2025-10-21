@@ -1,4 +1,5 @@
-package programs
+
+package email
 
 import (
 	"bytes"
