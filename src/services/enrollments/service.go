@@ -868,6 +868,13 @@ func UnregisterStudent(enrollmentID primitive.ObjectID) error {
 		}
 	}
 
+	// ✅ ลบประวัติการเปลี่ยนแปลงชั่วโมงที่เกี่ยวข้องกับ enrollment นี้
+	_, err = DB.HourChangeHistoryCollection.DeleteMany(ctx, bson.M{"enrollmentId": enrollmentID})
+	if err != nil {
+		log.Printf("⚠️ Warning: Failed to delete hour change histories for enrollmentId %s: %v", enrollmentID.Hex(), err)
+		// Don't return error - we don't want to fail unenrollment if history deletion fails
+	}
+
 	return nil
 }
 
