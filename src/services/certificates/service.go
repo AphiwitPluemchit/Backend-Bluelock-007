@@ -17,6 +17,7 @@ import (
 	"strconv"
 
 	"github.com/chromedp/chromedp"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,6 +31,12 @@ var (
 )
 
 func init() {
+	// Ensure .env is loaded for this package's init so environment-controlled
+	// thresholds are picked up even if other packages load .env later.
+	if err := godotenv.Load(); err != nil {
+		// Not fatal; if .env not present we'll fall back to system env/defaults
+		fmt.Println("⚠️ services: .env not found or failed to load")
+	}
 	if v := os.Getenv("NAME_APPROVE"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil {
 			nameApproveThreshold = parsed
@@ -617,11 +624,15 @@ func DownloadPDFToBytes(ctx context.Context, pdfSrc string) ([]byte, error) {
 	return b, nil
 }
 
-func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID) (bool, *models.UploadCertificate, error) {
+func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID, excludeID *primitive.ObjectID) (bool, *models.UploadCertificate, error) {
 	ctx := context.Background()
 
 	var result models.UploadCertificate
-	// Consider both already approved and currently pending uploads as duplicates
+	// Consider approved uploads as duplicates by default. For pending uploads,
+	// allow a short grace window when the pending upload belongs to the same
+	// student and course and was created just now -- this avoids race where a
+	// pending record is created locally then immediately re-checked and treated
+	// as a duplicate.
 	filter := bson.M{"url": publicPageURL, "status": bson.M{"$in": bson.A{models.StatusApproved, models.StatusPending}}}
 	err := DB.UploadCertificateCollection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
@@ -630,8 +641,17 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 		}
 		return false, nil, err // Some other error occurred
 	}
+	// If the found document is pending, only ignore it when it's the same
+	// upload we're currently processing (excludeID). This avoids race where
+	// the background job finds its own pending record and rejects itself.
+	if result.Status == models.StatusPending {
+		if excludeID != nil && result.ID == *excludeID {
+			return false, nil, nil
+		}
+		// Otherwise treat pending as a duplicate (fall through)
+	}
 
-	// copy result to new object remove _id
+	// copy result to new object remove _id and mark as duplicate rejection record
 	newResult := models.UploadCertificate{}
 	newResult.IsDuplicate = true
 	newResult.StudentId = studentId
@@ -766,7 +786,8 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	}
 
 	// Check duplicate URL against already approved certificates
-	isDuplicate, duplicateUpload, err := checkDuplicateURL(uc.Url, uc.StudentId, uc.CourseId)
+	// Pass the current upload ID so the duplicate checker can ignore the same pending record
+	isDuplicate, duplicateUpload, err := checkDuplicateURL(uc.Url, uc.StudentId, uc.CourseId, &uc.ID)
 	if err != nil {
 		return fmt.Errorf("duplicate check failed: %v", err)
 	}
@@ -838,6 +859,13 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	courseScoreEn := getScore(res.CourseScoreEn)
 	nameMax := max(nameScoreTh, nameScoreEn)
 	courseMax := max(courseScore, courseScoreEn)
+
+	// log thresholds and scores
+	fmt.Printf("  Thresholds: NAME_APPROVE=%d, COURSE_APPROVE=%d, PENDING=%d\n", nameApproveThreshold, courseApproveThreshold, pendingThreshold)
+	fmt.Printf("  Scores: nameMax=%d (TH=%d, EN=%d), courseMax=%d (TH=%d, EN=%d)\n",
+		nameMax, nameScoreTh, nameScoreEn,
+		courseMax, courseScore, courseScoreEn,
+	)
 
 	newStatus := models.StatusRejected
 	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
