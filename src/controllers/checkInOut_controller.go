@@ -7,6 +7,23 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// func ClearToken(c *fiber.Ctx) error {
+// 	programId := c.Params("programId")
+// 	if programId == "" {
+// 		return c.Status(400).JSON(fiber.Map{"error": "programId is required1"})
+// 	}
+// 	// Convert programId string to MongoDB ObjectID
+// 	objectId, err := primitive.ObjectIDFromHex(programId)
+// 	if err != nil {
+// 		return c.Status(400).JSON(fiber.Map{"error": "Invalid programId"})
+// 	}
+// 	err = checkInOut.ClearToken(objectId)
+// 	if err != nil {
+// 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+// 	}
+// 	return c.Status(200).JSON(fiber.Map{"message": "Token cleared successfully"})
+// }
+
 func GetCheckinStatus(c *fiber.Ctx) error {
 	studentId := c.Query("studentId")
 	programId := c.Query("programId")

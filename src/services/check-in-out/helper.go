@@ -6,6 +6,7 @@ import (
 	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -276,3 +277,21 @@ const (
 	RecordTypeProgram     = "program"
 	RecordTypeCertificate = "certificate"
 )
+
+func ClearToken(programId primitive.ObjectID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// ✅ ลบประวัติการเปลี่ยนแปลงชั่วโมงที่เกี่ยวข้องกับ enrollment นี้
+	_, err := DB.QrTokenCollection.DeleteMany(ctx, bson.M{"programId": programId})
+	if err != nil {
+		log.Printf("⚠️ Warning: Failed to delete QrToken for programId %s: %v", programId.Hex(), err)
+		// Don't return error - we don't want to fail unenrollment if history deletion fails
+	}
+	_, err = DB.QrClaimCollection.DeleteMany(ctx, bson.M{"programId": programId})
+	if err != nil {
+		log.Printf("⚠️ Warning: Failed to delete QrClaim for programId %s: %v", programId.Hex(), err)
+		// Don't return error - we don't want to fail unenrollment if history deletion fails
+	}
+	return nil
+}
