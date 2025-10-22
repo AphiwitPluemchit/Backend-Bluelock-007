@@ -35,7 +35,7 @@ func NotifyStudentsOnOpen(
 		return
 	}
 
-	base := strings.TrimRight(os.Getenv("APP_BASE_URL"), "/")
+	base := strings.TrimRight(os.Getenv("FRONTEND_URL"), "/")
 	if base == "" {
 		base = "http://localhost:9000"
 	}
