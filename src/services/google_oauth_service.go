@@ -88,19 +88,14 @@ func ProcessGoogleLogin(code string) (*models.User, error) {
 	fmt.Printf("✅ User info retrieved: %s (%s)\n", userInfo.Email, userInfo.Name)
 
 	// Check if user exists in database
+	fmt.Printf("🔄 Checking if user exists in database...\n")
 	user, err := GetUserByEmail(userInfo.Email)
 	if err != nil {
-		fmt.Printf("🔄 User doesn't exist, creating new user...\n")
-		// User doesn't exist, create new user
-		user, err = CreateGoogleUser(userInfo)
-		if err != nil {
-			fmt.Printf("❌ Failed to create user: %v\n", err)
-			return nil, fmt.Errorf("failed to create user: %v", err)
-		}
-
-	} else {
-		fmt.Printf("✅ Existing user found: %s\n", user.Email)
+		fmt.Printf("❌ User not found in system: %s\n", userInfo.Email)
+		return nil, fmt.Errorf("ผู้ใช้ยังไม่ได้ลงทะเบียนในระบบ กรุณาติดต่อผู้ดูแลระบบ")
 	}
+
+	fmt.Printf("✅ Existing user found: %s\n", user.Email)
 
 	return user, nil
 }
