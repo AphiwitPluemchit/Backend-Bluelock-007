@@ -123,6 +123,11 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// กรณีที่ 1: pending -> approved (Admin อนุมัติ)
 	if oldCert.Status == models.StatusPending && newStatus == models.StatusApproved {
 		fmt.Println("▶️ Adding hours for pending -> approved")
+
+		if oldCert.Remark == "" {
+			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
+		}
+
 		if err := addCertificateHours(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
 		}
@@ -131,6 +136,11 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// กรณีที่ 2: approved -> rejected (Admin ปฏิเสธ certificate ที่เคยอนุมัติแล้ว)
 	if oldCert.Status == models.StatusApproved && newStatus == models.StatusRejected {
 		fmt.Println("▶️ Removing hours for approved -> rejected")
+
+		if oldCert.Remark == "" {
+			certForHours.Remark = "ปฏิเสธโดยเจ้าหน้าที่"
+		}
+
 		if err := removeCertificateHours(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
 		}
@@ -139,6 +149,9 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// กรณีที่ 3: rejected -> approved (Admin เปลี่ยนใจอนุมัติ)
 	if oldCert.Status == models.StatusRejected && newStatus == models.StatusApproved {
 		fmt.Println("▶️ Adding hours for rejected -> approved")
+		if oldCert.Remark == "" {
+			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
+		}
 		if err := addCertificateHours(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
 		}
@@ -147,6 +160,9 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// กรณีที่ 4: approved -> pending (Admin ถอนการอนุมัติ ต้องรอพิจารณาใหม่)
 	if oldCert.Status == models.StatusApproved && newStatus == models.StatusPending {
 		fmt.Println("▶️ Removing hours for approved -> pending")
+		if oldCert.Remark == "" {
+			certForHours.Remark = "รอพิจารณาใหม่โดยเจ้าหน้าที่"
+		}
 		if err := removeCertificateHours(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
 		}
@@ -156,6 +172,11 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// แต่ยังต้องบันทึก history record
 	if oldCert.Status == models.StatusPending && newStatus == models.StatusRejected {
 		fmt.Println("▶️ Rejecting pending certificate (no hours to remove)")
+
+		if oldCert.Remark == "" {
+			certForHours.Remark = "ปฏิเสธโดยเจ้าหน้าที่"
+		}
+
 		if err := recordCertificateRejection(ctx, &certForHours, remark); err != nil {
 			fmt.Printf("Warning: Failed to record certificate rejection: %v\n", err)
 		}
@@ -165,6 +186,11 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// บันทึก history record ด้วยสถานะ pending
 	if oldCert.Status == models.StatusRejected && newStatus == models.StatusPending {
 		fmt.Println("▶️ Moving rejected certificate back to pending (no hours change)")
+
+		if oldCert.Remark == "" {
+			certForHours.Remark = "รอพิจารณาใหม่โดยเจ้าหน้าที่"
+		}
+
 		if err := recordCertificatePending(ctx, &certForHours, remark); err != nil {
 			fmt.Printf("Warning: Failed to record certificate pending status: %v\n", err)
 		}
@@ -434,7 +460,7 @@ func ThaiMooc(publicPageURL string, student models.Student, course models.Course
 		// If it's a context deadline, persist an auto-rejected certificate and record history
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			fmt.Printf("ThaiMooc timeout after %v for URL %s\n", timeout, publicPageURL)
-			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "Auto-rejected due to timeout while verifying URL"); e != nil {
+			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "ระบบปฏิเสธเนื่องจากหมดเวลาในการเข้าถึง URL"); e != nil {
 				fmt.Printf("Warning: failed to save timeout rejection: %v\n", e)
 			}
 		}
@@ -502,7 +528,7 @@ func saveTimeoutRejection(ctx context.Context, publicPageURL string, student mod
 		return fmt.Errorf("failed to save timeout-rejected upload certificate: %v", err)
 	}
 
-	if err := recordCertificateRejection(context.Background(), saved, reason); err != nil {
+	if err := recordCertificateRejection(context.Background(), saved, "URL ไม่พบข้อมูล หรืออาจมีปัญหาทางการเข้าถึง"); err != nil {
 		// log but don't fail
 		fmt.Printf("Warning: Failed to record certificate rejection history for timeout-rejected certificate %s: %v\n", saved.ID.Hex(), err)
 	}
@@ -652,28 +678,28 @@ func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, cours
 	}
 
 	// copy result to new object remove _id and mark as duplicate rejection record
-	newResult := models.UploadCertificate{}
-	newResult.IsDuplicate = true
-	newResult.StudentId = studentId
-	newResult.CourseId = courseId
-	newResult.UploadAt = time.Now()
-	newResult.NameMatch = 0
-	newResult.CourseMatch = 0
-	newResult.Status = models.StatusRejected
-	newResult.Remark = "Certificate URL already exists"
-	newResult.Url = publicPageURL
-	newResult.ID = primitive.NewObjectID()
+	// newResult := models.UploadCertificate{}
+	// newResult.IsDuplicate = true
+	// newResult.StudentId = studentId
+	// newResult.CourseId = courseId
+	// newResult.UploadAt = time.Now()
+	// newResult.NameMatch = 0
+	// newResult.CourseMatch = 0
+	// newResult.Status = models.StatusRejected
+	// newResult.Remark = "Certificate URL already exists"
+	// newResult.Url = publicPageURL
+	// newResult.ID = primitive.NewObjectID()
 
-	createDuplicate, err := CreateUploadCertificate(&newResult)
-	if err != nil {
-		return false, nil, err
-	}
+	// createDuplicate, err := CreateUploadCertificate(&newResult)
+	// if err != nil {
+	// 	return false, nil, err
+	// }
 
-	if err := recordCertificateRejection(context.Background(), createDuplicate, "Auto-rejected based on matching scores"); err != nil {
-		fmt.Printf("Warning: Failed to record certificate rejection for auto-rejected certificate %s: %v\n", createDuplicate.ID.Hex(), err)
-	}
+	// if err := recordCertificateRejection(context.Background(), createDuplicate, "Auto-rejected based on matching scores"); err != nil {
+	// 	fmt.Printf("Warning: Failed to record certificate rejection for auto-rejected certificate %s: %v\n", createDuplicate.ID.Hex(), err)
+	// }
 
-	return true, createDuplicate, nil // URL already exists
+	return true, &result, nil // URL already exists
 }
 
 func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID, res *FastAPIResp) (*models.UploadCertificate, error) {
@@ -787,7 +813,7 @@ func ProcessPendingUpload(uploadIDHex string) error {
 
 	// Check duplicate URL against already approved certificates
 	// Pass the current upload ID so the duplicate checker can ignore the same pending record
-	isDuplicate, duplicateUpload, err := checkDuplicateURL(uc.Url, uc.StudentId, uc.CourseId, &uc.ID)
+	isDuplicate, existUC, err := checkDuplicateURL(uc.Url, uc.StudentId, uc.CourseId, &uc.ID)
 	if err != nil {
 		return fmt.Errorf("duplicate check failed: %v", err)
 	}
@@ -797,7 +823,7 @@ func ProcessPendingUpload(uploadIDHex string) error {
 		update := bson.M{"$set": bson.M{
 			"isDuplicate":     true,
 			"status":          models.StatusRejected,
-			"remark":          "Certificate URL already exists",
+			"remark":          "ใบรับรองนี้ถูกปฏิเสธโดยอัตโนมัติ เนื่องจากมี URL ซ้ำกับใบรับรองที่มีอยู่แล้ว",
 			"changedStatusAt": time.Now(),
 		}}
 		if _, err := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
@@ -811,7 +837,7 @@ func ProcessPendingUpload(uploadIDHex string) error {
 				fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, rerr)
 			}
 		}
-		fmt.Printf("Marked upload %s as duplicate (created duplicate record %s)\n", uploadIDHex, duplicateUpload.ID.Hex())
+		fmt.Printf("Marked upload %s as duplicate (created duplicate record %s)\n", uploadIDHex, existUC.ID.Hex())
 		return nil
 	}
 
@@ -827,7 +853,7 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	}
 	if err != nil {
 		// On timeout or other errors, mark rejected with remark
-		remark := fmt.Sprintf("Auto-rejected due to verification error: %v", err)
+		remark := fmt.Sprintf("ระบบปฏิเสธใบรับรองอัตโนมัติ อาจเกิดปัญหาในการเข้าถึง URL: %v", err)
 		update := bson.M{"$set": bson.M{"status": models.StatusRejected, "remark": remark, "changedStatusAt": time.Now()}}
 		if _, uerr := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); uerr != nil {
 			return fmt.Errorf("failed to update upload after error: %v (update err: %v)", err, uerr)
@@ -868,10 +894,13 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	)
 
 	newStatus := models.StatusRejected
+	remark := "ระบบปฏิเสธใบรับรองอัตโนมัติ ตามคะแนนการตรวจสอบ"
 	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
 		newStatus = models.StatusApproved
+		remark = "ใบรับรองได้รับการอนุมัติ"
 	} else if nameMax >= pendingThreshold && courseMax >= pendingThreshold {
 		newStatus = models.StatusPending
+		remark = "ใบรับรองรอให้เจ้าหน้าที่ตรวจสอบ"
 	}
 
 	updateFields := bson.M{
@@ -880,6 +909,7 @@ func ProcessPendingUpload(uploadIDHex string) error {
 		"courseMatch":     courseScore,
 		"courseEngMatch":  courseScoreEn,
 		"status":          newStatus,
+		"remark":          remark,
 		"usedOcr":         res.UsedOCR,
 		"changedStatusAt": time.Now(),
 	}
@@ -1176,7 +1206,7 @@ func recordCertificatePending(ctx context.Context, certificate *models.UploadCer
 		skillType = "hard"
 	}
 
-	remark := "Certificate Back to Pending Review"
+	remark := "รอให้เจ้าหน้าที่ตรวจสอบ"
 	if adminRemark != "" {
 		remark = adminRemark
 	}
@@ -1238,7 +1268,7 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 	histUpdate := bson.M{"$set": bson.M{
 		"status":     models.HCStatusApproved,
 		"hourChange": course.Hour,
-		"remark":     "Certificate Approved",
+		"remark":     "อนุมัติใบรับรอง",
 		"changeAt":   time.Now(),
 		"title":      course.Name,
 		"studentId":  upload.StudentId,
@@ -1254,7 +1284,7 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 			SkillType:  skillType,
 			Status:     models.HCStatusApproved,
 			HourChange: course.Hour,
-			Remark:     "Certificate Approved",
+			Remark:     "อนุมัติใบรับรอง",
 			ChangeAt:   time.Now(),
 			Title:      course.Name,
 			SourceType: "certificate",
