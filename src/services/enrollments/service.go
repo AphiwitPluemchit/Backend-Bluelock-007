@@ -229,7 +229,12 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 			for _, dNew := range programItem.Dates {
 				if dOld.Date == dNew.Date { // วันเดียวกัน
 					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
-						return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว")
+						existingName := "ไม่ระบุชื่อ"
+						if existingItem.Name != nil {
+							existingName = *existingItem.Name
+						}
+						return fmt.Errorf("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว\nวันที่: %s เวลา %s-%s\nกิจกรรม: %s",
+							dOld.Date, dOld.Stime, dOld.Etime, existingName)
 					}
 				}
 			}
