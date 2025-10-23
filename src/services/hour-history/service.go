@@ -170,19 +170,21 @@ func UpdateCheckinToVerifying(
 }
 
 // ⚠️ DEPRECATED: Functions ด้านล่างนี้ไม่ใช้แล้ว เนื่องจาก logic ใหม่
-// ตรวจสอบและให้ชั่วโมงตอน program complete แทน (ใน VerifyAndGrantHours)
+// ตรวจสอบและให้ชั่วโมงตอน program success (complete) แทน (ใน VerifyAndGrantHours)
 
-// VerifyAndGrantHours ตรวจสอบและให้ชั่วโมงเมื่อกิจกรรมเสร็จสิ้น (trigger เมื่อ program complete)
+// VerifyAndGrantHours ตรวจสอบและให้ชั่วโมงเมื่อกิจกรรมเสร็จสิ้น (trigger เมื่อ program success/complete)
 // Logic ใหม่:
-// - เข้าร่วมครบทุกวัน + ทำฟอร์ม = attended + ได้ชั่วโมง
-// - เข้าร่วมไม่ครบ หรือไม่ทำฟอร์ม = attended + 0 ชั่วโมง (ยังเก็บ record ไว้)
-// - ไม่มาเลย (ยัง upcoming/participating) = absent + ลบชั่วโมงที่เคยให้ไว้
+// - เช็คว่ามี check-in/out ครบทุกวันตาม programItem.Dates หรือไม่
+// - เช็คว่าเวลา check-in อยู่ในช่วงที่กำหนด (±30 นาที) หรือไม่
+// - เข้าร่วมครบทุกวัน + ตรงเวลาทุกวัน = attended + ได้ชั่วโมงเต็ม
+// - เข้าร่วมไม่ครบ หรือมาสาย = attended + 0 ชั่วโมง
+// - ไม่มาเลย = absent + 0 ชั่วโมง
 func VerifyAndGrantHours(
 	ctx context.Context,
 	enrollmentID primitive.ObjectID,
-	programID primitive.ObjectID,
-	totalHours int,
 ) error {
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+
 	// 1) ดึง Enrollment
 	var enrollment models.Enrollment
 	err := DB.EnrollmentCollection.FindOne(ctx, bson.M{"_id": enrollmentID}).Decode(&enrollment)
@@ -198,13 +200,16 @@ func VerifyAndGrantHours(
 	}
 
 	totalDays := len(programItem.Dates)
+	if totalDays == 0 {
+		return fmt.Errorf("program item has no dates")
+	}
 
 	// 3) หา HourChangeHistory record
 	var hourRecord models.HourChangeHistory
 	err = DB.HourChangeHistoryCollection.FindOne(ctx, bson.M{
 		"enrollmentId": enrollmentID,
 		"sourceType":   "program",
-		"sourceId":     programID,
+		"sourceId":     enrollment.ProgramID,
 	}).Decode(&hourRecord)
 
 	if err != nil {
@@ -213,53 +218,175 @@ func VerifyAndGrantHours(
 		return nil
 	}
 
-	// 4) เช็คสถานะปัจจุบัน
-	currentStatus := hourRecord.Status
-
-	// 5) ตรวจสอบว่าเช็คชื่อครบหรือไม่
-	checkinoutRecords := []models.CheckinoutRecord{}
+	// 4) สร้าง map ของ checkin/checkout records ตามวันที่
+	checkinoutMap := make(map[string]models.CheckinoutRecord)
 	if enrollment.CheckinoutRecord != nil {
-		checkinoutRecords = *enrollment.CheckinoutRecord
-	}
-
-	validDays := 0
-	for _, record := range checkinoutRecords {
-		if record.Checkin != nil && record.Checkout != nil {
-			validDays++
+		for _, record := range *enrollment.CheckinoutRecord {
+			var dateKey string
+			if record.Checkin != nil {
+				dateKey = record.Checkin.In(loc).Format("2006-01-02")
+			} else if record.Checkout != nil {
+				dateKey = record.Checkout.In(loc).Format("2006-01-02")
+			}
+			if dateKey != "" {
+				checkinoutMap[dateKey] = record
+			}
 		}
 	}
 
-	hasAttendedAllDays := (validDays == totalDays)
-	hasSubmittedForm := enrollment.SubmissionID != nil
+	// 5) วิเคราะห์แต่ละวันใน programItem.Dates
+	daysOnTime := 0     // วันที่มา check-in/out ตรงเวลา
+	daysLate := 0       // วันที่มา check-in/out แต่สาย
+	daysIncomplete := 0 // วันที่มีแต่ checkin หรือ checkout อย่างเดียว
+	daysAbsent := 0     // วันที่ไม่มา
+
+	missingDates := []string{}    // วันที่ไม่มาเลย
+	lateDates := []string{}       // วันที่มาแต่สาย
+	incompleteDates := []string{} // วันที่เช็คไม่ครบ
+
+	log.Printf("🔍 [DEBUG] Enrollment %s - Starting verification for %d days", enrollmentID.Hex(), totalDays)
+	log.Printf("🔍 [DEBUG] Total checkinout records: %d", len(checkinoutMap))
+
+	for idx, programDate := range programItem.Dates {
+		dateKey := programDate.Date
+		record, hasRecord := checkinoutMap[dateKey]
+
+		log.Printf("🔍 [DEBUG] Day %d/%d - Date: %s", idx+1, totalDays, dateKey)
+		log.Printf("🔍 [DEBUG]   ├─ Activity Time: %s - %s", programDate.Stime, programDate.Etime)
+
+		if !hasRecord || (record.Checkin == nil && record.Checkout == nil) {
+			// ไม่มา check-in/out เลย
+			log.Printf("🔍 [DEBUG]   └─ ❌ ABSENT - No check-in/out record")
+			daysAbsent++
+			missingDates = append(missingDates, dateKey)
+			continue
+		}
+
+		// มี record แล้ว - แสดงเวลาที่เช็ค
+		checkinStr := "N/A"
+		checkoutStr := "N/A"
+		if record.Checkin != nil {
+			checkinStr = record.Checkin.In(loc).Format("15:04:05")
+		}
+		if record.Checkout != nil {
+			checkoutStr = record.Checkout.In(loc).Format("15:04:05")
+		}
+		log.Printf("🔍 [DEBUG]   ├─ Check-in: %s, Check-out: %s", checkinStr, checkoutStr)
+
+		// เช็คว่ามีทั้ง checkin และ checkout หรือไม่
+		if record.Checkin == nil || record.Checkout == nil {
+			// มีแต่ checkin หรือ checkout อย่างเดียว
+			log.Printf("🔍 [DEBUG]   └─ ⚠️ INCOMPLETE - Missing check-in or check-out")
+			daysIncomplete++
+			incompleteDates = append(incompleteDates, dateKey)
+			continue
+		}
+
+		// มีทั้ง checkin และ checkout แล้ว → เช็คเวลา
+		if programDate.Stime != "" {
+			// Parse เวลาเริ่มกิจกรรม
+			startTime, err := time.ParseInLocation("2006-01-02 15:04", programDate.Date+" "+programDate.Stime, loc)
+			if err == nil {
+				// อนุญาตเช็คอินก่อนเวลา 30 นาที และหลังเวลา 30 นาที
+				earlyLimit := startTime.Add(-30 * time.Minute)
+				lateLimit := startTime.Add(30 * time.Minute)
+				checkinTime := record.Checkin.In(loc)
+
+				log.Printf("🔍 [DEBUG]   ├─ Activity Start: %s", startTime.Format("15:04:05"))
+				log.Printf("🔍 [DEBUG]   ├─ Allowed Range: %s - %s (±30 min)", earlyLimit.Format("15:04:05"), lateLimit.Format("15:04:05"))
+				log.Printf("🔍 [DEBUG]   ├─ Actual Check-in: %s", checkinTime.Format("15:04:05"))
+
+				if (checkinTime.Equal(earlyLimit) || checkinTime.After(earlyLimit)) &&
+					(checkinTime.Before(lateLimit) || checkinTime.Equal(lateLimit)) {
+					// เช็คอินตรงเวลา (±30 นาที)
+					log.Printf("🔍 [DEBUG]   └─ ✅ ON TIME - Within allowed range")
+					daysOnTime++
+				} else {
+					// เช็คอินไม่ตรงเวลา (เร็วเกิน หรือ สายเกิน)
+					if checkinTime.Before(earlyLimit) {
+						diff := earlyLimit.Sub(checkinTime)
+						log.Printf("🔍 [DEBUG]   └─ ⚠️ TOO EARLY - %d minutes before allowed time", int(diff.Minutes()))
+					} else {
+						diff := checkinTime.Sub(lateLimit)
+						log.Printf("🔍 [DEBUG]   └─ ⚠️ TOO LATE - %d minutes after allowed time", int(diff.Minutes()))
+					}
+					daysLate++
+					lateDates = append(lateDates, dateKey)
+				}
+			} else {
+				// ถ้า parse เวลาไม่ได้ ถือว่ามา (ให้ประโยชน์ของข้อสงสัย)
+				log.Printf("🔍 [DEBUG]   └─ ✅ ON TIME - No time specified or parse error")
+				daysOnTime++
+			}
+		} else {
+			// ถ้าไม่มีเวลากำหนด ถือว่ามา
+			log.Printf("🔍 [DEBUG]   └─ ✅ ON TIME - No specific time required")
+			daysOnTime++
+		}
+	}
+
+	totalValidDays := daysOnTime + daysLate + daysIncomplete
+	hasAttendedAllDays := (daysOnTime == totalDays) // ต้องมาตรงเวลาครบทุกวัน
+
+	log.Printf("🔍 [DEBUG] Summary:")
+	log.Printf("🔍 [DEBUG]   ├─ Total Days Required: %d", totalDays)
+	log.Printf("🔍 [DEBUG]   ├─ Days On Time: %d", daysOnTime)
+	log.Printf("🔍 [DEBUG]   ├─ Days Late: %d", daysLate)
+	log.Printf("🔍 [DEBUG]   ├─ Days Incomplete: %d", daysIncomplete)
+	log.Printf("🔍 [DEBUG]   ├─ Days Absent: %d", daysAbsent)
+	log.Printf("🔍 [DEBUG]   └─ Has Attended All Days: %v", hasAttendedAllDays)
 
 	var newStatus string
 	var newHourChange int
 	var newRemark string
 
-	// 6) Logic ตามที่ร้องขอ
-	if currentStatus == models.HCStatusUpcoming || currentStatus == models.HCStatusParticipating {
-		// ❌ ไม่มาเข้าร่วม หรือไม่ได้ check in เลย
+	// 6) Logic การให้ชั่วโมง
+	if daysAbsent == totalDays {
+		// ❌ ไม่มาเข้าร่วมเลยทุกวัน
 		newStatus = models.HCStatusAbsent
-		newHourChange = -hourRecord.HourChange // ลบชั่วโมงที่เคยให้ไว้ (ถ้ามี)
-		newRemark = fmt.Sprintf("❌ ไม่มาเข้าร่วมกิจกรรม - ลบชั่วโมง %d ชั่วโมง", -newHourChange)
+		newHourChange = 0
+		newRemark = fmt.Sprintf("❌ ไม่มาเข้าร่วมกิจกรรมเลย (0/%d วัน)", totalDays)
+	} else if hasAttendedAllDays {
+		// ✅ มาครบทุกวัน และ ตรงเวลาทุกวัน → ได้ชั่วโมงเต็ม
+		newStatus = models.HCStatusAttended
+		newHourChange = *programItem.Hour
+		newRemark = fmt.Sprintf("✅ เข้าร่วมครบถ้วนและตรงเวลาทุกวัน (%d/%d วัน) - ได้รับ %d ชั่วโมง", daysOnTime, totalDays, newHourChange)
 	} else {
-		// มาเข้าร่วมแล้ว (participating status)
-		if hasAttendedAllDays && hasSubmittedForm {
-			// ✅ มาครบทุกวัน + ทำฟอร์มแล้ว → ได้ชั่วโมง
-			newStatus = models.HCStatusAttended
-			newHourChange = totalHours
-			newRemark = fmt.Sprintf("✅ เข้าร่วมครบถ้วน (%d/%d วัน) และทำฟอร์มเสร็จสิ้น - ได้รับ %d ชั่วโมง", validDays, totalDays, totalHours)
-		} else {
-			// ⚠️ มาไม่ครบ หรือไม่ทำฟอร์ม → attended แต่ไม่ได้ชั่วโมง
-			newStatus = models.HCStatusAttended
-			newHourChange = 0
-			if !hasAttendedAllDays && !hasSubmittedForm {
-				newRemark = fmt.Sprintf("⚠️ เข้าร่วมไม่ครบ (%d/%d วัน) และไม่ได้ทำฟอร์ม - ไม่ได้รับชั่วโมง", validDays, totalDays)
-			} else if !hasAttendedAllDays {
-				newRemark = fmt.Sprintf("⚠️ เข้าร่วมไม่ครบ (%d/%d วัน) - ไม่ได้รับชั่วโมง", validDays, totalDays)
-			} else {
-				newRemark = fmt.Sprintf("⚠️ เข้าร่วมครบถ้วน (%d/%d วัน) แต่ไม่ได้ทำฟอร์ม - ไม่ได้รับชั่วโมง", validDays, totalDays)
-			}
+		// ⚠️ มาแต่ไม่ครบ หรือมาสาย หรือเช็คไม่ครบ → attended แต่ไม่ได้ชั่วโมง
+		newStatus = models.HCStatusAttended
+		newHourChange = 0
+
+		// สร้าง remark ที่ละเอียด
+		details := []string{}
+		if daysOnTime > 0 {
+			details = append(details, fmt.Sprintf("ตรงเวลา %d วัน", daysOnTime))
+		}
+		if daysLate > 0 {
+			details = append(details, fmt.Sprintf("สาย %d วัน", daysLate))
+		}
+		if daysIncomplete > 0 {
+			details = append(details, fmt.Sprintf("เช็คไม่ครบ %d วัน", daysIncomplete))
+		}
+		if daysAbsent > 0 {
+			details = append(details, fmt.Sprintf("ขาด %d วัน", daysAbsent))
+		}
+
+		detailsStr := ""
+		if len(details) > 0 {
+			detailsStr = " (" + joinStrings(details, ", ") + ")"
+		}
+
+		newRemark = fmt.Sprintf("⚠️ เข้าร่วม %d/%d วัน%s - ไม่ได้รับชั่วโมง", totalValidDays, totalDays, detailsStr)
+
+		// เพิ่มรายละเอียดวันที่มีปัญหา (ถ้ามี)
+		if len(missingDates) > 0 && len(missingDates) <= 3 {
+			newRemark += fmt.Sprintf(" | ขาดวันที่: %s", joinStrings(missingDates, ", "))
+		}
+		if len(lateDates) > 0 && len(lateDates) <= 3 {
+			newRemark += fmt.Sprintf(" | สายวันที่: %s", joinStrings(lateDates, ", "))
+		}
+		if len(incompleteDates) > 0 && len(incompleteDates) <= 3 {
+			newRemark += fmt.Sprintf(" | เช็คไม่ครบวันที่: %s", joinStrings(incompleteDates, ", "))
 		}
 	}
 
@@ -267,7 +394,7 @@ func VerifyAndGrantHours(
 	filter := bson.M{
 		"enrollmentId": enrollmentID,
 		"sourceType":   "program",
-		"sourceId":     programID,
+		"sourceId":     enrollment.ProgramID,
 	}
 
 	update := bson.M{
@@ -279,6 +406,13 @@ func VerifyAndGrantHours(
 		},
 	}
 
+	log.Printf("� [DEBUG] Final Decision:")
+	log.Printf("🔍 [DEBUG]   ├─ Status: %s", newStatus)
+	log.Printf("🔍 [DEBUG]   ├─ Hours Granted: %d", newHourChange)
+	log.Printf("🔍 [DEBUG]   └─ Remark: %s", newRemark)
+	log.Printf("��📝 Updating hour change history for enrollment %s: status=%s, hours=%d",
+		enrollmentID.Hex(), newStatus, newHourChange)
+
 	_, err = DB.HourChangeHistoryCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to verify and grant hours: %v", err)
@@ -287,26 +421,24 @@ func VerifyAndGrantHours(
 	return nil
 }
 
+// joinStrings รวม string slice ด้วย separator
+func joinStrings(arr []string, sep string) string {
+	if len(arr) == 0 {
+		return ""
+	}
+	result := arr[0]
+	for i := 1; i < len(arr); i++ {
+		result += sep + arr[i]
+	}
+	return result
+}
+
 // ProcessEnrollmentsForCompletedProgram processes all enrollments for a program
 // that has been marked as complete. This is an exported helper so other
 // packages (jobs, programs service, admin handlers) can call the same logic
 // used by the background worker.
 func ProcessEnrollmentsForCompletedProgram(ctx context.Context, programID primitive.ObjectID) error {
-	log.Println("📝 Processing enrollments for completed program (hour-history):", programID.Hex())
-
-	// 1) หา Program เพื่อดึง totalHours
-	var program struct {
-		Hour *int `bson:"hour"`
-	}
-	err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programID}).Decode(&program)
-	if err != nil {
-		return err
-	}
-
-	totalHours := 0
-	if program.Hour != nil {
-		totalHours = *program.Hour
-	}
+	log.Println("📝 Processing enrollments for completed program (hour-history): ++++++++++++++++", programID.Hex())
 
 	// 2) หา ProgramItems ทั้งหมดของ program นี้
 	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})
@@ -351,7 +483,7 @@ func ProcessEnrollmentsForCompletedProgram(ctx context.Context, programID primit
 		}
 
 		// เรียกฟังก์ชันตรวจสอบและให้ชั่วโมง (ใช้ VerifyAndGrantHours ในแพ็กเกจนี้)
-		if err := VerifyAndGrantHours(ctx, enrollment.ID, programID, totalHours); err != nil {
+		if err := VerifyAndGrantHours(ctx, enrollment.ID); err != nil {
 			log.Printf("⚠️ Failed to verify hours for enrollment %s: %v", enrollment.ID.Hex(), err)
 			errorCount++
 		} else {
@@ -359,7 +491,7 @@ func ProcessEnrollmentsForCompletedProgram(ctx context.Context, programID primit
 		}
 	}
 
-	log.Printf("✅ Processed %d enrollments successfully, %d errors", successCount, errorCount)
+	// log.Printf("✅ Processed %d enrollments successfully, %d errors", successCount, errorCount)
 	return nil
 }
 

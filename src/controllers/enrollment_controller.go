@@ -179,7 +179,7 @@ func UpdateEnrollmentCheckinout(c *fiber.Ctx) error {
 	checkoutProvided := req.Checkout != nil
 
 	parseTimePtr := func(s *string) (*time.Time, error) {
-		if s == nil { // ผู้ใช้ตั้งใจล้างค่า
+		if s == nil || *s == "" { // ผู้ใช้ตั้งใจล้างค่า
 			return nil, nil
 		}
 		// รับ RFC3339 มี timezone เท่านั้น (แนะนำให้ FE ส่ง +07:00)

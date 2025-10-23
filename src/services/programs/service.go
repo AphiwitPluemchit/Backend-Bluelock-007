@@ -4,6 +4,7 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	hourhistory "Backend-Bluelock-007/src/services/hour-history"
+
 	// "Backend-Bluelock-007/src/services/programs/email"
 	"Backend-Bluelock-007/src/services/summary_reports"
 	"context"
@@ -126,7 +127,7 @@ func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
 	} else {
 		log.Printf("✅ Created summary report for program: %s", program.ID.Hex())
 	}
-	// ⏱️ 2) ตั้ง schedule เปลี่ยนสถานะ (close-enroll / complete)
+	// ⏱️ 2) ตั้ง schedule เปลี่ยนสถานะ (close-enroll / success)
 	if DB.AsynqClient != nil && program.ProgramState == "open" {
 		progName := ""
 		if program.Name != nil {
@@ -206,7 +207,7 @@ func updateSummaryReportsForProgramChanges(programID primitive.ObjectID, oldProg
 
 		log.Printf("✅ Successfully updated summary reports for program %s", programID.Hex())
 	} else if onlyStateChanged {
-		log.Printf("✅ Only program state changed for program %s, keeping existing summary reports", programID.Hex())
+		// log.Printf("✅ Only program state changed for program %s, keeping existing summary reports", programID.Hex())
 	} else if onlyBasicInfoChanged {
 		log.Printf("✅ Only basic program info changed for program %s, keeping existing summary reports", programID.Hex())
 	} else {
@@ -778,6 +779,8 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		datesChanged := oldProgram.EndDateEnroll != program.EndDateEnroll
 		itemsChanged := len(program.ProgramItems) != len(oldProgram.ProgramItems)
 
+		fmt.Println("State changed:", stateChanged)
+
 		// Case 1: Program is set to "open" (either newly or was something else before)
 		if program.ProgramState == "open" {
 			// Schedule state transitions when:
@@ -796,17 +799,17 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 					return nil, err
 				}
 			}
-		} else if stateChanged && (oldProgram.ProgramState == "open" || oldProgram.ProgramState == "close") {
-			// Case 2: Program was "open" or "close" but manually changed to something else
+		} else if stateChanged && (oldProgram.ProgramState == "open" && program.ProgramState == "planning") {
+			// Case 2: Program was "open" to "planning" but manually changed to something else
 			// Delete any scheduled jobs since manual intervention takes precedence
 			programIDHex := id.Hex()
 			DeleteTask("close-enroll-"+programIDHex, programIDHex, DB.RedisURI)
 			log.Println("✅ Removed scheduled jobs due to manual state change for program:", programIDHex)
-		} else if stateChanged && oldProgram.ProgramState == "close" && program.ProgramState == "complete" {
-			// Case 3: Program was "close" and is now "complete"
+		} else if stateChanged && oldProgram.ProgramState == "close" && program.ProgramState == "success" {
+			// Case 3: Program was "close" and is now "success" (completed)
 			programIDHex := id.Hex()
 			DeleteTask("complete-program-"+programIDHex, programIDHex, DB.RedisURI)
-			log.Println("✅ Ensured no scheduled jobs for complete program:", programIDHex)
+			log.Println("✅ Ensured no scheduled jobs for success program:", programIDHex)
 			// update student enrollment hours history
 			if err := hourhistory.ProcessEnrollmentsForCompletedProgram(ctx, id); err != nil {
 				log.Printf("⚠️ Warning: failed to process enrollments for program %s: %v", id.Hex(), err)
@@ -834,8 +837,8 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 	// 	email.NotifyStudentsOnOpen(
 	// 		id.Hex(),
 	// 		progName,
-	// 		GetProgramByID,         
-	// 		GenerateStudentCodeFilter, 
+	// 		GetProgramByID,
+	// 		GenerateStudentCodeFilter,
 	// 	)
 	// }
 
@@ -849,7 +852,7 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 	// if err != nil {
 	// 	log.Printf("⚠️ Warning: Failed to update summary reports for program changes: %v", err)
 	// }
-	
+
 	// ✅ ดึงข้อมูล Program ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
 	return GetProgramByID(id.Hex())
 }

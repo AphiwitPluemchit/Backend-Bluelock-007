@@ -164,7 +164,7 @@ func ScheduleChangeProgramStateJob(AsynqClient *asynq.Client, redisURI string, l
 		log.Println("⏩ Skipped close-enroll task (invalid or past time)")
 	}
 
-	// Schedule the "complete" state transition at the latest program end time
+	// Schedule the "success" (complete) state transition at the latest program end time
 	nowLocal := time.Now().In(time.Local)
 	if !latestTime.IsZero() && latestTime.After(nowLocal) {
 		// Use new helper to create a complete-program task with name

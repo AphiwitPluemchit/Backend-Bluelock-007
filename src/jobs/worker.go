@@ -51,7 +51,7 @@ func HandleCompleteProgramTask(ctx context.Context, t *asynq.Task) error {
 	// ✅ ดำเนินการเปลี่ยนสถานะ
 	_, err = DB.ProgramCollection.UpdateOne(ctx,
 		bson.M{"_id": id},
-		bson.M{"$set": bson.M{"programState": "complete"}},
+		bson.M{"$set": bson.M{"programState": "success"}},
 	)
 
 	if err != nil {
@@ -59,7 +59,7 @@ func HandleCompleteProgramTask(ctx context.Context, t *asynq.Task) error {
 		return err
 	}
 
-	log.Println("✅ Program closed:", id.Hex())
+	log.Println("✅ Program completed (success):", id.Hex())
 
 	// 📝 ตรวจสอบและให้ชั่วโมงนิสิตที่เข้าร่วมกิจกรรม
 	if err := hourhistory.ProcessEnrollmentsForCompletedProgram(ctx, id); err != nil {
@@ -97,19 +97,6 @@ func HandleCloseEnrollTask(ctx context.Context, t *asynq.Task) error {
 func processEnrollmentsForCompletedProgram(ctx context.Context, programID primitive.ObjectID) error {
 	log.Println("📝 Processing enrollments for completed program:", programID.Hex())
 
-	// 1) หา Program เพื่อดึง totalHours
-	var program struct {
-		Hour *int `bson:"hour"`
-	}
-	err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": programID}).Decode(&program)
-	if err != nil {
-		return err
-	}
-
-	totalHours := 0
-	if program.Hour != nil {
-		totalHours = *program.Hour
-	}
 
 	// 2) หา ProgramItems ทั้งหมดของ program นี้
 	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})
@@ -154,7 +141,7 @@ func processEnrollmentsForCompletedProgram(ctx context.Context, programID primit
 		}
 
 		// เรียกฟังก์ชันตรวจสอบและให้ชั่วโมง
-		if err := hourhistory.VerifyAndGrantHours(ctx, enrollment.ID, programID, totalHours); err != nil {
+		if err := hourhistory.VerifyAndGrantHours(ctx, enrollment.ID); err != nil {
 			log.Printf("⚠️ Failed to verify hours for enrollment %s: %v", enrollment.ID.Hex(), err)
 			errorCount++
 		} else {
