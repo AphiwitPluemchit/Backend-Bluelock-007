@@ -323,6 +323,15 @@ func GetSammaryByCode(c *fiber.Ctx) error {
 	}
 	return c.JSON(student)
 }
+
+func GetSammaryByCodeWithHourHistory(c *fiber.Ctx) error {
+	code := c.Params("code")
+	student, err := students.GetSammaryByCodeWithHourHistory(code)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Student not found"})
+	}
+	return c.JSON(student)
+}
 func GetSammaryAll(c *fiber.Ctx) error {
 	majors := cleanList(strings.Split(c.Query("major"), ","))
 	studentYears := cleanList(strings.Split(c.Query("studentYear"), ","))

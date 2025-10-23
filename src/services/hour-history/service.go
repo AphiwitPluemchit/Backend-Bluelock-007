@@ -539,3 +539,59 @@ func GetHistoryWithFilters(
 
 	return histories, totalCount, nil
 }
+
+// GetStudentHoursSummary คำนวณชั่วโมงรวมของนิสิตจาก hour history
+// รวมทั้ง attended (บวก) และ absent (ลบ) เพื่อคำนวณชั่วโมงที่แท้จริง
+func GetStudentHoursSummary(ctx context.Context, studentID primitive.ObjectID) (map[string]interface{}, error) {
+	// Aggregate pipeline เพื่อรวมชั่วโมงตาม skillType
+	// รวมทั้ง attended และ absent (absent จะมี hourChange เป็นลบ)
+	pipeline := []bson.M{
+		{
+			"$match": bson.M{
+				"studentId": studentID,
+				"status": bson.M{
+					"$in": []string{models.HCStatusAttended, models.HCStatusAbsent}, // รวมทั้ง attended และ absent
+				},
+			},
+		},
+		{
+			"$group": bson.M{
+				"_id": "$skillType", // group ตาม soft/hard
+				"totalHours": bson.M{
+					"$sum": "$hourChange", // รวมชั่วโมง (attended = +, absent = -)
+				},
+			},
+		},
+	}
+
+	cursor, err := DB.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("ไม่สามารถคำนวณชั่วโมงรวมได้: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, fmt.Errorf("ไม่สามารถถอดรหัสผลลัพธ์ได้: %v", err)
+	}
+
+	// สร้าง summary object
+	summary := map[string]interface{}{
+		"softSkill": 0,
+		"hardSkill": 0,
+	}
+
+	// Map ผลลัพธ์จาก aggregation
+	for _, result := range results {
+		skillType, _ := result["_id"].(string)
+		totalHours, _ := result["totalHours"].(int32)
+
+		if skillType == "soft" {
+			summary["softSkill"] = int(totalHours)
+		} else if skillType == "hard" {
+			summary["hardSkill"] = int(totalHours)
+		}
+	}
+
+	return summary, nil
+}

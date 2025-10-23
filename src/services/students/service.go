@@ -433,6 +433,85 @@ func GetSammaryByCode(code string) (bson.M, error) {
 	}, nil
 }
 
+// GetSammaryByCodeWithHourHistory - ดึงข้อมูลนักศึกษาด้วยรหัส code พร้อมชั่วโมงจาก hour history
+func GetSammaryByCodeWithHourHistory(code string) (bson.M, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 🔍 ดึงข้อมูล student
+	var student models.Student
+	err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student)
+	if err != nil {
+		return nil, errors.New("student not found")
+	}
+
+	// � ดึงข้อมูล user เพื่อเอา email
+	var user models.User
+	email := ""
+	if err := DB.UserCollection.FindOne(ctx, bson.M{"studentId": student.ID}).Decode(&user); err == nil {
+		email = user.Email
+	}
+
+	//  คำนวณชั่วโมงจาก hour history โดยใช้ aggregate
+	// รวมทั้ง attended (บวก) และ absent (ลบ) เพื่อคำนวณชั่วโมงจริง
+	pipeline := []bson.M{
+		{
+			"$match": bson.M{
+				"studentId": student.ID,
+				"status": bson.M{
+					"$in": []string{models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved}, // รวมทั้ง attended และ absent
+				},
+			},
+		},
+		{
+			"$group": bson.M{
+				"_id": "$skillType",
+				"totalHours": bson.M{
+					"$sum": "$hourChange", // รวมชั่วโมง (attended = +, absent = -)
+				},
+			},
+		},
+	}
+
+	cursor, err := database.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var hourResults []bson.M
+	if err := cursor.All(ctx, &hourResults); err != nil {
+		return nil, err
+	}
+
+	// Default ชั่วโมงเป็น 0
+	softSkillHours := 0
+	hardSkillHours := 0
+
+	// Map ผลลัพธ์จาก aggregation
+	for _, result := range hourResults {
+		skillType, _ := result["_id"].(string)
+		totalHours, _ := result["totalHours"].(int32)
+
+		if skillType == "soft" {
+			softSkillHours = int(totalHours)
+		} else if skillType == "hard" {
+			hardSkillHours = int(totalHours)
+		}
+	}
+
+	// ✅ return พร้อมชั่วโมงจาก hour history
+	return bson.M{
+		"studentId": student.ID.Hex(),
+		"code":      student.Code,
+		"name":      student.Name,
+		"major":     student.Major,
+		"email":     email,
+		"softSkill": softSkillHours,
+		"hardSkill": hardSkillHours,
+	}, nil
+}
+
 // Summary struct สำหรับ response
 type SkillSummary struct {
 	Completed    int `json:"completed"`

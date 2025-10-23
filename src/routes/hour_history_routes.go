@@ -14,4 +14,8 @@ func hourHistoryRoutes(router fiber.Router) {
 	// GET /hour-history - ดึงข้อมูล hour history พร้อม filters
 	// Query params: studentId, sourceType, status (comma-separated), search, limit, page
 	hourHistoryGroup.Get("/", controllers.GetHourHistoryWithFilters)
+
+	// GET /hour-history/student-hours-summary - ดึงชั่วโมงรวมของนิสิตจาก hour history
+	// Query params: studentId (required)
+	hourHistoryGroup.Get("/student-hours-summary", controllers.GetStudentHoursSummary)
 }

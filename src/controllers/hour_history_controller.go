@@ -92,3 +92,27 @@ func GetHourHistoryWithFilters(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(response)
 }
+
+// GetStudentHoursSummary - ดึงชั่วโมงรวมของนิสิตจาก hour history
+func GetStudentHoursSummary(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	// Parse studentID from query parameter
+	studentIDStr := c.Query("studentId")
+	if studentIDStr == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "studentId is required")
+	}
+
+	studentID, err := primitive.ObjectIDFromHex(studentIDStr)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid studentId format")
+	}
+
+	// Get hours summary from hour history
+	summary, err := hourhistory.GetStudentHoursSummary(ctx, studentID)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(summary)
+}
