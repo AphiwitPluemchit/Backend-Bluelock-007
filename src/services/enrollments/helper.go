@@ -189,66 +189,6 @@ func isLateCheckin(item *models.ProgramItem, t time.Time, loc *time.Location) bo
 	return true
 }
 
-func participationFor(item *models.ProgramItem, cin, cout *time.Time, loc *time.Location) *string {
-	day := ""
-	if cin != nil {
-		day = cin.In(loc).Format(fmtDay)
-	}
-	if day == "" && cout != nil {
-		day = cout.In(loc).Format(fmtDay)
-	}
-
-	st, ok := startTimeForDate(item, day, loc)
-	if !ok {
-		var label string
-		switch {
-		case cin != nil && cout == nil:
-			label = "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
-		case cin == nil && cout != nil:
-			label = "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
-		case cin != nil && cout != nil:
-			label = "เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์ (ไม่พบเวลาเริ่ม)"
-		}
-		if label != "" {
-			log.Printf("[participationFor] noStartTime day=%s cin=%v cout=%v -> participation=%q", day, cin, cout, label)
-			return &label
-		}
-		log.Printf("[participationFor] noStartTime day=%s cin=%v cout=%v -> participation=nil", day, cin, cout)
-		return nil
-	}
-
-	early := st.Add(-15 * time.Minute)
-	late := st.Add(15 * time.Minute)
-	onTime := func(t time.Time) bool {
-		return (t.Equal(early) || t.After(early)) && (t.Before(late) || t.Equal(late))
-	}
-
-	var label string
-	switch {
-	case cin != nil && cout != nil:
-		if onTime(cin.In(loc)) && cout.In(loc).After(st) {
-			label = "เช็คอิน/เช็คเอาท์ตรงเวลา"
-		} else {
-			label = "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา"
-		}
-	case cin != nil && cout == nil:
-		if onTime(cin.In(loc)) {
-			label = "เช็คอินแล้ว (รอเช็คเอาท์)"
-		} else {
-			label = "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
-		}
-	case cin == nil && cout != nil:
-		label = "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
-	default:
-		log.Printf("[participationFor] st=%v day=%s cin=%v cout=%v -> participation=nil", st, day, cin, cout)
-		return nil
-	}
-
-	log.Printf("[participationFor] st=%v early=%v late=%v day=%s cin=%v cout=%v -> participation=%q",
-		st, early, late, day, cin, cout, label)
-	return &label
-}
-
 func dateExistsInItem(item *models.ProgramItem, day string) bool {
 	for _, d := range item.Dates {
 		if d.Date == day {

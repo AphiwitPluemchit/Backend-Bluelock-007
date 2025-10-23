@@ -574,15 +574,7 @@ func UpdateEnrollmentCheckinoutByRecordID(
 	log.Printf("[upd] enrollmentID=%s recordID=%s programItemID=%s programID=%s tz=Asia/Bangkok",
 		enrollmentID.Hex(), recordID.Hex(), current.ProgramItemID.Hex(), programID.Hex(),
 	)
-	log.Printf("[upd] oldCin=%v oldCout=%v oldPart=%q",
-		oldCin, oldCout,
-		func() string {
-			if targetRec != nil && targetRec.Participation != nil {
-				return *targetRec.Participation
-			}
-			return ""
-		}(),
-	)
+	log.Printf("[upd] oldCin=%v oldCout=%v", oldCin, oldCout)
 
 	// ---------- EFFECTIVE VALUES (tri-state) ----------
 	effCin := oldCin
@@ -611,14 +603,6 @@ func UpdateEnrollmentCheckinoutByRecordID(
 		log.Printf("[upd] cout.day=%s isInProgramDates=true", day)
 	}
 
-	// ---------- PARTICIPATION (single source of truth) ----------
-	part := participationFor(&item, effCin, effCout, loc)
-	if part != nil {
-		log.Printf("[upd] newParticipation=%q", *part)
-	} else {
-		log.Printf("[upd] newParticipation=nil")
-	}
-
 	// ---------- BUILD $set ----------
 	setFields := bson.M{}
 	if checkinProvided {
@@ -630,7 +614,6 @@ func UpdateEnrollmentCheckinoutByRecordID(
 	if len(setFields) == 0 {
 		return nil, fmt.Errorf("no fields to update")
 	}
-	setFields["checkinoutRecord.$[el].participation"] = part
 
 	log.Printf("[upd] setFields keys=%v", func() []string {
 		keys := make([]string, 0, len(setFields))
@@ -658,29 +641,12 @@ func UpdateEnrollmentCheckinoutByRecordID(
 	log.Printf("[upd] updated OK enrollmentID=%s", enrollmentID.Hex())
 
 	// ---------- SUMMARY ADJUSTMENT ----------
-	isLateFromParticipation := func(p *string) bool {
-		if p == nil {
+	// ตรวจสอบว่า checkin สายหรือไม่จากเวลา checkin โดยตรง
+	isLateCheckinTime := func(cin *time.Time) bool {
+		if cin == nil {
 			return false
 		}
-		s := strings.TrimSpace(*p)
-
-		// 1) จับ "ไม่ตรงเวลา" และเคสที่ไม่เข้าเกณฑ์ให้เป็น late ก่อน (ต้องมาก่อนคำว่า "ตรงเวลา")
-		if strings.Contains(s, "ไม่ตรงเวลา") ||
-			strings.Contains(s, "เวลาไม่เข้าเกณฑ์") ||
-			strings.Contains(s, "ไม่พบเวลาเริ่ม") ||
-			strings.Contains(s, "เช็คเอาท์อย่างเดียว") ||
-			strings.Contains(s, "สาย") {
-			return true
-		}
-
-		// 2) on-time เท่าที่ยอมรับ (เฉพาะข้อความที่ตรง)
-		if s == "เช็คอิน/เช็คเอาท์ตรงเวลา" ||
-			strings.Contains(s, "รอเช็คเอาท์") { // "เช็คอินแล้ว (รอเช็คเอาท์)"
-			return false
-		}
-
-		// 3) เผื่อข้อความอื่น ๆ ที่ยังไม่รู้จัก: ถือว่าไม่ late ไว้ก่อน
-		return false
+		return isLateCheckin(&item, *cin, loc)
 	}
 
 	var oldCinDay, newCinDay, oldCoutDay, newCoutDay string
@@ -700,13 +666,8 @@ func UpdateEnrollmentCheckinoutByRecordID(
 		oldCinDay, newCinDay, oldCoutDay, newCoutDay,
 	)
 
-	oldCinLate := isLateFromParticipation(func() *string {
-		if targetRec != nil {
-			return targetRec.Participation
-		}
-		return nil
-	}())
-	newCinLate := isLateFromParticipation(part)
+	oldCinLate := isLateCheckinTime(oldCin)
+	newCinLate := isLateCheckinTime(effCin)
 	log.Printf("[sum] cin late: old=%t new=%t", oldCinLate, newCinLate)
 
 	// -------- Check-in --------
@@ -1275,7 +1236,6 @@ func GetEnrollmentByProgramItemID(
 					}},
 					nil,
 				}},
-				"participation": "$$r.participation",
 			},
 		}},
 	}}})
@@ -1544,12 +1504,10 @@ func GetEnrollmentsByProgramID(
 						}},
 						nil,
 					}},
-					"participation": "$$x.r.participation",
 				},
 			},
 		},
 	}}})
-
 	// 7) sort + count
 	order := 1
 	if strings.ToLower(pagination.Order) == "desc" {

@@ -47,6 +47,7 @@ func processStudentHours(
 		if err := removeStudentHours(ctx, studentID, *programItem.Hour, skillType); err != nil {
 			return nil, err
 		}
+
 		// บันทึกประวัติ - ใช้ชื่อ program เป็น title
 		remark := "ไม่พบ Enrollment สำหรับการคำนวณชั่วโมง"
 		_ = hourhistory.SaveHourHistory(
@@ -63,9 +64,9 @@ func processStudentHours(
 		return nil, nil
 	}
 
-	// 4) map วันที่ -> participation
+	// 4) map วันที่ -> checkin/checkout records
 	loc, _ := time.LoadLocation("Asia/Bangkok")
-	participationByDate := map[string]string{}
+	recordsByDate := map[string]models.CheckinoutRecord{}
 	if enrollment.CheckinoutRecord != nil {
 		for _, rec := range *enrollment.CheckinoutRecord {
 			var dateKey string
@@ -74,16 +75,13 @@ func processStudentHours(
 			} else if rec.Checkout != nil {
 				dateKey = rec.Checkout.In(loc).Format("2006-01-02")
 			}
-			if dateKey == "" {
-				continue
-			}
-			if rec.Participation != nil {
-				participationByDate[dateKey] = *rec.Participation
+			if dateKey != "" {
+				recordsByDate[dateKey] = rec
 			}
 		}
 	}
 
-	// 5) รวมชั่วโมงจาก participation ต่อวันตามตาราง ProgramItem.Dates
+	// 5) รวมชั่วโมงโดยตรวจสอบจาก checkin/checkout time
 	totalHoursToAdd := 0
 	seen := map[string]bool{}
 	for _, d := range programItem.Dates {
@@ -93,20 +91,31 @@ func processStudentHours(
 		}
 		seen[day] = true
 
-		part := participationByDate[day]
-		switch part {
-		case "เช็คอิน/เช็คเอาท์ตรงเวลา":
-			totalHoursToAdd += *programItem.Hour
-		case "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา":
-			// 0 ชั่วโมง
-		case "เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์":
-			// 0 ชั่วโมง
-		case "ยังไม่เข้าร่วมกิจกรรม":
+		record, hasRecord := recordsByDate[day]
+		if !hasRecord || record.Checkin == nil || record.Checkout == nil {
+			// ไม่มี checkin/checkout ครบ = ไม่ได้เข้าร่วม
 			totalHoursToAdd += -*programItem.Hour
-		default:
-			// ไม่มีข้อมูล participation ให้ถือว่าไม่ได้เข้าร่วม
-			totalHoursToAdd += -*programItem.Hour
+			continue
 		}
+
+		// มี checkin และ checkout แล้ว - ตรวจสอบว่าตรงเวลาหรือไม่
+		var isOnTime bool
+		if d.Stime != "" {
+			startTime, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc)
+			if err == nil {
+				// อนุญาตเช็คอินก่อนเวลา 30 นาที และหลังเวลา 30 นาที
+				earlyLimit := startTime.Add(-30 * time.Minute)
+				lateLimit := startTime.Add(30 * time.Minute)
+				checkinTime := record.Checkin.In(loc)
+				isOnTime = (checkinTime.Equal(earlyLimit) || checkinTime.After(earlyLimit)) &&
+					(checkinTime.Before(lateLimit) || checkinTime.Equal(lateLimit))
+			}
+		}
+
+		if isOnTime {
+			totalHoursToAdd += *programItem.Hour
+		}
+		// ถ้าไม่ตรงเวลา ไม่เพิ่มชั่วโมง (0)
 	}
 
 	// 6) Apply hours and save history

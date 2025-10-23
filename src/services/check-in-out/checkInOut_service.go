@@ -306,7 +306,7 @@ func findTodayCheckinRecord(records []models.CheckinoutRecord, dateKey string, l
 	return -1
 }
 
-// SaveCheckInOut บันทึกการเช็คชื่อเข้า/ออก และอัปเดต participation
+// SaveCheckInOut บันทึกการเช็คชื่อเข้า/ออก
 func SaveCheckInOut(studentId, programId, checkType string) error {
 	ctx := context.TODO()
 
@@ -403,13 +403,10 @@ func SaveCheckInOut(studentId, programId, checkType string) error {
 		return fmt.Errorf("ประเภทการเช็คชื่อไม่ถูกต้อง")
 	}
 
-	// 5) คำนวณ participation สำหรับ record ของวันนี้เท่านั้น
-	calculateParticipationForDate(&records, programItem.Dates, dateKey, loc)
-
-	// 6) คำนวณ attendedAllDays
+	// 5) คำนวณ attendedAllDays (เช็คว่ามี checkin/checkout ครบทุกวันหรือไม่)
 	attendedAll := checkAttendedAllDays(records, programItem.Dates)
 
-	// 7) บันทึกลง Enrollment
+	// 6) บันทึกลง Enrollment
 	update := bson.M{
 		"$set": bson.M{
 			"checkinoutRecord": records,
@@ -427,107 +424,29 @@ func SaveCheckInOut(studentId, programId, checkType string) error {
 	return nil
 }
 
-// calculateParticipationForDate คำนวณสถานะ participation สำหรับ record ของวันที่ระบุเท่านั้น
-func calculateParticipationForDate(records *[]models.CheckinoutRecord, dates []models.Dates, dateKey string, loc *time.Location) {
-	// หาเวลาเริ่มของวันที่ระบุ
-	var startTime *time.Time
-	for _, d := range dates {
-		if d.Date == dateKey && d.Stime != "" {
-			if st, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc); err == nil {
-				startTime = &st
-				break
-			}
-		}
-	}
-
-	// หา record ของวันนี้และคำนวณ participation
-	for i := range *records {
-		var recDateKey string
-		if (*records)[i].Checkin != nil {
-			recDateKey = (*records)[i].Checkin.In(loc).Format("2006-01-02")
-		} else if (*records)[i].Checkout != nil {
-			recDateKey = (*records)[i].Checkout.In(loc).Format("2006-01-02")
-		}
-
-		// คำนวณเฉพาะ record ของวันที่ระบุ
-		if recDateKey != dateKey {
-			continue
-		}
-
-		participation := "ยังไม่เข้าร่วมกิจกรรม"
-		hasIn := (*records)[i].Checkin != nil
-		hasOut := (*records)[i].Checkout != nil
-
-		switch {
-		case hasIn && hasOut:
-			// มีทั้ง checkin และ checkout
-			if startTime != nil {
-				// อนุญาตเช็คอินก่อนเวลา 30 นาที และหลังเวลา 30 นาที (ไม่ถือว่าสาย)
-				earlyLimit := startTime.Add(-30 * time.Minute)
-				lateLimit := startTime.Add(30 * time.Minute)
-
-				checkinTime := (*records)[i].Checkin.In(loc)
-				if (checkinTime.Equal(earlyLimit) || checkinTime.After(earlyLimit)) &&
-					(checkinTime.Before(lateLimit) || checkinTime.Equal(lateLimit)) {
-					participation = "เช็คอิน/เช็คเอาท์ตรงเวลา"
-				} else if checkinTime.Before(earlyLimit) {
-					participation = "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา (เช็คอินเร็วเกินไป)"
-				} else {
-					participation = "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา (เช็คอินสาย)"
-				}
-			} else {
-				participation = "เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์ (ไม่พบเวลาเริ่มกิจกรรมของวันนั้น)"
-			}
-
-		case hasIn && !hasOut:
-			// มี checkin แต่ยังไม่ checkout
-			if startTime != nil {
-				earlyLimit := startTime.Add(-30 * time.Minute)
-				lateLimit := startTime.Add(30 * time.Minute)
-				checkinTime := (*records)[i].Checkin.In(loc)
-
-				if (checkinTime.Equal(earlyLimit) || checkinTime.After(earlyLimit)) &&
-					(checkinTime.Before(lateLimit) || checkinTime.Equal(lateLimit)) {
-					participation = "เช็คอินแล้ว (รอเช็คเอาท์)"
-				} else {
-					participation = "เช็คอินแล้ว (เวลาไม่เข้าเกณฑ์)"
-				}
-			} else {
-				participation = "เช็คอินแล้ว (ไม่พบเวลาเริ่มกิจกรรม)"
-			}
-
-		case !hasIn && hasOut:
-			// มี checkout แต่ไม่มี checkin (กรณีลืมเช็คอิน)
-			participation = "เช็คเอาท์อย่างเดียว (ข้อมูลไม่ครบ)"
-		}
-
-		(*records)[i].Participation = &participation
-		break // เจอแล้ว ไม่ต้องหาต่อ
-	}
-}
-
 // checkAttendedAllDays ตรวจสอบว่านิสิตเข้าร่วมครบทุกวันหรือไม่
+// เช็คว่ามี checkin และ checkout ครบทุกวันตาม programItem.Dates
 func checkAttendedAllDays(records []models.CheckinoutRecord, dates []models.Dates) bool {
-	// สร้าง map participation ตามวัน
-	participationByDate := make(map[string]string)
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+
+	// สร้าง map ของ records ตามวันที่
+	recordsByDate := make(map[string]models.CheckinoutRecord)
 	for _, r := range records {
 		var dateKey string
 		if r.Checkin != nil {
-			dateKey = r.Checkin.In(time.UTC).Format("2006-01-02")
+			dateKey = r.Checkin.In(loc).Format("2006-01-02")
 		} else if r.Checkout != nil {
-			dateKey = r.Checkout.In(time.UTC).Format("2006-01-02")
+			dateKey = r.Checkout.In(loc).Format("2006-01-02")
 		}
-		if dateKey == "" || r.Participation == nil {
-			continue
+		if dateKey != "" {
+			recordsByDate[dateKey] = r
 		}
-		participationByDate[dateKey] = *r.Participation
 	}
 
-	// ตรวจสอบทุกวันในตาราง
+	// ตรวจสอบทุกวันในตาราง - ต้องมีทั้ง checkin และ checkout
 	for _, d := range dates {
-		p := participationByDate[d.Date]
-		// ถือว่าเข้าร่วมครบถ้า check-in/out ตรงเวลาหรือไม่ตรงเวลา (แต่มีทั้งคู่)
-		if !(p == "เช็คอิน/เช็คเอาท์ตรงเวลา" || p == "เช็คอิน/เช็คเอาท์ไม่ตรงเวลา") {
+		record, exists := recordsByDate[d.Date]
+		if !exists || record.Checkin == nil || record.Checkout == nil {
 			return false
 		}
 	}

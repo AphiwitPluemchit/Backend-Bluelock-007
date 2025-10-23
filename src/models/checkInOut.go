@@ -50,8 +50,7 @@ type QRClaim struct {
 
 // CheckinoutRecord สำหรับการแสดงข้อมูลการเช็คชื่อ
 type CheckinoutRecord struct {
-	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	Checkin       *time.Time         `bson:"checkin" json:"checkin"`
-	Checkout      *time.Time         `bson:"checkout" json:"checkout"`
-	Participation *string            `bson:"participation" json:"participation" example:"ยังไม่เข้าร่วมกิจกรรม, เช็คอิน/เช็คเอาท์ตรงเวลา, เช็คอิน/เช็คเอาท์ไม่ตรงเวลา, เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์"`
+	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	Checkin  *time.Time         `bson:"checkin" json:"checkin"`
+	Checkout *time.Time         `bson:"checkout" json:"checkout"`
 }

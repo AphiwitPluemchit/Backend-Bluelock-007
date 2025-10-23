@@ -51,6 +51,28 @@ func getCache(key string, dest interface{}) bool {
 	return json.Unmarshal([]byte(val), dest) == nil
 }
 
+// isLateCheckin ตรวจสอบว่า checkin time สายหรือไม่
+// สาย = checkin > (activity start time + 30 นาที)
+func isLateCheckin(checkinTime time.Time, activityStartTime time.Time) bool {
+	lateLimit := activityStartTime.Add(30 * time.Minute)
+	return checkinTime.After(lateLimit)
+}
+
+// getActivityStartTime หาเวลาเริ่มกิจกรรมจากวันที่
+func getActivityStartTime(dates []models.Dates, dateKey string) (*time.Time, error) {
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	for _, d := range dates {
+		if d.Date == dateKey && d.Stime != "" {
+			startTime, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc)
+			if err != nil {
+				return nil, err
+			}
+			return &startTime, nil
+		}
+	}
+	return nil, fmt.Errorf("ไม่พบเวลาเริ่มกิจกรรมสำหรับวันที่ %s", dateKey)
+}
+
 func delCache(keys ...string) {
 	if DB.RedisClient == nil {
 		return
@@ -609,21 +631,44 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 
 					// ตรวจสอบสถานะการเช็คชื่อ
 					if enrollment.CheckinoutRecord != nil && len(*enrollment.CheckinoutRecord) > 0 {
-						// ใช้ record แรก (เนื่องจาก CheckinoutRecord ไม่มี Date field)
-						record := (*enrollment.CheckinoutRecord)[0]
+						// หา record ที่ตรงกับวันที่นี้
+						loc, _ := time.LoadLocation("Asia/Bangkok")
+						var recordForThisDate *models.CheckinoutRecord
+						for i := range *enrollment.CheckinoutRecord {
+							rec := &(*enrollment.CheckinoutRecord)[i]
+							var recDate string
+							if rec.Checkin != nil {
+								recDate = rec.Checkin.In(loc).Format("2006-01-02")
+							} else if rec.Checkout != nil {
+								recDate = rec.Checkout.In(loc).Format("2006-01-02")
+							}
+							if recDate == dateStr {
+								recordForThisDate = rec
+								break
+							}
+						}
 
 						// ตรวจสอบสถานะ
-						if record.Checkin != nil && record.Checkout != nil {
+						if recordForThisDate != nil && recordForThisDate.Checkin != nil && recordForThisDate.Checkout != nil {
 							// เช็คอินและเช็คเอาท์แล้ว
 							summaryUpdates[programIDStr][dateStr+"_checkout"] -= 1
 
-							// ตรวจสอบว่าสายหรือไม่ (ใช้ Participation field)
-							if record.Participation != nil && strings.Contains(*record.Participation, "ไม่ตรงเวลา") {
+							// ตรวจสอบว่าสายหรือไม่จากเวลา checkin โดยตรง
+							activityStartTime, err := getActivityStartTime(programItem.Dates, dateStr)
+							isLate := false
+							if err == nil && activityStartTime != nil {
+								isLate = isLateCheckin(*recordForThisDate.Checkin, *activityStartTime)
+							} else {
+								// ไม่พบเวลาเริ่ม ถือว่าสาย
+								isLate = true
+							}
+
+							if isLate {
 								summaryUpdates[programIDStr][dateStr+"_checkinLate"] -= 1
 							} else {
 								summaryUpdates[programIDStr][dateStr+"_checkin"] -= 1
 							}
-						} else if record.Checkin != nil {
+						} else if recordForThisDate != nil && recordForThisDate.Checkin != nil {
 							// เช็คอินแล้วแต่ยังไม่เช็คเอาท์
 							summaryUpdates[programIDStr][dateStr+"_checkin"] -= 1
 						} else {
