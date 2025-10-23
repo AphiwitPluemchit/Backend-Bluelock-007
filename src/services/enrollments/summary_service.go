@@ -23,7 +23,8 @@ type EnrollmentSummaryResponse struct {
 
 // GetEnrollmentSummaryByDate ดึงข้อมูล summary จาก enrollment collection โดยตรง
 // โดยนับจาก checkinoutRecord ที่มีวันที่ตรงกับ date ที่ส่งมา
-func GetEnrollmentSummaryByDate(programID primitive.ObjectID, date string) (*EnrollmentSummaryResponse, error) {
+// ถ้าส่ง programItemID มา จะ filter เฉพาะ programItem นั้น (กรณีมีหลาย programItems ในวันเดียวกัน)
+func GetEnrollmentSummaryByDate(programID primitive.ObjectID, date string, programItemID *primitive.ObjectID) (*EnrollmentSummaryResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -39,7 +40,14 @@ func GetEnrollmentSummaryByDate(programID primitive.ObjectID, date string) (*Enr
 
 	// ดึง programItems ของ program นี้
 	var programItems []models.ProgramItem
-	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})
+	programFilter := bson.M{"programId": programID}
+
+	// ถ้ามี programItemID กรอง filter เฉพาะ programItem นั้น
+	if programItemID != nil {
+		programFilter["_id"] = *programItemID
+	}
+
+	cursor, err := DB.ProgramItemCollection.Find(ctx, programFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find program items: %v", err)
 	}
@@ -63,9 +71,7 @@ func GetEnrollmentSummaryByDate(programID primitive.ObjectID, date string) (*Enr
 	programItemIds := make([]primitive.ObjectID, len(programItems))
 	for i, item := range programItems {
 		programItemIds[i] = item.ID
-	}
-
-	// หา dates ที่ตรงกับ date ที่ระบุ และ checkin time
+	} // หา dates ที่ตรงกับ date ที่ระบุ และ checkin time
 	var checkInTimeStr string
 	found := false
 
@@ -175,7 +181,8 @@ func GetEnrollmentSummaryByDate(programID primitive.ObjectID, date string) (*Enr
 
 // GetEnrollmentSummaryByDateV2 ดึงข้อมูล summary จาก enrollment collection โดยใช้ aggregation pipeline
 // เพื่อประสิทธิภาพที่ดีกว่าในกรณีที่มีข้อมูลมาก
-func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string) (*EnrollmentSummaryResponse, error) {
+// ถ้าส่ง programItemID มา จะ filter เฉพาะ programItem นั้น (กรณีมีหลาย programItems ในวันเดียวกัน)
+func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, programItemID *primitive.ObjectID) (*EnrollmentSummaryResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -190,7 +197,14 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string) (*E
 
 	// ดึง programItems เพื่อหา late threshold
 	var programItems []models.ProgramItem
-	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})
+	programFilter := bson.M{"programId": programID}
+
+	// ถ้ามี programItemID กรอง filter เฉพาะ programItem นั้น
+	if programItemID != nil {
+		programFilter["_id"] = *programItemID
+	}
+
+	cursor, err := DB.ProgramItemCollection.Find(ctx, programFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find program items: %v", err)
 	}

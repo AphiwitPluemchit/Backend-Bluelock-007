@@ -10,12 +10,13 @@ import (
 
 // GetEnrollmentSummaryByDate ดึงข้อมูล summary จาก enrollment collection โดยตรง (แทนการใช้ Summary_Check_In_Out_Reports)
 // @Summary Get enrollment summary by date (Query from enrollment directly)
-// @Description ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment collection โดยตรง
+// @Description ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment collection โดยตรง รองรับ filter ตาม programItemId
 // @Tags Summary Reports
 // @Accept json
 // @Produce json
 // @Param programId path string true "Program ID"
 // @Param date query string true "Date (YYYY-MM-DD)"
+// @Param programItemId query string false "Program Item ID (optional - สำหรับกรณีมีหลาย programItems ในวันเดียวกัน)"
 // @Success 200 {object} models.SuccessResponse
 // @Failure 400 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}
@@ -23,6 +24,7 @@ import (
 func GetEnrollmentSummaryByDate(c *fiber.Ctx) error {
 	programIDStr := c.Params("programId")
 	date := c.Query("date")
+	programItemIDStr := c.Query("programItemId") // optional
 
 	if date == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -38,8 +40,20 @@ func GetEnrollmentSummaryByDate(c *fiber.Ctx) error {
 		})
 	}
 
+	// แปลง programItemID ถ้ามี
+	var programItemID *primitive.ObjectID
+	if programItemIDStr != "" {
+		id, err := primitive.ObjectIDFromHex(programItemIDStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid program item ID format",
+			})
+		}
+		programItemID = &id
+	}
+
 	// ดึงข้อมูล summary จาก enrollment โดยตรง
-	summary, err := enrollments.GetEnrollmentSummaryByDate(programID, date)
+	summary, err := enrollments.GetEnrollmentSummaryByDate(programID, date, programItemID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to get enrollment summary: " + err.Error(),
@@ -54,12 +68,13 @@ func GetEnrollmentSummaryByDate(c *fiber.Ctx) error {
 
 // GetEnrollmentSummaryByDateV2 ดึงข้อมูล summary จาก enrollment collection โดยใช้ aggregation (ประสิทธิภาพสูงกว่า)
 // @Summary Get enrollment summary by date using aggregation
-// @Description ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment collection ด้วย aggregation pipeline
+// @Description ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment collection ด้วย aggregation pipeline รองรับ filter ตาม programItemId
 // @Tags Summary Reports
 // @Accept json
 // @Produce json
 // @Param programId path string true "Program ID"
 // @Param date query string true "Date (YYYY-MM-DD)"
+// @Param programItemId query string false "Program Item ID (optional - สำหรับกรณีมีหลาย programItems ในวันเดียวกัน)"
 // @Success 200 {object} models.SuccessResponse
 // @Failure 400 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}
@@ -67,6 +82,7 @@ func GetEnrollmentSummaryByDate(c *fiber.Ctx) error {
 func GetEnrollmentSummaryByDateV2(c *fiber.Ctx) error {
 	programIDStr := c.Params("programId")
 	date := c.Query("date")
+	programItemIDStr := c.Query("programItemId") // optional
 
 	if date == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -82,8 +98,20 @@ func GetEnrollmentSummaryByDateV2(c *fiber.Ctx) error {
 		})
 	}
 
+	// แปลง programItemID ถ้ามี
+	var programItemID *primitive.ObjectID
+	if programItemIDStr != "" {
+		id, err := primitive.ObjectIDFromHex(programItemIDStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid program item ID format",
+			})
+		}
+		programItemID = &id
+	}
+
 	// ดึงข้อมูล summary จาก enrollment โดยตรง (V2 ใช้ aggregation)
-	summary, err := enrollments.GetEnrollmentSummaryByDateV2(programID, date)
+	summary, err := enrollments.GetEnrollmentSummaryByDateV2(programID, date, programItemID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to get enrollment summary: " + err.Error(),
