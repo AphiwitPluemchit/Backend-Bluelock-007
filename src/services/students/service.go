@@ -495,9 +495,9 @@ func GetSammaryByCodeWithHourHistory(code string) (bson.M, error) {
 
 		switch skillType {
 		case "soft":
-			softSkillHours = int(totalHours)
+			softSkillHours += int(totalHours)
 		case "hard":
-			hardSkillHours = int(totalHours)
+			hardSkillHours += int(totalHours)
 		}
 	}
 
