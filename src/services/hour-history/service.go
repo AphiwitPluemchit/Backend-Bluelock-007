@@ -344,7 +344,7 @@ func VerifyAndGrantHours(
 	if daysAbsent == totalDays {
 		// ❌ ไม่มาเข้าร่วมเลยทุกวัน
 		newStatus = models.HCStatusAbsent
-		newHourChange = 0
+		newHourChange = -*programItem.Hour
 		newRemark = fmt.Sprintf("❌ ไม่มาเข้าร่วมกิจกรรมเลย (0/%d วัน)", totalDays)
 	} else if hasAttendedAllDays {
 		// ✅ มาครบทุกวัน และ ตรงเวลาทุกวัน → ได้ชั่วโมงเต็ม
