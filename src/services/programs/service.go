@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"strings"
 	"time"
 
 	// email "Backend-Bluelock-007/src/services/programs/email"
@@ -49,28 +48,6 @@ func getCache(key string, dest interface{}) bool {
 		return false
 	}
 	return json.Unmarshal([]byte(val), dest) == nil
-}
-
-// isLateCheckin ตรวจสอบว่า checkin time สายหรือไม่
-// สาย = checkin > (activity start time + 30 นาที)
-func isLateCheckin(checkinTime time.Time, activityStartTime time.Time) bool {
-	lateLimit := activityStartTime.Add(30 * time.Minute)
-	return checkinTime.After(lateLimit)
-}
-
-// getActivityStartTime หาเวลาเริ่มกิจกรรมจากวันที่
-func getActivityStartTime(dates []models.Dates, dateKey string) (*time.Time, error) {
-	loc, _ := time.LoadLocation("Asia/Bangkok")
-	for _, d := range dates {
-		if d.Date == dateKey && d.Stime != "" {
-			startTime, err := time.ParseInLocation("2006-01-02 15:04", d.Date+" "+d.Stime, loc)
-			if err != nil {
-				return nil, err
-			}
-			return &startTime, nil
-		}
-	}
-	return nil, fmt.Errorf("ไม่พบเวลาเริ่มกิจกรรมสำหรับวันที่ %s", dateKey)
 }
 
 func delCache(keys ...string) {
@@ -142,13 +119,6 @@ func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
 		}
 	}
 
-	log.Println("Program and ProgramItems created successfully")
-
-	if err := summary_reports.CreateSummaryReport(program.ID); err != nil {
-		log.Printf("⚠️ Warning: Failed to create summary report for program %s: %v", program.ID.Hex(), err)
-	} else {
-		log.Printf("✅ Created summary report for program: %s", program.ID.Hex())
-	}
 	// ⏱️ 2) ตั้ง schedule เปลี่ยนสถานะ (close-enroll / success)
 	if DB.AsynqClient != nil && program.ProgramState == "open" {
 		progName := ""
@@ -169,74 +139,6 @@ func CreateProgram(program *models.ProgramDto) (*models.ProgramDto, error) {
 	}
 
 	return GetProgramByID(program.ID.Hex())
-}
-
-// updateSummaryReportsForProgramChanges อัปเดต Summary Reports เมื่อมีการเปลี่ยนแปลง ProgramItems หรือ Dates
-func updateSummaryReportsForProgramChanges(programID primitive.ObjectID, oldProgram, newProgram *models.ProgramDto) error {
-	// ตรวจสอบว่ามีการเปลี่ยนแปลง ProgramItems หรือไม่
-	itemsChanged := len(newProgram.ProgramItems) != len(oldProgram.ProgramItems)
-
-	// ตรวจสอบว่ามีการเปลี่ยนแปลง Dates ใน ProgramItems หรือไม่
-	datesChanged := false
-	if !itemsChanged {
-		// ถ้าจำนวน items เท่าเดิม ให้ตรวจสอบ dates ในแต่ละ item
-		for i, newItem := range newProgram.ProgramItems {
-			if i < len(oldProgram.ProgramItems) {
-				oldItem := oldProgram.ProgramItems[i]
-				if len(newItem.Dates) != len(oldItem.Dates) {
-					datesChanged = true
-					break
-				}
-				// ตรวจสอบแต่ละ date
-				for j, newDate := range newItem.Dates {
-					if j < len(oldItem.Dates) {
-						oldDate := oldItem.Dates[j]
-						if newDate.Date != oldDate.Date || newDate.Stime != oldDate.Stime || newDate.Etime != oldDate.Etime {
-							datesChanged = true
-							break
-						}
-					}
-				}
-			}
-		}
-	} else {
-		datesChanged = true
-	}
-
-	// ✅ ตรวจสอบการเปลี่ยนแปลงอื่นๆ ที่ไม่ใช่ ProgramItems หรือ Dates
-	onlyStateChanged := oldProgram.ProgramState != newProgram.ProgramState && !itemsChanged && !datesChanged
-	onlyBasicInfoChanged := (oldProgram.Name != newProgram.Name ||
-		oldProgram.Type != newProgram.Type ||
-		oldProgram.Skill != newProgram.Skill ||
-		oldProgram.File != newProgram.File ||
-		oldProgram.EndDateEnroll != newProgram.EndDateEnroll) && !itemsChanged && !datesChanged
-
-	// ถ้ามีการเปลี่ยนแปลง ProgramItems หรือ Dates ให้สร้าง Summary Reports ใหม่
-	if itemsChanged || datesChanged {
-		log.Printf("✅ Program items or dates changed for program %s, updating summary reports", programID.Hex())
-
-		// ลบ Summary Reports เก่าทั้งหมด
-		err := summary_reports.DeleteAllSummaryReportsForProgram(programID)
-		if err != nil {
-			log.Printf("⚠️ Warning: Failed to delete old summary reports: %v", err)
-		}
-
-		// สร้าง Summary Reports ใหม่
-		err = summary_reports.CreateSummaryReport(programID)
-		if err != nil {
-			return fmt.Errorf("failed to create new summary reports: %w", err)
-		}
-
-		log.Printf("✅ Successfully updated summary reports for program %s", programID.Hex())
-	} else if onlyStateChanged {
-		// log.Printf("✅ Only program state changed for program %s, keeping existing summary reports", programID.Hex())
-	} else if onlyBasicInfoChanged {
-		log.Printf("✅ Only basic program info changed for program %s, keeping existing summary reports", programID.Hex())
-	} else {
-		log.Printf("✅ No significant changes detected for program %s, keeping existing summary reports", programID.Hex())
-	}
-
-	return nil
 }
 
 func UploadProgramImage(programID string, fileName string) error {
@@ -605,130 +507,6 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		}
 		cursor.Close(ctx)
 
-		// 2) คำนวณและอัปเดต Summary Reports ตามสถานะการเช็คชื่อ
-		if len(enrollmentsToDelete) > 0 {
-			// รวบรวมข้อมูลตาม ProgramID และ Date
-			summaryUpdates := make(map[string]map[string]int) // [programID][date] = {registered, checkin, checkout, notParticipating}
-
-			for _, enrollment := range enrollmentsToDelete {
-				// หา ProgramItem เพื่อหา ProgramID และ Dates
-				var programItem models.ProgramItem
-				if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": enrollment.ProgramItemID}).Decode(&programItem); err != nil {
-					continue
-				}
-
-				programIDStr := programItem.ProgramID.Hex()
-				if summaryUpdates[programIDStr] == nil {
-					summaryUpdates[programIDStr] = make(map[string]int)
-				}
-
-				// วิเคราะห์สถานะการเช็คชื่อสำหรับแต่ละ Date
-				for _, date := range programItem.Dates {
-					dateStr := date.Date
-
-					// เริ่มต้นด้วย registered -1 (ทุก enrollment ที่ถูกลบ)
-					summaryUpdates[programIDStr][dateStr] -= 1
-
-					// ตรวจสอบสถานะการเช็คชื่อ
-					if enrollment.CheckinoutRecord != nil && len(*enrollment.CheckinoutRecord) > 0 {
-						// หา record ที่ตรงกับวันที่นี้
-						loc, _ := time.LoadLocation("Asia/Bangkok")
-						var recordForThisDate *models.CheckinoutRecord
-						for i := range *enrollment.CheckinoutRecord {
-							rec := &(*enrollment.CheckinoutRecord)[i]
-							var recDate string
-							if rec.Checkin != nil {
-								recDate = rec.Checkin.In(loc).Format("2006-01-02")
-							} else if rec.Checkout != nil {
-								recDate = rec.Checkout.In(loc).Format("2006-01-02")
-							}
-							if recDate == dateStr {
-								recordForThisDate = rec
-								break
-							}
-						}
-
-						// ตรวจสอบสถานะ
-						if recordForThisDate != nil && recordForThisDate.Checkin != nil && recordForThisDate.Checkout != nil {
-							// เช็คอินและเช็คเอาท์แล้ว
-							summaryUpdates[programIDStr][dateStr+"_checkout"] -= 1
-
-							// ตรวจสอบว่าสายหรือไม่จากเวลา checkin โดยตรง
-							activityStartTime, err := getActivityStartTime(programItem.Dates, dateStr)
-							isLate := false
-							if err == nil && activityStartTime != nil {
-								isLate = isLateCheckin(*recordForThisDate.Checkin, *activityStartTime)
-							} else {
-								// ไม่พบเวลาเริ่ม ถือว่าสาย
-								isLate = true
-							}
-
-							if isLate {
-								summaryUpdates[programIDStr][dateStr+"_checkinLate"] -= 1
-							} else {
-								summaryUpdates[programIDStr][dateStr+"_checkin"] -= 1
-							}
-						} else if recordForThisDate != nil && recordForThisDate.Checkin != nil {
-							// เช็คอินแล้วแต่ยังไม่เช็คเอาท์
-							summaryUpdates[programIDStr][dateStr+"_checkin"] -= 1
-						} else {
-							// ไม่เช็คอินเลย
-							summaryUpdates[programIDStr][dateStr+"_notParticipating"] -= 1
-						}
-					} else {
-						// ไม่มี checkinoutRecord = ไม่เข้าร่วม
-						summaryUpdates[programIDStr][dateStr+"_notParticipating"] -= 1
-					}
-				}
-			}
-
-			// อัปเดต Summary Reports
-			for programIDStr, dateUpdates := range summaryUpdates {
-				programID, err := primitive.ObjectIDFromHex(programIDStr)
-				if err != nil {
-					continue
-				}
-
-				for dateKey, change := range dateUpdates {
-					if change == 0 {
-						continue
-					}
-
-					// แยก date และ field
-					parts := strings.Split(dateKey, "_")
-					dateStr := parts[0]
-					field := "registered"
-
-					if len(parts) > 1 {
-						switch parts[1] {
-						case "checkin":
-							field = "checkin"
-						case "checkinLate":
-							field = "checkinLate"
-						case "checkout":
-							field = "checkout"
-						case "notParticipating":
-							field = "notParticipating"
-						}
-					}
-
-					// อัปเดต Summary Report
-					_, err := DB.SummaryCheckInOutReportsCollection.UpdateOne(ctx, bson.M{
-						"programId": programID,
-						"date":      dateStr,
-					}, bson.M{
-						"$inc": bson.M{field: change},
-					})
-
-					if err != nil {
-						log.Printf("⚠️ Warning: Failed to update summary report for program %s, date %s, field %s: %v", programIDStr, dateStr, field, err)
-					} else {
-						log.Printf("✅ Updated summary report for program %s, date %s, %s: %d", programIDStr, dateStr, field, change)
-					}
-				}
-			}
-		}
-
 		// 3) ลบ Enrollments ที่เกี่ยวข้องกับ ProgramItems เหล่านี้
 		if _, err := DB.EnrollmentCollection.DeleteMany(ctx, bson.M{"programItemId": bson.M{"$in": itemsToDelete}}); err != nil {
 			log.Printf("⚠️ Warning: Failed to delete enrollments for programItems: %v", err)
@@ -861,13 +639,6 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 				// don't return error - admin manual completion should succeed even if hour processing fails
 			}
 		}
-	}
-	// ✅ อัปเดต Summary Reports เมื่อมีการเปลี่ยนแปลง ProgramItems หรือ Dates
-	err = updateSummaryReportsForProgramChanges(id, &oldProgram, &program)
-	if err != nil {
-		log.Printf("⚠️ Warning: Failed to update summary reports for program changes: %v", err)
-		// Don't return error here, just log it - we don't want to fail program update
-		// if summary reports update fails
 	}
 
 	// newState := strings.ToLower(program.ProgramState)
