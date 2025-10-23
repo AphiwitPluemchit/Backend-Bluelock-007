@@ -128,7 +128,7 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
 		}
 
-		if err := addCertificateHours(ctx, &certForHours); err != nil {
+		if err := updateCertificateHoursApproved(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
 		}
 	}
@@ -141,7 +141,7 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 			certForHours.Remark = "ปฏิเสธโดยเจ้าหน้าที่"
 		}
 
-		if err := removeCertificateHours(ctx, &certForHours); err != nil {
+		if err := updateCertificateHoursRejected(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
 		}
 	}
@@ -152,7 +152,7 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 		if oldCert.Remark == "" {
 			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
 		}
-		if err := addCertificateHours(ctx, &certForHours); err != nil {
+		if err := updateCertificateHoursApproved(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
 		}
 	}
@@ -163,7 +163,7 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 		if oldCert.Remark == "" {
 			certForHours.Remark = "รอพิจารณาใหม่โดยเจ้าหน้าที่"
 		}
-		if err := removeCertificateHours(ctx, &certForHours); err != nil {
+		if err := updateCertificateHoursRejected(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
 		}
 	}
@@ -764,7 +764,7 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 
 	// ถ้าสถานะเป็น approved ให้บันทึกชั่วโมงทันที (auto-approved)
 	if saved.Status == models.StatusApproved {
-		if err := addCertificateHours(context.Background(), saved); err != nil {
+		if err := updateCertificateHoursApproved(context.Background(), saved); err != nil {
 			fmt.Printf("Warning: Failed to add certificate hours for auto-approved certificate %s: %v\n", saved.ID.Hex(), err)
 		}
 	}
@@ -943,8 +943,8 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	return nil
 }
 
-// addCertificateHours เพิ่มชั่วโมงให้กับนิสิตเมื่อ certificate ได้รับการอนุมัติ
-func addCertificateHours(ctx context.Context, certificate *models.UploadCertificate) error {
+// updateCertificateHoursApproved อัพเดท student hours และ hour history เมื่อ certificate ได้รับการอนุมัติ
+func updateCertificateHoursApproved(ctx context.Context, certificate *models.UploadCertificate) error {
 	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
 	if certificate.IsDuplicate {
 		fmt.Printf("Skipping hours addition for duplicate certificate %s\n", certificate.ID.Hex())
@@ -1003,26 +1003,54 @@ func addCertificateHours(ctx context.Context, certificate *models.UploadCertific
 		return fmt.Errorf("failed to update student hours: %v", err)
 	}
 
-	// 5. บันทึกประวัติการเปลี่ยนแปลงชั่วโมง (status: approved)
-	// สร้าง HourChangeHistory record โดยใช้ status "approved"
-	hourChange := models.HourChangeHistory{
-		ID:           primitive.NewObjectID(),
-		StudentID:    certificate.StudentId,
-		SkillType:    skillType,
-		Status:       models.HCStatusApproved, // ใช้ "approved" เพราะ certificate ถูกอนุมัติ
-		HourChange:   course.Hour,
-		Remark:       "Certificate Approved",
-		ChangeAt:     time.Now(),
-		Title:        course.Name,
-		SourceType:   "certificate",
-		SourceID:     certificate.ID,
-		EnrollmentID: nil, // certificate ไม่มี enrollmentID
+	// 5. อัพเดทหรือสร้าง hour history record
+	// หา history record ที่ pending อยู่สำหรับ certificate นี้เท่านั้น
+	histFilter := bson.M{
+		"sourceType": "certificate",
+		"sourceId":   certificate.ID,
+		"studentId":  certificate.StudentId,
+		"status":     models.HCStatusPending, // หาเฉพาะตัวที่ pending อยู่
 	}
 
-	_, err = DB.HourChangeHistoryCollection.InsertOne(ctx, hourChange)
+	histUpdate := bson.M{
+		"$set": bson.M{
+			"status":     models.HCStatusApproved,
+			"hourChange": course.Hour,
+			"remark":     "อนุมัติใบรับรอง",
+			"changeAt":   time.Now(),
+			"title":      course.Name,
+			"skillType":  skillType,
+		},
+	}
+
+	updateResult, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
 	if err != nil {
-		// Log warning but don't fail the operation
-		fmt.Printf("Warning: Failed to save certificate history: %v\n", err)
+		return fmt.Errorf("failed to update hour history: %v", err)
+	}
+
+	// ถ้าไม่มี pending record ให้สร้างใหม่
+	if updateResult.MatchedCount == 0 {
+		hourChange := models.HourChangeHistory{
+			ID:           primitive.NewObjectID(),
+			StudentID:    certificate.StudentId,
+			SkillType:    skillType,
+			Status:       models.HCStatusApproved,
+			HourChange:   course.Hour,
+			Remark:       "อนุมัติใบรับรอง",
+			ChangeAt:     time.Now(),
+			Title:        course.Name,
+			SourceType:   "certificate",
+			SourceID:     certificate.ID,
+			EnrollmentID: nil,
+		}
+
+		_, err = DB.HourChangeHistoryCollection.InsertOne(ctx, hourChange)
+		if err != nil {
+			fmt.Printf("Warning: Failed to insert hour history: %v\n", err)
+		}
+		fmt.Printf("📝 Created new hour history for certificate %s\n", certificate.ID.Hex())
+	} else {
+		fmt.Printf("📝 Updated existing pending hour history for certificate %s\n", certificate.ID.Hex())
 	}
 
 	fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s\n",
@@ -1031,8 +1059,8 @@ func addCertificateHours(ctx context.Context, certificate *models.UploadCertific
 	return nil
 }
 
-// removeCertificateHours ลบชั่วโมงจากนิสิตเมื่อ certificate ถูกปฏิเสธหรือยกเลิก
-func removeCertificateHours(ctx context.Context, certificate *models.UploadCertificate) error {
+// updateCertificateHoursRejected อัพเดท student hours และ hour history เมื่อ certificate ถูกปฏิเสธหรือยกเลิก
+func updateCertificateHoursRejected(ctx context.Context, certificate *models.UploadCertificate) error {
 	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
 	if certificate.IsDuplicate {
 		fmt.Printf("Skipping hours removal for duplicate certificate %s\n", certificate.ID.Hex())
@@ -1106,31 +1134,59 @@ func removeCertificateHours(ctx context.Context, certificate *models.UploadCerti
 		return fmt.Errorf("failed to update student hours: %v", err)
 	}
 
-	// 5. บันทึกประวัติการเปลี่ยนแปลงชั่วโมง (status: rejected)
-	// สร้าง HourChangeHistory record โดยใช้ status "rejected"
-	remark := fmt.Sprintf("Certificate Rejected - Status changed to: %s", certificate.Status)
+	// 5. อัพเดทหรือสร้าง hour history record
+	remark := fmt.Sprintf("ปฏิเสธใบรับรอง - สถานะเปลี่ยนเป็น: %s", certificate.Status)
 	if certificate.Remark != "" {
-		remark = certificate.Remark // ใช้ remark จาก certificate ถ้ามี
+		remark = certificate.Remark
 	}
 
-	hourChange := models.HourChangeHistory{
-		ID:           primitive.NewObjectID(),
-		StudentID:    certificate.StudentId,
-		SkillType:    skillType,
-		Status:       models.HCStatusRejected, // ใช้ "rejected" เพราะ certificate ถูกปฏิเสธ
-		HourChange:   -hoursToRemove,          // ลบชั่วโมง (ค่าลบ)
-		Remark:       remark,
-		ChangeAt:     time.Now(),
-		Title:        course.Name,
-		SourceType:   "certificate",
-		SourceID:     certificate.ID,
-		EnrollmentID: nil, // certificate ไม่มี enrollmentID
+	// หา history record ที่ pending หรือ approved อยู่สำหรับ certificate นี้
+	histFilter := bson.M{
+		"sourceType": "certificate",
+		"sourceId":   certificate.ID,
+		"studentId":  certificate.StudentId,
+		"status":     bson.M{"$in": []string{string(models.HCStatusPending), string(models.HCStatusApproved)}}, // หาตัวที่ pending หรือ approved
 	}
 
-	_, err = DB.HourChangeHistoryCollection.InsertOne(ctx, hourChange)
+	histUpdate := bson.M{
+		"$set": bson.M{
+			"status":     models.HCStatusRejected,
+			"hourChange": -hoursToRemove,
+			"remark":     remark,
+			"changeAt":   time.Now(),
+			"title":      course.Name,
+			"skillType":  skillType,
+		},
+	}
+
+	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
 	if err != nil {
-		// Log warning but don't fail the operation
-		fmt.Printf("Warning: Failed to save certificate history: %v\n", err)
+		return fmt.Errorf("failed to update hour history: %v", err)
+	}
+
+	// ถ้าไม่มี record เดิม ให้สร้างใหม่
+	if result.MatchedCount == 0 {
+		hourChange := models.HourChangeHistory{
+			ID:           primitive.NewObjectID(),
+			StudentID:    certificate.StudentId,
+			SkillType:    skillType,
+			Status:       models.HCStatusRejected,
+			HourChange:   -hoursToRemove,
+			Remark:       remark,
+			ChangeAt:     time.Now(),
+			Title:        course.Name,
+			SourceType:   "certificate",
+			SourceID:     certificate.ID,
+			EnrollmentID: nil,
+		}
+
+		_, err = DB.HourChangeHistoryCollection.InsertOne(ctx, hourChange)
+		if err != nil {
+			fmt.Printf("Warning: Failed to insert hour history: %v\n", err)
+		}
+		fmt.Printf("📝 Created new hour history for certificate %s\n", certificate.ID.Hex())
+	} else {
+		fmt.Printf("📝 Updated existing hour history (pending/approved -> rejected) for certificate %s\n", certificate.ID.Hex())
 	}
 
 	fmt.Printf("❌ Removed %d hours (%s skill) from student %s for certificate %s\n",
