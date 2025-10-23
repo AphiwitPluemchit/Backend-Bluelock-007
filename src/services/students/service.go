@@ -448,7 +448,7 @@ func GetSammaryByCodeWithHourHistory(code string) (bson.M, error) {
 	// � ดึงข้อมูล user เพื่อเอา email
 	var user models.User
 	email := ""
-	if err := DB.UserCollection.FindOne(ctx, bson.M{"studentId": student.ID}).Decode(&user); err == nil {
+	if err := DB.UserCollection.FindOne(ctx, bson.M{"refId": student.ID}).Decode(&user); err == nil {
 		email = user.Email
 	}
 
@@ -485,17 +485,18 @@ func GetSammaryByCodeWithHourHistory(code string) (bson.M, error) {
 	}
 
 	// Default ชั่วโมงเป็น 0
-	softSkillHours := 0
-	hardSkillHours := 0
+	softSkillHours := student.SoftSkill
+	hardSkillHours := student.HardSkill
 
 	// Map ผลลัพธ์จาก aggregation
 	for _, result := range hourResults {
 		skillType, _ := result["_id"].(string)
 		totalHours, _ := result["totalHours"].(int32)
 
-		if skillType == "soft" {
+		switch skillType {
+		case "soft":
 			softSkillHours = int(totalHours)
-		} else if skillType == "hard" {
+		case "hard":
 			hardSkillHours = int(totalHours)
 		}
 	}
