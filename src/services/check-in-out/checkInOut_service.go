@@ -167,20 +167,16 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 	}, nil
 }
 
-// RecordCheckin records a check-in or check-out for a student for all enrolled items in an program
-func RecordCheckin(studentId, programItemId, checkType string) error {
-	// ดึง programItemIds ทั้งหมดที่นิสิตลงทะเบียนใน program นี้
-	itemIDs, found := enrollments.FindEnrolledItems(studentId, programItemId)
-	if !found || len(itemIDs) == 0 {
+// RecordCheckin records a check-in or check-out for a student in a program
+func RecordCheckin(studentId, programId, checkType string) error {
+	// หา programItemId ที่นิสิตลงทะเบียนใน program นี้ (1 enrollment ต่อ 1 program)
+	programItemId, found := enrollments.FindEnrolledProgramItem(studentId, programId)
+	if !found {
 		return fmt.Errorf("คุณไม่ได้ลงทะเบียนกิจกรรมนี้")
 	}
-	for _, itemID := range itemIDs {
-		err := SaveCheckInOut(studentId, itemID, checkType)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+
+	// เช็คชื่อ programItem ที่ลงทะเบียนไว้
+	return SaveCheckInOut(studentId, programItemId, checkType)
 }
 
 // GetProgramFormId ดึง formId จาก programId

@@ -93,35 +93,54 @@ func IsStudentEnrolled(studentId string, programItemId string) bool {
 	return count > 0
 }
 
-// FindEnrolledItem คืน programItemId ที่นิสิตลงทะเบียนไว้ใน programId นี้
-func FindEnrolledItem(userId string, programId string) (string, bool) {
-	uID, _ := primitive.ObjectIDFromHex(userId)
-	aID, _ := primitive.ObjectIDFromHex(programId)
+// FindEnrolledProgramItem คืน programItemId ที่นิสิตลงทะเบียนไว้ใน programId นี้
+// เนื่องจาก 1 student มี 1 enrollment ต่อ 1 program ใช้ aggregation pipeline ค้นหาตรง ๆ
+func FindEnrolledProgramItem(studentID string, programId string) (string, bool) {
+	sID, err := primitive.ObjectIDFromHex(studentID)
+	if err != nil {
+		return "", false
+	}
+	pID, err := primitive.ObjectIDFromHex(programId)
+	if err != nil {
+		return "", false
+	}
 
-	// 1. ดึง enrollments ทั้งหมดของ userId
-	cursor, err := DB.EnrollmentCollection.Find(context.TODO(), bson.M{
-		"studentId": uID, // หรือ "userId" ถ้าคุณใช้ชื่อนี้
-	})
+	// ใช้ aggregation pipeline เพื่อ join enrollment กับ program_items
+	pipeline := []bson.M{
+		// 1. หา enrollment ของ student
+		{"$match": bson.M{"studentId": sID}},
+		{"$match": bson.M{"programId": pID}},
+		// 2. lookup programItem
+		{
+			"$lookup": bson.M{
+				"from":         "program_items",
+				"localField":   "programItemId",
+				"foreignField": "_id",
+				"as":           "programItem",
+			},
+		},
+		// 6. limit 1 (เพราะควรมีแค่ 1 enrollment)
+		{"$limit": 1},
+	}
+
+	cursor, err := DB.EnrollmentCollection.Aggregate(context.TODO(), pipeline)
 	if err != nil {
 		return "", false
 	}
 	defer cursor.Close(context.TODO())
 
-	// 2. เช็กแต่ละรายการว่า programItemId → programId ตรงหรือไม่
-	for cursor.Next(context.TODO()) {
-		var enrollment models.Enrollment
-		if err := cursor.Decode(&enrollment); err != nil {
-			continue
+	if cursor.Next(context.TODO()) {
+		var result struct {
+			ProgramItemID primitive.ObjectID `bson:"programItemId"`
 		}
-
-		var item models.ProgramItem
-		err := DB.ProgramItemCollection.FindOne(context.TODO(), bson.M{
-			"_id": enrollment.ProgramItemID,
-		}).Decode(&item)
-		if err == nil && item.ProgramID == aID {
-			return enrollment.ProgramItemID.Hex(), true
+		if err := cursor.Decode(&result); err != nil {
+			return "", false
 		}
+		return result.ProgramItemID.Hex(), true
 	}
+
+	// log
+	log.Printf("No enrollment found for studentId=%s in programId=%s", studentID, programId)
 
 	return "", false
 }

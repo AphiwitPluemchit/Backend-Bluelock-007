@@ -289,6 +289,7 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 	newEnrollment := models.Enrollment{
 		ID:               primitive.NewObjectID(),
 		StudentID:        studentID,
+		ProgramID:        programItem.ProgramID,
 		ProgramItemID:    programItemID,
 		RegistrationDate: time.Now(),
 		Food:             food,
@@ -345,6 +346,7 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 
 	return nil
 }
+
 func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
