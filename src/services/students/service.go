@@ -97,12 +97,12 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 	total := countResult.Total
 
 	// 🔗 Lookup email จาก users collection
-	// pipeline = append(pipeline, bson.D{{Key: "$lookup", Value: bson.M{
-	// 	"from":         "users",
-	// 	"localField":   "_id",
-	// 	"foreignField": "refId",
-	// 	"as":           "user",
-	// }}})
+	pipeline = append(pipeline, bson.D{{Key: "$lookup", Value: bson.M{
+		"from":         "Users",
+		"localField":   "_id",
+		"foreignField": "refId",
+		"as":           "user",
+	}}})
 
 	// 📌 Project เฉพาะฟิลด์ที่ต้องการ
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
@@ -115,7 +115,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 		"softSkill": 1,
 		"hardSkill": 1,
 		"major":     1,
-		// "email":     bson.M{"$arrayElemAt": bson.A{"$user.email", 0}},
+		"email":     bson.M{"$arrayElemAt": bson.A{"$user.email", 1}},
 	}}})
 
 	// 🔁 Sort, skip, limit

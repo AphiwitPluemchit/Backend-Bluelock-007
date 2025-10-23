@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-var collection = "V2"
+var collection = "TestEmail"
 
 // var collection = "V2" // หรือ "TestEmail"
 func init() {

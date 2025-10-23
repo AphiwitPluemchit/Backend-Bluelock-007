@@ -43,6 +43,7 @@ func CreateAdmin(c *fiber.Ctx) error {
 		Email:    strings.ToLower(req.Email),
 		Password: req.Password,
 	}
+	user.Password = "123456"
 
 	// ✅ เรียกใช้ service
 	err := admins.CreateAdmin(&user, &admin)
@@ -86,17 +87,17 @@ func GetAdmins(c *fiber.Ctx) error {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Error getting admins: "+err.Error())
 	}
 
-	// ส่ง Response กลับไป
 	return c.JSON(fiber.Map{
-		"page":       params.Page,
-		"limit":      params.Limit,
-		"search":     params.Search,
-		"sortBy":     params.SortBy,
-		"order":      params.Order,
-		"totalItems": total,
-		"totalPages": totalPages,
-		"data":       admins,
+		"data": admins,
+		"meta": fiber.Map{
+			"page":       params.Page,
+			"limit":      params.Limit,
+			"total":      total,
+			"totalPages": totalPages,
+		},
 	})
+	// ส่ง Response กลับไป
+
 }
 
 // GetAdminByID godoc

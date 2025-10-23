@@ -14,79 +14,155 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // Collections are now initialized in service.go
 
-func GetAllAdmins(params models.PaginationParams) ([]models.Admin, int64, int, error) {
-	var admins []models.Admin
+func GetAllAdmins(params models.PaginationParams) ([]bson.M, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	skip := int64((params.Page - 1) * params.Limit)
+	page := params.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
 	sortField := params.SortBy
 	if sortField == "" {
-		sortField = "id"
+		sortField = "_id" // ใช้ _id ใน Mongo
 	}
 	sortOrder := 1
 	if strings.ToLower(params.Order) == "desc" {
 		sortOrder = -1
 	}
 
-	filter := bson.M{}
-	if params.Search != "" {
-		filter["$or"] = []bson.M{
-			{"name": bson.M{"$regex": params.Search, "$options": "i"}},
-			{"email": bson.M{"$regex": params.Search, "$options": "i"}},
-		}
+	pipeline := mongo.Pipeline{
+		// เชื่อม Users เพื่อดึง email (Users.refId => Admins._id)
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "Users",
+			"localField":   "_id",
+			"foreignField": "refId",
+			"as":           "user",
+		}}},
 	}
-	total, err := DB.AdminCollection.CountDocuments(ctx, filter)
+
+	// ค้นหา: name (ใน Admin) + user.email (ใน Users)
+	if s := strings.TrimSpace(params.Search); s != "" {
+		reg := bson.M{"$regex": s, "$options": "i"}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{
+			"$or": bson.A{
+				bson.M{"name": reg},
+				bson.M{"user.email": reg},
+			},
+		}}})
+	}
+
+	// addFields: email = ตัวแรกของ user.email
+	pipeline = append(pipeline, bson.D{{Key: "$addFields", Value: bson.M{
+		"email": bson.M{"$arrayElemAt": bson.A{"$user.email", 0}}, // ใช้ index 0
+	}}})
+
+	// --- ทำ count ก่อนแบ่งหน้า ---
+	countPipeline := append(mongo.Pipeline{}, pipeline...)
+	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
+
+	var total int64
+	countCur, err := DB.AdminCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
+	defer countCur.Close(ctx)
 
-	findOptions := options.Find().
-		SetSkip(skip).
-		SetLimit(int64(params.Limit)).
-		SetSort(bson.D{{Key: sortField, Value: sortOrder}})
+	if countCur.Next(ctx) {
+		var cr struct {
+			Total int64 `bson:"total"`
+		}
+		if err := countCur.Decode(&cr); err == nil {
+			total = cr.Total
+		}
+	}
+	if total == 0 {
+		return []bson.M{}, 0, 0, nil
+	}
 
-	cursor, err := DB.AdminCollection.Find(ctx, filter, findOptions)
+	// --- เรียง/แบ่งหน้า + project ฟิลด์ที่จะส่งออก ---
+	mainPipeline := append(mongo.Pipeline{}, pipeline...)
+	mainPipeline = append(mainPipeline,
+		bson.D{{Key: "$sort", Value: bson.M{sortField: sortOrder}}},
+		bson.D{{Key: "$skip", Value: int64((page - 1) * limit)}},
+		bson.D{{Key: "$limit", Value: int64(limit)}},
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id":   0,
+			"id":    "$_id",
+			"name":  1,
+			"role":  1, // เอาออกได้ถ้าไม่ใช้
+			"email": 1,
+		}}},
+	)
+
+	cur, err := DB.AdminCollection.Aggregate(ctx, mainPipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	defer cursor.Close(ctx)
+	defer cur.Close(ctx)
 
-	for cursor.Next(ctx) {
-		var admin models.Admin
-		if err := cursor.Decode(&admin); err != nil {
-			log.Println("Error decoding admin:", err)
-			continue
-		}
-		admins = append(admins, admin)
+	var results []bson.M
+	if err := cur.All(ctx, &results); err != nil {
+		return nil, 0, 0, err
 	}
-	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
-	return admins, total, totalPages, nil
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	return results, total, totalPages, nil
 }
 
-func GetAdminByID(id string) (*models.Admin, error) {
+func GetAdminByID(id string) (bson.M, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, errors.New("invalid admin ID")
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	var admin models.Admin
-	err = DB.AdminCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&admin)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, errors.New("admin not found")
-	} else if err != nil {
-		log.Println("❌ Error finding admin:", err)
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"_id": objID}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "Users",
+			"localField":   "_id",
+			"foreignField": "refId",
+			"as":           "user",
+		}}},
+		{{Key: "$addFields", Value: bson.M{
+			"email": bson.M{"$arrayElemAt": bson.A{"$user.email", 0}}, // ดึง email ตัวแรก
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"_id":   1,
+			"name":  1,
+			"email": 1,
+			// เพิ่มฟิลด์อื่นที่อยากส่งออกได้ตรงนี้
+		}}},
+	}
+
+	cur, err := DB.AdminCollection.Aggregate(ctx, pipeline)
+	if err != nil {
 		return nil, err
 	}
-	return &admin, nil
+	defer cur.Close(ctx)
+
+	if !cur.Next(ctx) {
+		return nil, errors.New("admin not found")
+	}
+
+	var doc bson.M
+	if err := cur.Decode(&doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
 }
 
 func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
