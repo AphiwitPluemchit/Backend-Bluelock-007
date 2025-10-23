@@ -186,14 +186,23 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// แปลง date string เป็น time.Time
-	targetDate, err := time.Parse("2006-01-02", date)
+	// กำหนด timezone เป็น Asia/Bangkok
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		loc = time.FixedZone("UTC+7", 7*60*60)
+	}
+
+	// แปลง date string เป็น time.Time ใน timezone ไทย
+	targetDate, err := time.ParseInLocation("2006-01-02", date, loc)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date format: %v", err)
 	}
 
-	startOfDay := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, targetDate.Location())
+	// สร้างช่วงเวลาเริ่มต้นและสิ้นสุดของวัน (ในเวลาไทย)
+	startOfDay := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, loc)
 	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	fmt.Printf("DEBUG: Query date=%s, startOfDay=%v, endOfDay=%v\n", date, startOfDay, endOfDay)
 
 	// ดึง programItems เพื่อหา late threshold
 	var programItems []models.ProgramItem
@@ -221,45 +230,118 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 	programItemIds := make([]primitive.ObjectID, len(programItems))
 	for i, item := range programItems {
 		programItemIds[i] = item.ID
+		// DEBUG: แสดงข้อมูลดิบของ programItem
+		fmt.Printf("DEBUG: ProgramItem[%d] ID=%s, Name=%s\n", i, item.ID.Hex(), item.Name)
+		for j, d := range item.Dates {
+			fmt.Printf("  - Date[%d]: date=%s, stime=%s, etime=%s\n", j, d.Date, d.Stime, d.Etime)
+		}
 	}
 
 	// หา checkInTime จาก dates
-	var checkInTimeStr string
-	foundTime := false
+	// สร้าง map เพื่อเก็บ checkInTime ของแต่ละ programItemId
+	programItemCheckInTimes := make(map[primitive.ObjectID]time.Time)
+
 	for _, item := range programItems {
+		fmt.Printf("DEBUG: Checking programItem %s\n", item.ID.Hex())
 		for _, d := range item.Dates {
 			if d.Date == date && d.Stime != "" {
-				checkInTimeStr = d.Stime
-				foundTime = true
+				parsedTime, err := time.Parse("15:04", d.Stime)
+				if err == nil {
+					checkInTime := time.Date(
+						targetDate.Year(), targetDate.Month(), targetDate.Day(),
+						parsedTime.Hour(), parsedTime.Minute(), 0, 0, loc,
+					)
+					programItemCheckInTimes[item.ID] = checkInTime
+					fmt.Printf("DEBUG: ProgramItem %s on %s has checkInTime=%v\n",
+						item.ID.Hex(), date, checkInTime)
+				}
 				break
 			}
 		}
-		if foundTime {
-			break
-		}
 	}
 
-	// ถ้าไม่เจอให้ใช้ค่า default
-	var checkInTime time.Time
-	if checkInTimeStr == "" {
-		checkInTime = startOfDay.Add(8 * time.Hour)
+	// หาเวลาที่เร็วที่สุดจากทุก programItems (เพื่อใช้เป็น reference)
+	// และสร้าง conditions สำหรับ aggregation
+	var earliestCheckInTime time.Time
+	if len(programItemCheckInTimes) == 0 {
+		earliestCheckInTime = startOfDay.Add(8 * time.Hour)
+		fmt.Printf("DEBUG: No Stime found for any programItem, using default 08:00\n")
 	} else {
-		parsedTime, err := time.Parse("15:04", checkInTimeStr)
-		if err != nil {
-			checkInTime = startOfDay.Add(8 * time.Hour)
-		} else {
-			checkInTime = time.Date(
-				targetDate.Year(), targetDate.Month(), targetDate.Day(),
-				parsedTime.Hour(), parsedTime.Minute(), 0, 0, targetDate.Location(),
-			)
+		// หาเวลาเร็วสุด
+		for itemID, checkInTime := range programItemCheckInTimes {
+			if earliestCheckInTime.IsZero() || checkInTime.Before(earliestCheckInTime) {
+				earliestCheckInTime = checkInTime
+			}
+			fmt.Printf("DEBUG: ProgramItem %s - checkInTime=%v\n", itemID.Hex(), checkInTime)
 		}
 	}
 
-	lateThreshold := time.Date(
-		targetDate.Year(), targetDate.Month(), targetDate.Day(),
-		checkInTime.Hour(), checkInTime.Minute(), checkInTime.Second(),
-		0, targetDate.Location(),
-	).Add(15 * time.Minute)
+	// สร้าง conditions array สำหรับ $switch ใน aggregation
+	// แต่ละ programItem จะมี late threshold ของตัวเอง
+	var lateConditions []interface{}
+	var onTimeConditions []interface{}
+
+	for itemID, checkInTime := range programItemCheckInTimes {
+		lateThreshold := checkInTime.Add(30 * time.Minute)
+
+		// Condition สำหรับ late
+		lateConditions = append(lateConditions, bson.M{
+			"case": bson.M{
+				"$and": []interface{}{
+					bson.M{"$eq": []interface{}{"$programItemId", itemID}},
+					bson.M{"$ne": []interface{}{"$checkinoutRecord.checkin", nil}},
+					bson.M{"$gte": []interface{}{"$checkinoutRecord.checkin", startOfDay}},
+					bson.M{"$lt": []interface{}{"$checkinoutRecord.checkin", endOfDay}},
+					bson.M{"$gt": []interface{}{"$checkinoutRecord.checkin", lateThreshold}},
+				},
+			},
+			"then": 1,
+		})
+
+		// Condition สำหรับ on time
+		onTimeConditions = append(onTimeConditions, bson.M{
+			"case": bson.M{
+				"$and": []interface{}{
+					bson.M{"$eq": []interface{}{"$programItemId", itemID}},
+					bson.M{"$ne": []interface{}{"$checkinoutRecord.checkin", nil}},
+					bson.M{"$gte": []interface{}{"$checkinoutRecord.checkin", startOfDay}},
+					bson.M{"$lt": []interface{}{"$checkinoutRecord.checkin", endOfDay}},
+					bson.M{"$lte": []interface{}{"$checkinoutRecord.checkin", lateThreshold}},
+				},
+			},
+			"then": 1,
+		})
+
+		fmt.Printf("DEBUG: ProgramItem %s - lateThreshold=%v\n", itemID.Hex(), lateThreshold)
+	}
+
+	// ถ้าไม่มี conditions ให้ใช้ default
+	if len(lateConditions) == 0 {
+		defaultLateThreshold := earliestCheckInTime.Add(30 * time.Minute)
+		lateConditions = append(lateConditions, bson.M{
+			"case": bson.M{
+				"$and": []interface{}{
+					bson.M{"$ne": []interface{}{"$checkinoutRecord.checkin", nil}},
+					bson.M{"$gte": []interface{}{"$checkinoutRecord.checkin", startOfDay}},
+					bson.M{"$lt": []interface{}{"$checkinoutRecord.checkin", endOfDay}},
+					bson.M{"$gt": []interface{}{"$checkinoutRecord.checkin", defaultLateThreshold}},
+				},
+			},
+			"then": 1,
+		})
+
+		onTimeConditions = append(onTimeConditions, bson.M{
+			"case": bson.M{
+				"$and": []interface{}{
+					bson.M{"$ne": []interface{}{"$checkinoutRecord.checkin", nil}},
+					bson.M{"$gte": []interface{}{"$checkinoutRecord.checkin", startOfDay}},
+					bson.M{"$lt": []interface{}{"$checkinoutRecord.checkin", endOfDay}},
+					bson.M{"$lte": []interface{}{"$checkinoutRecord.checkin", defaultLateThreshold}},
+				},
+			},
+			"then": 1,
+		})
+	}
 
 	// Aggregation Pipeline
 	pipeline := mongo.Pipeline{
@@ -293,31 +375,15 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 				},
 			},
 			"hasCheckinLate": bson.M{
-				"$cond": bson.M{
-					"if": bson.M{
-						"$and": []interface{}{
-							bson.M{"$ne": []interface{}{"$checkinoutRecord.checkin", nil}},
-							bson.M{"$gte": []interface{}{"$checkinoutRecord.checkin", startOfDay}},
-							bson.M{"$lt": []interface{}{"$checkinoutRecord.checkin", endOfDay}},
-							bson.M{"$gt": []interface{}{"$checkinoutRecord.checkin", lateThreshold}},
-						},
-					},
-					"then": 1,
-					"else": 0,
+				"$switch": bson.M{
+					"branches": lateConditions,
+					"default":  0,
 				},
 			},
 			"hasCheckinOnTime": bson.M{
-				"$cond": bson.M{
-					"if": bson.M{
-						"$and": []interface{}{
-							bson.M{"$ne": []interface{}{"$checkinoutRecord.checkin", nil}},
-							bson.M{"$gte": []interface{}{"$checkinoutRecord.checkin", startOfDay}},
-							bson.M{"$lt": []interface{}{"$checkinoutRecord.checkin", endOfDay}},
-							bson.M{"$lte": []interface{}{"$checkinoutRecord.checkin", lateThreshold}},
-						},
-					},
-					"then": 1,
-					"else": 0,
+				"$switch": bson.M{
+					"branches": onTimeConditions,
+					"default":  0,
 				},
 			},
 			"hasCheckout": bson.M{
@@ -393,6 +459,8 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 			summary.NotParticipating = 0
 		}
 	}
+
+	fmt.Printf("Enrollment Summary for programID %s on %s: %+v\n", programID.Hex(), date, summary)
 
 	return summary, nil
 }
