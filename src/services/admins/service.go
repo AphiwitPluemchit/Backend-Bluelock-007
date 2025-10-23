@@ -123,7 +123,7 @@ func GetAllAdmins(params models.PaginationParams) ([]bson.M, int64, int, error) 
 func GetAdminByID(id string) (bson.M, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, errors.New("invalid admin ID")
+		return nil, errors.New("ไม่พบผู้ดูแล")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -169,6 +169,16 @@ func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// ✅ ตรวจสอบว่า email ซ้ำใน Users หรือไม่
+	count, err := DB.UserCollection.CountDocuments(ctx, bson.M{"email": userInput.Email})
+	if err != nil {
+		log.Println("❌ Error checking duplicate email:", err)
+		return errors.New("failed to check duplicate email")
+	}
+	if count > 0 {
+		return errors.New("มี email นี้ในระบบแล้ว")
+	}
+
 	// ✅ เข้ารหัสรหัสผ่าน
 	hashedPassword, err := hashPassword(userInput.Password)
 	if err != nil {
@@ -181,7 +191,7 @@ func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
 	_, err = DB.AdminCollection.InsertOne(ctx, adminInput)
 	if err != nil {
 		log.Println("❌ Error inserting admin:", err)
-		return errors.New("failed to insert admin profile")
+		return errors.New("สร้างข้อมูลไม่สำเร็จ")
 	}
 
 	// ✅ สร้าง user โดยใช้ refId อ้างถึง admin
@@ -192,8 +202,9 @@ func CreateAdmin(userInput *models.User, adminInput *models.Admin) error {
 
 	_, err = DB.UserCollection.InsertOne(ctx, userInput)
 	if err != nil {
-		DB.AdminCollection.DeleteOne(ctx, bson.M{"_id": adminInput.ID}) // rollback
-		return errors.New("failed to create user for admin")
+		// rollback admin ถ้า user สร้างไม่สำเร็จ
+		_, _ = DB.AdminCollection.DeleteOne(ctx, bson.M{"_id": adminInput.ID})
+		return errors.New("สร้างข้อมูลไม่สำเร็จ")
 	}
 
 	return nil
@@ -226,7 +237,7 @@ func UpdateAdmin(id string, admin *models.Admin) error {
 func DeleteAdmin(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return errors.New("invalid admin ID")
+		return errors.New("ไม่พบผู้ดูแล")
 	}
 	// 🔧 ควรลบจาก user โดยใช้ refId ไม่ใช่ _id
 	_, err = DB.UserCollection.DeleteOne(context.Background(), bson.M{

@@ -48,7 +48,7 @@ func CreateAdmin(c *fiber.Ctx) error {
 	// ✅ เรียกใช้ service
 	err := admins.CreateAdmin(&user, &admin)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusInternalServerError, "Error creating admin: "+err.Error())
+		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -84,7 +84,7 @@ func GetAdmins(c *fiber.Ctx) error {
 	// ดึงข้อมูลจาก Service
 	admins, total, totalPages, err := admins.GetAllAdmins(params)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusInternalServerError, "Error getting admins: "+err.Error())
+		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -114,7 +114,7 @@ func GetAdminByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	admin, err := admins.GetAdminByID(id)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusNotFound, "Admin not found")
+		return utils.HandleError(c, fiber.StatusNotFound, "ไม่พบผูู้ดูแล")
 	}
 
 	return c.JSON(admin)
@@ -145,7 +145,7 @@ func UpdateAdmin(c *fiber.Ctx) error {
 	err := admins.UpdateAdmin(id, &admin)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error updating admin",
+			"error": "อัพเดทข้อมูลไม่สำเร็จ",
 		})
 	}
 
@@ -168,7 +168,7 @@ func DeleteAdmin(c *fiber.Ctx) error {
 	id := c.Params("id")
 	err := admins.DeleteAdmin(id)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusInternalServerError, "Error deleting admin: "+err.Error())
+		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
