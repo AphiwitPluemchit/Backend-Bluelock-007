@@ -114,7 +114,7 @@ func StudentCheckin(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 	}
-	err = checkInOut.RecordCheckin(studentId, qrToken.ProgramID.Hex(), "checkin")
+	err = checkInOut.SaveCheckInOut(studentId, qrToken.ProgramID.Hex(), "checkin")
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -138,7 +138,7 @@ func StudentCheckout(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 	}
-	err = checkInOut.RecordCheckin(studentId, qrToken.ProgramID.Hex(), "checkout")
+	err = checkInOut.SaveCheckInOut(studentId, qrToken.ProgramID.Hex(), "checkout")
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
