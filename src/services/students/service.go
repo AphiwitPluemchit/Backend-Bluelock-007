@@ -29,7 +29,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 
 	pipeline := mongo.Pipeline{}
 
-	// 🔍 Step : Search filter (name, code)
+	// 🔍 Search (name, code)
 	if params.Search != "" {
 		regex := bson.M{"$regex": params.Search, "$options": "i"}
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{
@@ -40,16 +40,16 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 		}}})
 	}
 
-	// 🔍 Step : Filter by major
+	// 🔍 Filter: major
 	if len(majors) > 0 {
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{
 			"major": bson.M{"$in": majors},
 		}}})
 	}
 
-	// 🔍 Step : Filter by major
+	// 🔍 Filter: status
 	if len(studentStatus) > 0 {
-		intStatus := make([]int, 0)
+		intStatus := make([]int, 0, len(studentStatus))
 		for _, s := range studentStatus {
 			if v, err := strconv.Atoi(s); err == nil {
 				intStatus = append(intStatus, v)
@@ -61,10 +61,10 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 			}}})
 		}
 	}
-	// 🔍 Step : Filter by studentYears
+
+	// 🔍 Filter: studentYears (prefix by code)
 	if len(studentYears) > 0 {
-		// แปลง string เป็น int
-		intYears := make([]int, 0)
+		intYears := make([]int, 0, len(studentYears))
 		for _, y := range studentYears {
 			if v, err := strconv.Atoi(y); err == nil {
 				intYears = append(intYears, v)
@@ -81,22 +81,20 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 			}}})
 		}
 	}
-	log.Println(pipeline)
-	// 🔢 Count pipeline (before pagination)
-	countPipeline := append(pipeline, bson.D{{Key: "$count", Value: "total"}})
+
+	// 🔢 Count (before pagination)
+	countPipeline := append(append(mongo.Pipeline{}, pipeline...), bson.D{{Key: "$count", Value: "total"}})
 	countCursor, err := DB.StudentCollection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	var countResult struct {
-		Total int64 `bson:"total"`
-	}
+	var countResult struct{ Total int64 `bson:"total"` }
 	if countCursor.Next(ctx) {
 		_ = countCursor.Decode(&countResult)
 	}
 	total := countResult.Total
 
-	// 🔗 Lookup email จาก users collection
+	// 🔗 Lookup: users → email
 	pipeline = append(pipeline, bson.D{{Key: "$lookup", Value: bson.M{
 		"from":         "Users",
 		"localField":   "_id",
@@ -104,32 +102,106 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 		"as":           "user",
 	}}})
 
-	// 📌 Project เฉพาะฟิลด์ที่ต้องการ
-	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
-		"_id":       0,
-		"id":        "$_id",
-		"code":      1,
-		"name":      1,
-		"engName":   1,
-		"status":    1,
-		"softSkill": 1,
-		"hardSkill": 1,
-		"major":     1,
-		"email":     bson.M{"$arrayElemAt": bson.A{"$user.email", 1}},
+	// 🔗 Lookup: Hour_Change_Histories → delta ต่อ skillType
+	pipeline = append(pipeline, bson.D{{Key: "$lookup", Value: bson.M{
+		"from": "Hour_Change_Histories",
+		"let":  bson.M{"sid": "$_id"},
+		"pipeline": mongo.Pipeline{
+			// match ตาม studentId และสถานะที่นับจริง
+			bson.D{{Key: "$match", Value: bson.M{
+				"$expr": bson.M{"$eq": bson.A{"$studentId", "$$sid"}},
+				"status": bson.M{"$in": bson.A{
+					models.HCStatusAttended, models.HCStatusApproved, models.HCStatusAbsent,
+				}},
+			}}},
+			// คำนวณ deltaHours (+abs attended/approved, -abs absent)
+			bson.D{{Key: "$addFields", Value: bson.M{
+				"deltaHours": bson.M{
+					"$switch": bson.M{
+						"branches": bson.A{
+							bson.M{
+								"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+								"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+							},
+							bson.M{
+								"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
+								"then": bson.M{
+									"$multiply": bson.A{
+										-1,
+										bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+									},
+								},
+							},
+						},
+						"default": 0,
+					},
+				},
+			}}},
+			// group รวมตาม skillType
+			bson.D{{Key: "$group", Value: bson.M{
+				"_id":        "$skillType", // "soft" | "hard"
+				"totalHours": bson.M{"$sum": "$deltaHours"},
+			}}},
+			// รีเชปเป็น key-value แล้วรวมเป็น object {soft: X, hard: Y}
+			bson.D{{Key: "$project", Value: bson.M{"k": "$_id", "v": "$totalHours", "_id": 0}}},
+			bson.D{{Key: "$group", Value: bson.M{"_id": nil, "asMap": bson.M{"$push": bson.M{"k": "$k", "v": "$v"}}}}},
+			bson.D{{Key: "$project", Value: bson.M{"_id": 0, "mapObj": bson.M{"$arrayToObject": "$asMap"}}}},
+		},
+		"as": "hourDeltaArr",
 	}}})
 
-	// 🔁 Sort, skip, limit
+	// 🔧 แตก softDelta / hardDelta ออกมา
+	pipeline = append(pipeline, bson.D{{Key: "$addFields", Value: bson.M{
+		"softDelta": bson.M{
+			"$ifNull": bson.A{
+				bson.M{"$arrayElemAt": bson.A{"$hourDeltaArr.mapObj.soft", 0}},
+				0,
+			},
+		},
+		"hardDelta": bson.M{
+			"$ifNull": bson.A{
+				bson.M{"$arrayElemAt": bson.A{"$hourDeltaArr.mapObj.hard", 0}},
+				0,
+			},
+		},
+	}}})
+
+	// 📌 Project: บวกฐาน + delta, แก้ email index → 0
+	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
+		"_id":     0,
+		"id":      "$_id",
+		"code":    1,
+		"name":    1,
+		"engName": 1,
+		"status":  1,
+		"major":   1,
+		"email":   bson.M{"$arrayElemAt": bson.A{"$user.email", 0}},
+		"softSkill": bson.M{"$add": bson.A{
+			bson.M{"$ifNull": bson.A{"$softSkill", 0}},
+			bson.M{"$ifNull": bson.A{"$softDelta", 0}},
+		}},
+		"hardSkill": bson.M{"$add": bson.A{
+			bson.M{"$ifNull": bson.A{"$hardSkill", 0}},
+			bson.M{"$ifNull": bson.A{"$hardDelta", 0}},
+		}},
+	}}})
+
+	// 🔁 Sort / Skip / Limit
 	sort := 1
 	if strings.ToLower(params.Order) == "desc" {
 		sort = -1
 	}
+	sortBy := strings.TrimSpace(params.SortBy)
+	if sortBy == "" {
+		sortBy = "code" // default กัน null/empty
+	}
 	pipeline = append(pipeline,
-		bson.D{{Key: "$sort", Value: bson.M{params.SortBy: sort}}},
+		bson.D{{Key: "$sort", Value: bson.M{sortBy: sort}}},
 		bson.D{{Key: "$skip", Value: (params.Page - 1) * params.Limit}},
 		bson.D{{Key: "$limit", Value: params.Limit}},
 	)
 
-	// 🚀 Run main pipeline
+	// 🚀 Run
 	cursor, err := DB.StudentCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, 0, 0, err
@@ -144,6 +216,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 	totalPages := int(math.Ceil(float64(total) / float64(params.Limit)))
 	return results, total, totalPages, nil
 }
+
 
 // GetStudentByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code พร้อม email และชั่วโมง soft/hard แบบสุทธิจาก HourChangeHistory
 // func GetStudentByCode(code string) (bson.M, error) {
