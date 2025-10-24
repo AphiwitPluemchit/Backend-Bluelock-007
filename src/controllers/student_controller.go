@@ -346,7 +346,7 @@ func UpdateStudentStatus(c *fiber.Ctx) error {
 	id := c.Params("id")
 	err := students.UpdateStudentStatus(id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error updating student status"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Student status updated successfully"})
 }

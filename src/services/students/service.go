@@ -679,23 +679,20 @@ type StudentSummary struct {
 // GetStudentSummary - summary ตาม format ที่ต้องการ (เฉพาะนักเรียนที่มี status ไม่ใช่ 0)
 func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, error) {
 	const softSkillTarget = 30
-	const hordSkillTarget = 12
+	const hardSkillTarget = 12
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	// 🔍 สร้าง filter สำหรับ query
+	// ---------- Build filter ----------
 	filter := bson.M{"status": bson.M{"$ne": 0}}
 
-	// 🔍 Filter by major
 	if len(majors) > 0 {
 		filter["major"] = bson.M{"$in": majors}
 	}
 
-	// 🔍 Filter by studentYears
 	if len(studentYears) > 0 {
-		// แปลง string เป็น int
-		intYears := make([]int, 0)
+		intYears := make([]int, 0, len(studentYears))
 		for _, y := range studentYears {
 			if v, err := strconv.Atoi(y); err == nil {
 				intYears = append(intYears, v)
@@ -703,7 +700,7 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 		}
 		if len(intYears) > 0 {
 			yearPrefixes := programs.GenerateStudentCodeFilter(intYears)
-			var regexFilters []bson.M
+			regexFilters := make([]bson.M, 0, len(yearPrefixes))
 			for _, prefix := range yearPrefixes {
 				regexFilters = append(regexFilters, bson.M{"code": bson.M{"$regex": "^" + prefix}})
 			}
@@ -711,7 +708,7 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 		}
 	}
 
-	// 🔍 ดึงข้อมูลนักเรียนตาม filter
+	// ---------- Fetch students ----------
 	cur, err := DB.StudentCollection.Find(ctx, filter)
 	if err != nil {
 		return StudentSummary{}, err
@@ -724,18 +721,124 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 	}
 
 	total := len(students)
+	if total == 0 {
+		// ไม่มีนักศึกษา: คืน summary ว่าง ๆ
+		summary := StudentSummary{
+			Total:          0,
+			Completed:      0,
+			NotCompleted:   0,
+			CompletionRate: 0,
+			SoftSkill:      SkillSummary{Completed: 0, NotCompleted: 0, Progress: 0},
+			HardSkill:      SkillSummary{Completed: 0, NotCompleted: 0, Progress: 0},
+		}
+		log.Printf("Student Summary (Status != 0): %+v", summary)
+		return summary, nil
+	}
+
+	// ---------- Collect student IDs ----------
+	ids := make([]primitive.ObjectID, 0, total)
+	for _, s := range students {
+		ids = append(ids, s.ID)
+	}
+
+	// ---------- Aggregate deltas from Hour_Change_Histories ----------
+	// NOTE: ให้แน่ใจว่า DB.HourChangeHistoryCollection ชี้คอลเลกชันชื่อถูกต้อง
+	deltaPipe := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"studentId": bson.M{"$in": ids},
+			"status": bson.M{"$in": bson.A{
+				models.HCStatusAttended, models.HCStatusApproved, models.HCStatusAbsent,
+			}},
+		}}},
+		// normalize skillType -> skillKey (lower-case)
+		{{Key: "$addFields", Value: bson.M{
+			"skillKey": bson.M{"$toLower": "$skillType"},
+		}}},
+		// compute deltaHours
+		{{Key: "$addFields", Value: bson.M{
+			"deltaHours": bson.M{
+				"$switch": bson.M{
+					"branches": bson.A{
+						bson.M{
+							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+						},
+						bson.M{
+							"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
+							"then": bson.M{
+								"$multiply": bson.A{
+									-1,
+									bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+								},
+							},
+						},
+					},
+					"default": 0,
+				},
+			},
+		}}},
+		// group per (studentId, skillKey)
+		{{Key: "$group", Value: bson.M{
+			"_id": bson.M{
+				"studentId": "$studentId",
+				"skillKey":  "$skillKey", // "soft" | "hard"
+			},
+			"totalHours": bson.M{"$sum": "$deltaHours"},
+		}}},
+	}
+
+	type deltaRow struct {
+		ID struct {
+			StudentID primitive.ObjectID `bson:"studentId"`
+			SkillKey  string             `bson:"skillKey"`
+		} `bson:"_id"`
+		TotalHours int64 `bson:"totalHours"`
+	}
+
+	dc, err := DB.HourChangeHistoryCollection.Aggregate(ctx, deltaPipe)
+	if err != nil {
+		return StudentSummary{}, fmt.Errorf("aggregate hour deltas error: %v", err)
+	}
+	defer dc.Close(ctx)
+
+	type pair struct{ soft, hard int64 }
+	deltaMap := make(map[primitive.ObjectID]pair, total)
+
+	for dc.Next(ctx) {
+		var r deltaRow
+		if err := dc.Decode(&r); err != nil {
+			return StudentSummary{}, fmt.Errorf("decode delta row error: %v", err)
+		}
+		p := deltaMap[r.ID.StudentID]
+		switch r.ID.SkillKey {
+		case "soft":
+			p.soft += r.TotalHours
+		case "hard":
+			p.hard += r.TotalHours
+		}
+		deltaMap[r.ID.StudentID] = p
+	}
+	if err := dc.Err(); err != nil {
+		return StudentSummary{}, fmt.Errorf("cursor error: %v", err)
+	}
+
+	// ---------- Count completion using NET hours ----------
 	completed := 0
 	softCompleted := 0
 	hardCompleted := 0
 
 	for _, s := range students {
-		if s.SoftSkill >= softSkillTarget {
+		d := deltaMap[s.ID]
+		netSoft := int64(s.SoftSkill) + d.soft
+		netHard := int64(s.HardSkill) + d.hard
+
+		if netSoft >= int64(softSkillTarget) {
 			softCompleted++
 		}
-		if s.HardSkill >= hordSkillTarget {
+		if netHard >= int64(hardSkillTarget) {
 			hardCompleted++
 		}
-		if s.SoftSkill >= softSkillTarget && s.HardSkill >= hordSkillTarget {
+		if netSoft >= int64(softSkillTarget) && netHard >= int64(hardSkillTarget) {
 			completed++
 		}
 	}
@@ -758,9 +861,10 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 			Progress:     percent(hardCompleted, total),
 		},
 	}
-	log.Printf("Student Summary (Status != 0): %+v", summary)
+	log.Printf("Student Summary (NET hours, Status != 0): %+v", summary)
 	return summary, nil
 }
+
 
 func percent(part, total int) int {
 	if total == 0 {
