@@ -145,50 +145,97 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 	return results, total, totalPages, nil
 }
 
-// GetStudentByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code พร้อม email
-func GetStudentByCode(code string) (bson.M, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+// GetStudentByCode - ดึงข้อมูลนักศึกษาด้วยรหัส code พร้อม email และชั่วโมง soft/hard แบบสุทธิจาก HourChangeHistory
+// func GetStudentByCode(code string) (bson.M, error) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
 
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.M{"code": code}}},
-		{{Key: "$lookup", Value: bson.M{
-			"from":         "Users",
-			"localField":   "_id",
-			"foreignField": "refId",
-			"as":           "user",
-		}}},
-		{{Key: "$project", Value: bson.M{
-			"_id":       0,
-			"id":        "$_id",
-			"code":      1,
-			"name":      1,
-			"engName":   1,
-			"status":    1,
-			"softSkill": 1,
-			"hardSkill": 1,
-			"major":     1,
-			"email":     bson.M{"$arrayElemAt": bson.A{"$user.email", 0}},
-		}}},
-	}
+// 	pipeline := mongo.Pipeline{
+// 		{{Key: "$match", Value: bson.M{"code": code}}},
 
-	cursor, err := DB.StudentCollection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
+// 		{{Key: "$lookup", Value: bson.M{
+// 			"from":         "Users",
+// 			"localField":   "_id",
+// 			"foreignField": "refId",
+// 			"as":           "user",
+// 		}}},
 
-	var results []bson.M
-	if err := cursor.All(ctx, &results); err != nil {
-		return nil, err
-	}
+// 		// ⬇️ Lookup HourChangeHistory แล้วคำนวณ deltaHours (บวก/ลบ/0) ก่อนค่อย sum
+// 		{{Key: "$lookup", Value: bson.M{
+// 			"from": "HourChangeHistory",
+// 			"let":  bson.M{"sid": "$_id"},
+// 			"pipeline": mongo.Pipeline{
+// 			  {{Key: "$match", Value: bson.M{
+// 				"$expr": bson.M{"$eq": bson.A{"$studentId", "$$sid"}},
+// 			  }}},
+// 			  {{Key: "$addFields", Value: bson.M{
+// 				"deltaHours": bson.M{
+// 				  "$switch": bson.M{
+// 					"branches": bson.A{
+// 					  // บวก
+// 					  bson.M{
+// 						"case": bson.M{"$in": bson.A{"$status", bson.A{"attended", "approved"}}},
+// 						"then": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
+// 					  },
+// 					  // ลบ
+// 					  bson.M{
+// 						"case": bson.M{"$eq": bson.A{"$status", "absent"}},
+// 						"then": bson.M{"$multiply": bson.A{-1, bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}}},
+// 					  },
+// 					},
+// 					"default": 0, // อื่น ๆ ไม่นับ
+// 				  },
+// 				},
+// 			  }}},
+// 			  {{Key: "$group", Value: bson.M{
+// 				"_id":        "$skillType",            // "soft" | "hard"
+// 				"totalHours": bson.M{"$sum": "$deltaHours"},
+// 			  }}},
+// 			},
+// 			"as": "hourAgg",
+// 		  }}},
+		  
+// 		  // map hourAgg -> {_hourMap.soft, _hourMap.hard} แล้วบวกกับค่า "ฐาน"
+// 		  {{Key: "$addFields", Value: bson.M{
+// 			"_hourMap": bson.M{
+// 			  "$arrayToObject": bson.M{
+// 				"$map": bson.M{
+// 				  "input": "$hourAgg",
+// 				  "as":    "h",
+// 				  "in": bson.M{"k": "$$h._id", "v": "$$h.totalHours"},
+// 				},
+// 			  },
+// 			},
+// 		  }}},
+// 		  {{Key: "$project", Value: bson.M{
+// 			"_id": 0,
+// 			"id":  "$_id",
+// 			"code": 1, "name": 1, "engName": 1, "major": 1, "status": 1,
+// 			"email": bson.M{"$arrayElemAt": bson.A{"$user.email", 0}},
+// 			// ฐาน + ประวัติ (สุทธิ)
+// 			"softSkill": bson.M{"$add": bson.A{bson.M{"$ifNull": bson.A{"$softSkill", 0}}, bson.M{"$ifNull": bson.A{"$_hourMap.soft", 0}}}},
+// 			"hardSkill": bson.M{"$add": bson.A{bson.M{"$ifNull": bson.A{"$hardSkill", 0}}, bson.M{"$ifNull": bson.A{"$_hourMap.hard", 0}}}},
+// 		  }}},
+// 	}
 
-	if len(results) == 0 {
-		return nil, errors.New("student not found")
-	}
+// 	cursor, err := DB.StudentCollection.Aggregate(ctx, pipeline)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer cursor.Close(ctx)
 
-	return results[0], nil
-}
+// 	var results []bson.M
+// 	if err := cursor.All(ctx, &results); err != nil {
+// 		return nil, err
+// 	}
+// 	if len(results) == 0 {
+// 		return nil, errors.New("student not found")
+// 	}
+// 	return results[0], nil
+// }
+
+
+
 
 func GetStudentById(id primitive.ObjectID) (*models.Student, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -433,76 +480,102 @@ func GetSammaryByCode(code string) (bson.M, error) {
 	}, nil
 }
 
-// GetSammaryByCodeWithHourHistory - ดึงข้อมูลนักศึกษาด้วยรหัส code พร้อมชั่วโมงจาก hour history
+// GetSammaryByCodeWithHourHistory - ดึงข้อมูลนักศึกษาด้วยรหัส code พร้อมชั่วโมงสุทธิจาก HourChangeHistory
 func GetSammaryByCodeWithHourHistory(code string) (bson.M, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 🔍 ดึงข้อมูล student
+	// 1) ดึง student (ฐานชั่วโมง)
 	var student models.Student
-	err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student)
-	if err != nil {
+	if err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student); err != nil {
 		return nil, errors.New("student not found")
 	}
 
-	// � ดึงข้อมูล user เพื่อเอา email
+	// 2) ดึง email ของ user (ถ้ามี)
 	var user models.User
 	email := ""
 	if err := DB.UserCollection.FindOne(ctx, bson.M{"refId": student.ID}).Decode(&user); err == nil {
 		email = user.Email
 	}
 
-	//  คำนวณชั่วโมงจาก hour history โดยใช้ aggregate
-	// รวมทั้ง attended (บวก) และ absent (ลบ) เพื่อคำนวณชั่วโมงจริง
+	// 3) รวมชั่วโมงสุทธิจาก HourChangeHistory (บวก/ลบ/0)
+	//    - attended/approved => +abs(hourChange)
+	//    - absent            => -abs(hourChange)
+	//    - อื่น ๆ            => 0
 	pipeline := []bson.M{
 		{
 			"$match": bson.M{
 				"studentId": student.ID,
-				"status": bson.M{
-					"$in": []string{models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved}, // รวมทั้ง attended และ absent
+				// เลือกเฉพาะสถานะที่นับจริง
+				"status": bson.M{"$in": []string{
+					models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved,
+				}},
+			},
+		},
+		{
+			"$addFields": bson.M{
+				"deltaHours": bson.M{
+					"$switch": bson.M{
+						"branches": bson.A{
+							bson.M{
+								"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+								"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+							},
+							bson.M{
+								"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
+								"then": bson.M{
+									"$multiply": bson.A{
+										-1,
+										bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+									},
+								},
+							},
+						},
+						"default": 0,
+					},
 				},
 			},
 		},
 		{
 			"$group": bson.M{
-				"_id": "$skillType",
-				"totalHours": bson.M{
-					"$sum": "$hourChange", // รวมชั่วโมง (attended = +, absent = -)
-				},
+				"_id":        "$skillType",       // "soft" | "hard"
+				"totalHours": bson.M{"$sum": "$deltaHours"},
 			},
 		},
 	}
 
-	cursor, err := database.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
+	// ใช้คอลเลกชันเดียวกับ DB ที่ใช้ด้านบนให้สม่ำเสมอ
+	cursor, err := DB.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
-	var hourResults []bson.M
-	if err := cursor.All(ctx, &hourResults); err != nil {
+	type agg struct {
+		ID         string `bson:"_id"`
+		TotalHours int64  `bson:"totalHours"`
+	}
+	var aggRows []agg
+	if err := cursor.All(ctx, &aggRows); err != nil {
 		return nil, err
 	}
 
-	// Default ชั่วโมงเป็น 0
-	softSkillHours := student.SoftSkill
-	hardSkillHours := student.HardSkill
+	// 4) บวกผลรวมสุทธิกับฐานชั่วโมงใน student
+	softSkillHours := int(student.SoftSkill)
+	hardSkillHours := int(student.HardSkill)
 
-	// Map ผลลัพธ์จาก aggregation
-	for _, result := range hourResults {
-		skillType, _ := result["_id"].(string)
-		totalHours, _ := result["totalHours"].(int32)
-
-		switch skillType {
+	for _, r := range aggRows {
+		switch r.ID {
 		case "soft":
-			softSkillHours += int(totalHours)
+			softSkillHours += int(r.TotalHours)
 		case "hard":
-			hardSkillHours += int(totalHours)
+			hardSkillHours += int(r.TotalHours)
 		}
 	}
 
-	// ✅ return พร้อมชั่วโมงจาก hour history
+	// 5) ส่งกลับ
 	return bson.M{
+		"id": student.ID.Hex(),
 		"studentId": student.ID.Hex(),
 		"code":      student.Code,
 		"name":      student.Name,
@@ -512,6 +585,7 @@ func GetSammaryByCodeWithHourHistory(code string) (bson.M, error) {
 		"hardSkill": hardSkillHours,
 	}, nil
 }
+
 
 // Summary struct สำหรับ response
 type SkillSummary struct {

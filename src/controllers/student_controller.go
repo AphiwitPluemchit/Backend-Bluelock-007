@@ -188,17 +188,17 @@ func GetStudents(c *fiber.Ctx) error {
 // @Success 200 {object} models.Student
 // @Failure 404 {object} map[string]interface{}
 // @Router /students/{code} [get]
-func GetStudentByCode(c *fiber.Ctx) error {
-	code := c.Params("code")
-	student, err := students.GetStudentByCode(code)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Student not found",
-		})
-	}
+// func GetStudentByCode(c *fiber.Ctx) error {
+// 	code := c.Params("code")
+// 	student, err := students.GetStudentByCode(code)
+// 	if err != nil {
+// 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+// 			"error": "Student not found",
+// 		})
+// 	}
 
-	return c.JSON(student)
-}
+// 	return c.JSON(student)
+// }
 
 // UpdateStudent godoc
 // @Summary Update student

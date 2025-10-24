@@ -11,9 +11,9 @@ import (
 func studentRoutes(router fiber.Router) {
 	studentGroup := router.Group("/students")
 	studentGroup.Use(middleware.AuthJWT)
-	studentGroup.Get("/", controllers.GetStudents)                                             // ดึงผู้ใช้ทั้งหมด
-	studentGroup.Post("/", controllers.CreateStudent)                                          // สร้างผู้ใช้ใหม่
-	studentGroup.Get("/:code", controllers.GetStudentByCode)                                   // ดึงข้อมูลผู้ใช้ตาม ID
+	studentGroup.Get("/", controllers.GetStudents)    // ดึงผู้ใช้ทั้งหมด
+	studentGroup.Post("/", controllers.CreateStudent) // สร้างผู้ใช้ใหม่
+	// studentGroup.Get("/:code", controllers.GetStudentByCode)                                   // ดึงข้อมูลผู้ใช้ตาม ID
 	studentGroup.Put("/:id", controllers.UpdateStudent)                                        // อัปเดตข้อมูลผู้ใช้
 	studentGroup.Delete("/:id", controllers.DeleteStudent)                                     // ลบผู้ใช้
 	studentGroup.Get("/report/sammary-all", controllers.GetSammaryAll)                         // ดึงข้อมูลสรุปทั้งหมด
