@@ -2,7 +2,6 @@ package routes
 
 import (
 	"Backend-Bluelock-007/src/controllers"
-	"Backend-Bluelock-007/src/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -10,7 +9,7 @@ import (
 // StudentRoutes กำหนดเส้นทางสำหรับ Student API
 func studentRoutes(router fiber.Router) {
 	studentGroup := router.Group("/students")
-	studentGroup.Use(middleware.AuthJWT)
+	// studentGroup.Use(middleware.AuthJWT)
 	studentGroup.Get("/", controllers.GetStudents)    // ดึงผู้ใช้ทั้งหมด
 	studentGroup.Post("/", controllers.CreateStudent) // สร้างผู้ใช้ใหม่
 	// studentGroup.Get("/:code", controllers.GetStudentByCode)                                   // ดึงข้อมูลผู้ใช้ตาม ID
@@ -20,5 +19,5 @@ func studentRoutes(router fiber.Router) {
 	studentGroup.Get("/sammary/:code", controllers.GetSammaryByCode)                           // ดึงข้อมูลสรุปตามรหัส
 	studentGroup.Get("/sammary-with-hours/:code", controllers.GetSammaryByCodeWithHourHistory) // ดึงข้อมูลสรุปพร้อมชั่วโมงจาก hour history
 	studentGroup.Post("/update-status-by-ids", controllers.UpdateStudentStatusByIDs)           // เพิ่ม route ใหม่
-	// studentGroup.Put("/update-status/:id", controllers.UpdateStudentStatus)          // อัปเดตสถานะนักเรียน
+	studentGroup.Put("/update-status/:id", controllers.UpdateStudentStatus)                    // อัปเดตสถานะนักเรียน
 }

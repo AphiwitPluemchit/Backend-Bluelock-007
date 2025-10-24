@@ -644,7 +644,7 @@ func GetSammaryByCodeWithHourHistory(code string) (bson.M, error) {
 		case "hard":
 			hardSkillHours += int(r.TotalHours)
 		}
-	}
+	}	
 
 	// 5) ส่งกลับ
 	return bson.M{
@@ -796,40 +796,100 @@ func FindExistingCodes(codes []string) ([]string, error) {
 	return exists, nil
 }
 
-// UpdateStudentStatus - อัปเดตสถานะนักเรียนจาก softSkill และ hardSkill
 func UpdateStudentStatus(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// 1️⃣ แปลง id เป็น ObjectID
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("invalid student ID: %v", err)
 	}
 
-	// 2️⃣ ดึงข้อมูล softSkill และ hardSkill จาก student
+	// 1) ดึง student (ฐานชั่วโมง)
 	var student models.Student
-
-	err = DB.StudentCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&student)
-	if err != nil {
+	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&student); err != nil {
 		return fmt.Errorf("student not found: %v", err)
 	}
-	log.Println("student", student)
-	// 3️⃣ คำนวณสถานะใหม่จาก softSkill และ hardSkill
-	newStatus := calculateStatus(student.SoftSkill, student.HardSkill)
-	log.Println("newStatus", newStatus)
-	// 4️⃣ อัปเดตสถานะในฐานข้อมูล
-	update := bson.M{"$set": bson.M{"status": newStatus}}
-	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": objID}, update)
+
+	// 2) รวมชั่วโมงสุทธิจาก HourChangeHistory (เหมือนในตัวอย่าง)
+	pipeline := []bson.M{
+		{"$match": bson.M{
+			"studentId": student.ID,
+			"status": bson.M{"$in": []string{
+				models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved,
+			}},
+		}},
+		{"$addFields": bson.M{
+			"deltaHours": bson.M{
+				"$switch": bson.M{
+					"branches": bson.A{
+						bson.M{
+							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+						},
+						bson.M{
+							"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
+							"then": bson.M{
+								"$multiply": bson.A{
+									-1,
+									bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+								},
+							},
+						},
+					},
+					"default": 0,
+				},
+			},
+		}},
+		{"$group": bson.M{
+			"_id":        "$skillType", // "soft" | "hard"
+			"totalHours": bson.M{"$sum": "$deltaHours"},
+		}},
+	}
+
+	cursor, err := DB.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
 	if err != nil {
+		return fmt.Errorf("aggregate hour deltas error: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	type agg struct {
+		ID         string `bson:"_id"`
+		TotalHours int64  `bson:"totalHours"`
+	}
+	var aggRows []agg
+	if err := cursor.All(ctx, &aggRows); err != nil {
+		return fmt.Errorf("aggregate decode error: %v", err)
+	}
+
+	// 3) บวกผลรวมสุทธิกับฐานชั่วโมงใน student (+= ทั้งค่าบวกและลบ)
+	softNet := int(student.SoftSkill)
+	hardNet := int(student.HardSkill)
+	for _, r := range aggRows {
+		switch strings.ToLower(r.ID) {
+		case "soft":
+			softNet += int(r.TotalHours)
+		case "hard":
+			hardNet += int(r.TotalHours)
+		}
+	}
+	log.Print(softNet)	
+	log.Print(hardNet)
+	// 4) คำนวณสถานะใหม่จาก "สุทธิ"
+	newStatus := calculateStatus(softNet, hardNet)
+
+	// 5) อัปเดตสถานะ (ถ้าต้องการบันทึก soft/hard สุทธิกลับไปด้วยก็เพิ่มใน $set)
+	update := bson.M{"$set": bson.M{"status": newStatus}}
+	if _, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
 		return fmt.Errorf("failed to update student status: %v", err)
 	}
 
-	log.Printf("Updated student %s Updated student %s-> softSkill=%d hardSkill=%d => status=%d",
-		student.ID.Hex(),student.Name, student.SoftSkill, student.HardSkill, newStatus)
+	log.Printf("[UpdateStudentStatus] %s (%s) base(soft=%d,hard=%d) => net(soft=%d,hard=%d) => status=%d",
+		student.ID.Hex(), student.Name, student.SoftSkill, student.HardSkill, softNet, hardNet, newStatus)
 
 	return nil
 }
+
 
 
 func calculateStatus(softSkill, hardSkill int) int {
