@@ -4,6 +4,7 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/courses"
+	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/students"
 	"context"
 	"errors"
@@ -1091,6 +1092,12 @@ func updateCertificateHoursApproved(ctx context.Context, certificate *models.Upl
 	fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s\n",
 		course.Hour, skillType, student.Code, certificate.ID.Hex())
 
+	// 🔄 Update student status หลังจากมีการเปลี่ยนแปลงชั่วโมง
+	if err := hourhistory.UpdateStudentStatus(ctx, certificate.StudentId); err != nil {
+		fmt.Printf("⚠️ Warning: Failed to update student status for %s: %v\n", student.Code, err)
+		// ไม่ return error เพราะการอัปเดตชั่วโมงสำเร็จแล้ว เหลือแค่ status
+	}
+
 	return nil
 }
 
@@ -1250,6 +1257,12 @@ func updateCertificateHoursRejected(ctx context.Context, certificate *models.Upl
 
 	fmt.Printf("❌ Removed %d hours (%s skill) from student %s for certificate %s\n",
 		hoursToRemove, skillType, student.Code, certificate.ID.Hex())
+
+	// 🔄 Update student status หลังจากมีการเปลี่ยนแปลงชั่วโมง
+	if err := hourhistory.UpdateStudentStatus(ctx, certificate.StudentId); err != nil {
+		fmt.Printf("⚠️ Warning: Failed to update student status for %s: %v\n", student.Code, err)
+		// ไม่ return error เพราะการอัปเดตชั่วโมงสำเร็จแล้ว เหลือแค่ status
+	}
 
 	return nil
 }

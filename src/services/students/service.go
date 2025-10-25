@@ -4,6 +4,7 @@ import (
 	"Backend-Bluelock-007/src/database"
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
+	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/programs"
 	"context"
 	"errors"
@@ -900,111 +901,17 @@ func FindExistingCodes(codes []string) ([]string, error) {
 	return exists, nil
 }
 
+// UpdateStudentStatus - อัปเดตสถานะนักศึกษาจากชั่วโมงสุทธิ (รับ string ID)
 func UpdateStudentStatus(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("invalid student ID: %v", err)
 	}
-
-	// 1) ดึง student (ฐานชั่วโมง)
-	var student models.Student
-	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&student); err != nil {
-		return fmt.Errorf("student not found: %v", err)
-	}
-
-	// 2) รวมชั่วโมงสุทธิจาก HourChangeHistory (เหมือนในตัวอย่าง)
-	pipeline := []bson.M{
-		{"$match": bson.M{
-			"studentId": student.ID,
-			"status": bson.M{"$in": []string{
-				models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved,
-			}},
-		}},
-		{"$addFields": bson.M{
-			"deltaHours": bson.M{
-				"$switch": bson.M{
-					"branches": bson.A{
-						bson.M{
-							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
-							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
-						},
-						bson.M{
-							"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
-							"then": bson.M{
-								"$multiply": bson.A{
-									-1,
-									bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
-								},
-							},
-						},
-					},
-					"default": 0,
-				},
-			},
-		}},
-		{"$group": bson.M{
-			"_id":        "$skillType", // "soft" | "hard"
-			"totalHours": bson.M{"$sum": "$deltaHours"},
-		}},
-	}
-
-	cursor, err := DB.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return fmt.Errorf("aggregate hour deltas error: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	type agg struct {
-		ID         string `bson:"_id"`
-		TotalHours int64  `bson:"totalHours"`
-	}
-	var aggRows []agg
-	if err := cursor.All(ctx, &aggRows); err != nil {
-		return fmt.Errorf("aggregate decode error: %v", err)
-	}
-
-	// 3) บวกผลรวมสุทธิกับฐานชั่วโมงใน student (+= ทั้งค่าบวกและลบ)
-	softNet := int(student.SoftSkill)
-	hardNet := int(student.HardSkill)
-	for _, r := range aggRows {
-		switch strings.ToLower(r.ID) {
-		case "soft":
-			softNet += int(r.TotalHours)
-		case "hard":
-			hardNet += int(r.TotalHours)
-		}
-	}
-	log.Print(softNet)	
-	log.Print(hardNet)
-	// 4) คำนวณสถานะใหม่จาก "สุทธิ"
-	newStatus := calculateStatus(softNet, hardNet)
-
-	// 5) อัปเดตสถานะ (ถ้าต้องการบันทึก soft/hard สุทธิกลับไปด้วยก็เพิ่มใน $set)
-	update := bson.M{"$set": bson.M{"status": newStatus}}
-	if _, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
-		return fmt.Errorf("failed to update student status: %v", err)
-	}
-
-	log.Printf("[UpdateStudentStatus] %s (%s) base(soft=%d,hard=%d) => net(soft=%d,hard=%d) => status=%d",
-		student.ID.Hex(), student.Name, student.SoftSkill, student.HardSkill, softNet, hardNet, newStatus)
-
-	return nil
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	
+	// เรียกใช้ฟังก์ชันจาก hour-history package
+	return hourhistory.UpdateStudentStatus(ctx, objID)
 }
 
-
-
-func calculateStatus(softSkill, hardSkill int) int {
-	total := softSkill + hardSkill
-
-	switch {
-	case softSkill >= 30 && hardSkill >= 12:
-		return 3 // ครบ
-	case total >= 20:
-		return 2 // น้อย
-	default:
-		return 1 // น้อยมาก
-	}
-}
