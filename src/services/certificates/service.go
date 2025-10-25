@@ -146,11 +146,9 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 1: pending -> approved (Admin อนุมัติ)
 	if oldCert.Status == models.StatusPending && newStatus == models.StatusApproved {
-		fmt.Println("▶️ Adding hours for pending -> approved")
+		fmt.Println("▶️ Adding hours for pending -> approved 1")
 
-		if oldCert.Remark == "" {
-			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
-		}
+		certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
 
 		if err := updateCertificateHoursApproved(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
@@ -159,11 +157,17 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 2: approved -> rejected (Admin ปฏิเสธ certificate ที่เคยอนุมัติแล้ว)
 	if oldCert.Status == models.StatusApproved && newStatus == models.StatusRejected {
-		fmt.Println("▶️ Removing hours for approved -> rejected")
+		fmt.Println("▶️ Removing hours for approved -> rejected 2")
 
-		if oldCert.Remark == "" {
+		if remark == "" {
 			certForHours.Remark = "ปฏิเสธโดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
+
+		// fmt remark
+		fmt.Printf("▶️ Old Remark: %s\n", oldCert.Remark)
+		fmt.Printf("▶️ Remark for hours removal: %s\n", certForHours.Remark)
 
 		if err := updateCertificateHoursRejected(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
@@ -172,10 +176,10 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 3: rejected -> approved (Admin เปลี่ยนใจอนุมัติ)
 	if oldCert.Status == models.StatusRejected && newStatus == models.StatusApproved {
-		fmt.Println("▶️ Adding hours for rejected -> approved")
-		if oldCert.Remark == "" {
-			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
-		}
+		fmt.Println("▶️ Adding hours for rejected -> approved 3")
+
+		certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
+
 		if err := updateCertificateHoursApproved(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
 		}
@@ -183,22 +187,33 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 4: approved -> pending (Admin ถอนการอนุมัติ ต้องรอพิจารณาใหม่)
 	if oldCert.Status == models.StatusApproved && newStatus == models.StatusPending {
-		fmt.Println("▶️ Removing hours for approved -> pending")
-		if oldCert.Remark == "" {
+		fmt.Println("▶️ Removing hours for approved -> pending 4")
+		if remark == "" {
 			certForHours.Remark = "รอพิจารณาใหม่โดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
+
+		// ลบชั่วโมงที่เคยได้รับการอนุมัติ
 		if err := updateCertificateHoursRejected(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
+		}
+
+		// บันทึก history record ด้วยสถานะ pending
+		if err := recordCertificatePending(ctx, &certForHours, certForHours.Remark); err != nil {
+			fmt.Printf("Warning: Failed to record certificate pending status: %v\n", err)
 		}
 	}
 
 	// กรณีที่ 5: pending -> rejected (Admin ปฏิเสธตั้งแต่แรก - ไม่ต้องลบชั่วโมงเพราะไม่เคยเพิ่ม)
 	// แต่ยังต้องบันทึก history record
 	if oldCert.Status == models.StatusPending && newStatus == models.StatusRejected {
-		fmt.Println("▶️ Rejecting pending certificate (no hours to remove)")
+		fmt.Println("▶️ Rejecting pending certificate (no hours to remove) 5")
 
-		if oldCert.Remark == "" {
+		if remark == "" {
 			certForHours.Remark = "ปฏิเสธโดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
 
 		if err := recordCertificateRejection(ctx, &certForHours, remark); err != nil {
@@ -209,10 +224,12 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// กรณีที่ 6: rejected -> pending (Admin เปลี่ยนใจให้พิจารณาใหม่ - ไม่ต้องทำอะไร)
 	// บันทึก history record ด้วยสถานะ pending
 	if oldCert.Status == models.StatusRejected && newStatus == models.StatusPending {
-		fmt.Println("▶️ Moving rejected certificate back to pending (no hours change)")
+		fmt.Println("▶️ Moving rejected certificate back to pending (no hours change) 6")
 
-		if oldCert.Remark == "" {
+		if remark == "" {
 			certForHours.Remark = "รอพิจารณาใหม่โดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
 
 		if err := recordCertificatePending(ctx, &certForHours, remark); err != nil {
@@ -325,7 +342,7 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 	if params.Major != "" || params.Year != "" {
 		needJoin = true
 	}
-	fmt.Println("  needJoin for student lookup:", needJoin)
+
 	if needJoin {
 		if pagination.Search != "" {
 			pipeline = append(pipeline,
@@ -428,11 +445,6 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		{Key: sortByField, Value: sortOrder},
 	}}})
 
-	// Debug: print pipeline (best-effort)
-	pipelineBytes, _ := bson.MarshalExtJSON(pipeline, true, true)
-	fmt.Println(" major", params.Major)
-	fmt.Println("  Aggregation pipeline:", string(pipelineBytes))
-
 	rows, meta, err := models.AggregatePaginateGlobal[models.UploadCertificate](
 		ctx, DB.UploadCertificateCollection, pipeline, pagination.Page, pagination.Limit,
 	)
@@ -441,7 +453,6 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 	}
 
 	// Debug: number of returned rows
-	fmt.Printf("  Aggregation returned %d rows\n", len(rows))
 	return rows, meta, nil
 }
 
@@ -1158,11 +1169,16 @@ func updateCertificateHoursRejected(ctx context.Context, certificate *models.Upl
 		return fmt.Errorf("failed to update student hours: %v", err)
 	}
 
+	// Log remarks
+	fmt.Printf("▶️ Old Remark: %s\n", certificate.Remark)
+
 	// 5. อัพเดทหรือสร้าง hour history record
 	remark := "ปฏิเสธใบรับรอง"
 	if certificate.Remark != "" {
 		remark = certificate.Remark
 	}
+
+	fmt.Printf("▶️ New Remark for Hour History: %s\n", remark)
 
 	// หา history record สำหรับ certificate นี้ (pending หรือ approved)
 	histFilter := bson.M{

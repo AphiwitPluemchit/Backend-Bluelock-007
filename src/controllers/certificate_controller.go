@@ -145,12 +145,6 @@ func GetCertificates(c *fiber.Ctx) error {
 		year = strings.Join(yearsArr, ",")
 	}
 
-	fmt.Println("major", major)
-	fmt.Println("year", year)
-	fmt.Println("studentId", studentId)
-	fmt.Println("courseId", courseId)
-	fmt.Println("status", status)
-
 	pagination := models.PaginationParams{
 		Page:   page,
 		Limit:  limit,
