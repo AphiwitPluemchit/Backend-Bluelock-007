@@ -306,6 +306,25 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 		}
 	}
 
+	// ✅ เช็คชั้นปี: กิจกรรมอนุญาตเฉพาะบางชั้นปี
+	if len(programItem.StudentYears) > 0 {
+		// สร้าง prefix ชั้นปีที่อนุญาต (เช่น 67, 66, 65, 64)
+		allowedPrefixes := programs.GenerateStudentCodeFilter(programItem.StudentYears)
+
+		// ตรวจสอบว่ารหัสนิสิตขึ้นต้นด้วย prefix ที่อนุญาตหรือไม่
+		allowed := false
+		for _, prefix := range allowedPrefixes {
+			if strings.HasPrefix(student.Code, prefix) {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			return errors.New("ไม่สามารถลงทะเบียนได้: ชั้นปีไม่ตรงกับเงื่อนไขของกิจกรรม")
+		}
+	}
+
 	// 4) กันเวลาทับซ้อนกับ enrollment ที่เคยลงไว้แล้ว (เฉพาะ program ที่ status เป็น open หรือ close)
 	if err := checkTimeOverlapWithActiveEnrollments(ctx, studentID, programItem.Dates); err != nil {
 		return err
@@ -430,7 +449,7 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 		return err
 	}
 
-	// 4) โหลด student และเช็ค major ให้ตรงกับ programItem.Majors (ถ้ามีจำกัด)
+	// 4) โหลด student และเช็ค major + ชั้นปี ให้ตรงกับ programItem (ถ้ามีจำกัด)
 	// var student models.Student
 	// if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 	// 	if err == mongo.ErrNoDocuments {
@@ -439,7 +458,7 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 	// 	return err
 	// }
 
-	// ✅ เช็คสาขา: กิจกรรมอนุญาตเฉพาะบาง major
+	// // ✅ เช็คสาขา: กิจกรรมอนุญาตเฉพาะบาง major
 	// if len(programItem.Majors) > 0 {
 	// 	allowed := false
 	// 	for _, m := range programItem.Majors {
@@ -455,9 +474,26 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 	// 	}
 	// }
 
-	// (ถ้าต้องการเช็คชั้นปีด้วย ให้เพิ่มเงื่อนไขจาก programItem.StudentYears ที่นี่ได้)
+	// // ✅ เช็คชั้นปี: กิจกรรมอนุญาตเฉพาะบางชั้นปี
+	// if len(programItem.StudentYears) > 0 {
+	// 	// สร้าง prefix ชั้นปีที่อนุญาต (เช่น 67, 66, 65, 64)
+	// 	allowedPrefixes := programs.GenerateStudentCodeFilter(programItem.StudentYears)
 
-	// 5) กันเต็มโควต้า
+	// 	// ตรวจสอบว่ารหัสนิสิตขึ้นต้นด้วย prefix ที่อนุญาตหรือไม่
+	// 	allowed := false
+	// 	for _, prefix := range allowedPrefixes {
+	// 		if strings.HasPrefix(student.Code, prefix) {
+	// 			allowed = true
+	// 			break
+	// 		}
+	// 	}
+
+	// 	if !allowed {
+	// 		return errors.New("ไม่สามารถลงทะเบียนได้: ชั้นปีไม่ตรงกับเงื่อนไขของกิจกรรม")
+	// 	}
+	// }
+
+	// // 5) กันเต็มโควต้า
 	// if programItem.MaxParticipants != nil && programItem.EnrollmentCount >= *programItem.MaxParticipants {
 	// 	return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากจำนวนผู้เข้าร่วมเต็มแล้ว")
 	// }
