@@ -348,8 +348,17 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		if pagination.Search != "" {
 			pipeline = append(pipeline,
 				bson.D{{Key: "$match", Value: bson.M{
-					"student.name": bson.M{
-						"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
+					"$or": []bson.M{
+						{
+							"student.name": bson.M{
+								"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
+							},
+						},
+						{
+							"student.code": bson.M{
+								"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
+							},
+						},
 					},
 				}}},
 			)
