@@ -1,4 +1,34 @@
 definitions:
+  controllers.CheckInOutRecordItem:
+    properties:
+      checkin:
+        description: เวลา check in (HH:mm format) (optional)
+        example: "09:00"
+        type: string
+      checkout:
+        description: เวลา check out (HH:mm format) (optional)
+        example: "17:30"
+        type: string
+      date:
+        description: วันที่ (YYYY-MM-DD)
+        example: "2024-10-26"
+        type: string
+    type: object
+  controllers.CreateTestEnrollmentRequest:
+    properties:
+      food:
+        description: อาหาร (optional)
+        example: vegetarian
+        type: string
+      programItemId:
+        description: ID ของ programItem
+        example: 507f1f77bcf86cd799439
+        type: string
+      studentCode:
+        description: รหัสนิสิต
+        example: "6516030959"
+        type: string
+    type: object
   controllers.LoginRequest:
     properties:
       email:
@@ -19,6 +49,18 @@ definitions:
         - approved
         - rejected
         example: approved
+    type: object
+  controllers.UpdateCheckInOutRequest:
+    properties:
+      checkinoutRecord:
+        description: รายการ check-in/out
+        items:
+          $ref: '#/definitions/controllers.CheckInOutRecordItem'
+        type: array
+      enrollmentId:
+        description: ID ของ enrollment
+        example: 507f1f77bcf86cd799439
+        type: string
     type: object
   models.Admin:
     properties:
@@ -67,14 +109,21 @@ definitions:
     type: object
   models.Course:
     properties:
-      description:
-        example: Learn the basics of programming with this introductory course
+      certificateName:
+        example: Introduction to Programming Certificate
+        type: string
+      certificateNameEng:
+        example: Introduction to Programming Certificate
         type: string
       hour:
         example: 4
         type: integer
       id:
         example: 507f1f77bcf86cd799439011
+        type: string
+      imagePath:
+        description: Image file URL for course
+        example: upload/image.jpg
         type: string
       isActive:
         example: true
@@ -92,15 +141,16 @@ definitions:
       name:
         example: Introduction to Programming
         type: string
-      name_en:
-        example: Introduction to Programming
-        type: string
       type:
         enum:
         - lms
         - buumooc
         - thaimooc
         example: lms
+        type: string
+      videoUrl:
+        description: Tutorial video URL for certificate claiming
+        example: https://www.youtube.com/watch?v=example
         type: string
     type: object
   models.CoursePaginatedResponse:
@@ -400,6 +450,9 @@ definitions:
       status:
         description: 0พ้นสภาพ 1ชั่วโมงน้อยมาก 2ชั่วโมงน้อย 3ชั่วโมงครบแล้ว 4ออกผึกแล้ว
         type: integer
+      year:
+        description: ปีการศึกษา เช่น "2567"
+        type: string
     type: object
   models.SuccessResponse:
     properties:
@@ -567,6 +620,191 @@ paths:
       summary: Update an admin
       tags:
       - admins
+  /api/summary-report/enrollment-v2/{programId}:
+    get:
+      consumes:
+      - application/json
+      description: ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment
+        collection ด้วย aggregation pipeline รองรับ filter ตาม programItemId
+      parameters:
+      - description: Program ID
+        in: path
+        name: programId
+        required: true
+        type: string
+      - description: Date (YYYY-MM-DD)
+        in: query
+        name: date
+        required: true
+        type: string
+      - description: Program Item ID (optional - สำหรับกรณีมีหลาย programItems ในวันเดียวกัน)
+        in: query
+        name: programItemId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get enrollment summary by date using aggregation
+      tags:
+      - Summary Reports
+  /api/summary-report/enrollment/{programId}:
+    get:
+      consumes:
+      - application/json
+      description: ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment
+        collection โดยตรง รองรับ filter ตาม programItemId
+      parameters:
+      - description: Program ID
+        in: path
+        name: programId
+        required: true
+        type: string
+      - description: Date (YYYY-MM-DD)
+        in: query
+        name: date
+        required: true
+        type: string
+      - description: Program Item ID (optional - สำหรับกรณีมีหลาย programItems ในวันเดียวกัน)
+        in: query
+        name: programItemId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get enrollment summary by date (Query from enrollment directly)
+      tags:
+      - Summary Reports
+  /api/test/checkinout:
+    put:
+      consumes:
+      - application/json
+      description: อัปเดตรายการ check-in/out ของ enrollment (เพิ่ม/ลบ/แก้ไข)
+      parameters:
+      - description: ข้อมูลสำหรับอัปเดต check-in/out records
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateCheckInOutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: อัปเดต Check-in/out Records
+      tags:
+      - Test Data
+  /api/test/enrollment:
+    post:
+      consumes:
+      - application/json
+      description: สร้าง enrollment สำหรับการทดสอบ (ไม่รวม check-in/out)
+      parameters:
+      - description: ข้อมูลสำหรับสร้าง enrollment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateTestEnrollmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: สร้างข้อมูลทดสอบ Enrollment
+      tags:
+      - Test Data
+  /api/test/enrollment/{enrollmentId}:
+    delete:
+      description: ลบ enrollment และ hour history ที่เกี่ยวข้อง
+      parameters:
+      - description: Enrollment ID
+        in: path
+        name: enrollmentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: ลบข้อมูลทดสอบ Enrollment
+      tags:
+      - Test Data
   /auth/google:
     get:
       consumes:
@@ -779,6 +1017,10 @@ paths:
       - description: Major
         in: query
         name: major
+        type: string
+      - description: Year
+        in: query
+        name: year
         type: string
       produces:
       - application/json
@@ -1093,6 +1335,78 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Update a course
+      tags:
+      - courses
+  /courses/{id}/image:
+    delete:
+      description: Delete an image for a course and remove the file from disk
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File name to delete
+        in: query
+        name: filename
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete an image for a course
+      tags:
+      - courses
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload an image for a course. If filename is provided, the old
+        file will be deleted.
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Old file name to be replaced
+        in: query
+        name: filename
+        type: string
+      - description: Image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Upload an image for a course
       tags:
       - courses
   /foods:
@@ -1908,32 +2222,6 @@ paths:
             additionalProperties: true
             type: object
       summary: Create students
-      tags:
-      - students
-  /students/{code}:
-    get:
-      consumes:
-      - application/json
-      description: Get a student by their code
-      parameters:
-      - description: Student code
-        in: path
-        name: code
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.Student'
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Get student by code
       tags:
       - students
   /students/{id}:
