@@ -641,33 +641,33 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		}
 	}
 
-	// newState := strings.ToLower(program.ProgramState)
-	// oldState := strings.ToLower(oldProgram.ProgramState)
+	newState := strings.ToLower(program.ProgramState)
+	oldState := strings.ToLower(oldProgram.ProgramState)
 
-	// if oldState != "open" && newState == "open" {
-	// 	progName := ""
-	// 	if program.Name != nil {
-	// 		progName = *program.Name
-	// 	}
+	if oldState != "open" && newState == "open" {
+		progName := ""
+		if program.Name != nil {
+			progName = *program.Name
+		}
 
-	// 	email.NotifyStudentsOnOpen(
-	// 		id.Hex(),
-	// 		progName,
-	// 		GetProgramByID,
-	// 		GenerateStudentCodeFilter,
-	// 	)
-	// }
+		email.NotifyStudentsOnOpen(
+			id.Hex(),
+			progName,
+			GetProgramByID,
+			GenerateStudentCodeFilter,
+		)
+	}
 
-	// updated, err := GetProgramByID(id.Hex())
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// email.ScheduleReminderJobs(updated)
+	updated, err := GetProgramByID(id.Hex())
+	if err != nil {
+		return nil, err
+	}
+	email.ScheduleReminderJobs(updated)
 
-	// err = updateSummaryReportsForProgramChanges(id, &oldProgram, &program)
-	// if err != nil {
-	// 	log.Printf("⚠️ Warning: Failed to update summary reports for program changes: %v", err)
-	// }
+	err = updateSummaryReportsForProgramChanges(id, &oldProgram, &program)
+	if err != nil {
+		log.Printf("⚠️ Warning: Failed to update summary reports for program changes: %v", err)
+	}
 
 	// ✅ ดึงข้อมูล Program ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
 	return GetProgramByID(id.Hex())

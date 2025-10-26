@@ -78,7 +78,7 @@ func HandleNotifyOpenProgram(
 		match := bson.M{
 			"major":  bson.M{"$in": majors},
 			"code":   bson.M{"$regex": re},
-			"status": bson.M{"$in": bson.A{1, 2}},
+			"status": bson.M{"$in": []interface{}{1, 2, "1", "2"}},
 		}
 
 		total, _ := DB.StudentCollection.CountDocuments(ctx, match)

@@ -59,21 +59,20 @@ func ScheduleReminderJobs(prog *models.ProgramDto) {
 	}
 }
 
-// 🕒 คำนวณเวลาแจ้งเตือนก่อน 3 วัน "เวลาเดียวกัน"
+// reminder_scheduler.go
 func computeReminderTime(dateStr, stime string) (time.Time, error) {
-	if stime == "" {
-		stime = "00:00"
-	}
-	start, err := time.ParseInLocation("2006-01-02 15:04", dateStr+" "+stime, time.Local)
-	if err != nil {
-		return time.Time{}, err
-	}
-	// ล่วงหน้า 3 วัน เวลาเดียวกัน
-	runAt := start.AddDate(0, 0, -3)
+    if stime == "" { stime = "00:00" }
+    loc, _ := time.LoadLocation("Asia/Bangkok")
+    t, err := time.ParseInLocation("2006-01-02 15:04", dateStr+" "+stime, loc)
+    if err != nil { return time.Time{}, err }
 
-	// debug log
-	log.Printf("📅 start=%s | reminder=%s", start.Format("2006-01-02 15:04"), runAt.Format("2006-01-02 15:04"))
-	return runAt, nil
+    // ถ้าเป็น พ.ศ. ให้แปลงเป็น ค.ศ.
+    if t.Year() >= 2400 {
+        t = time.Date(t.Year()-543, t.Month(), t.Day(), t.Hour(), t.Minute(), 0, 0, loc)
+    }
+    runAt := t.AddDate(0, 0, -3)
+    log.Printf("📅 start=%s | reminder=%s", t.Format("2006-01-02 15:04"), runAt.Format("2006-01-02 15:04"))
+    return runAt, nil
 }
 
 // ป้องกัน nil pointer จาก prog.Name
