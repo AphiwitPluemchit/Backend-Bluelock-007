@@ -246,6 +246,281 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/summary-report/enrollment-v2/{programId}": {
+            "get": {
+                "description": "ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment collection ด้วย aggregation pipeline รองรับ filter ตาม programItemId",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Summary Reports"
+                ],
+                "summary": "Get enrollment summary by date using aggregation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "programId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date (YYYY-MM-DD)",
+                        "name": "date",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Program Item ID (optional - สำหรับกรณีมีหลาย programItems ในวันเดียวกัน)",
+                        "name": "programItemId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/summary-report/enrollment/{programId}": {
+            "get": {
+                "description": "ดึงข้อมูล summary ของ program ตาม date ที่ระบุ โดย query จาก enrollment collection โดยตรง รองรับ filter ตาม programItemId",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Summary Reports"
+                ],
+                "summary": "Get enrollment summary by date (Query from enrollment directly)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Program ID",
+                        "name": "programId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date (YYYY-MM-DD)",
+                        "name": "date",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Program Item ID (optional - สำหรับกรณีมีหลาย programItems ในวันเดียวกัน)",
+                        "name": "programItemId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/test/checkinout": {
+            "put": {
+                "description": "อัปเดตรายการ check-in/out ของ enrollment (เพิ่ม/ลบ/แก้ไข)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Test Data"
+                ],
+                "summary": "อัปเดต Check-in/out Records",
+                "parameters": [
+                    {
+                        "description": "ข้อมูลสำหรับอัปเดต check-in/out records",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateCheckInOutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/test/enrollment": {
+            "post": {
+                "description": "สร้าง enrollment สำหรับการทดสอบ (ไม่รวม check-in/out)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Test Data"
+                ],
+                "summary": "สร้างข้อมูลทดสอบ Enrollment",
+                "parameters": [
+                    {
+                        "description": "ข้อมูลสำหรับสร้าง enrollment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateTestEnrollmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/test/enrollment/{enrollmentId}": {
+            "delete": {
+                "description": "ลบ enrollment และ hour history ที่เกี่ยวข้อง",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Test Data"
+                ],
+                "summary": "ลบข้อมูลทดสอบ Enrollment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Enrollment ID",
+                        "name": "enrollmentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/google": {
             "get": {
                 "description": "Start Google OAuth authentication flow and return authorization URL",
@@ -565,6 +840,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Major",
                         "name": "major",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Year",
+                        "name": "year",
                         "in": "query"
                     }
                 ],
@@ -1011,6 +1292,111 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses/{id}/image": {
+            "post": {
+                "description": "Upload an image for a course. If filename is provided, the old file will be deleted.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "Upload an image for a course",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Course ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Old file name to be replaced",
+                        "name": "filename",
+                        "in": "query"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Image file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an image for a course and remove the file from disk",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "Delete an image for a course",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Course ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "File name to delete",
+                        "name": "filename",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -2247,45 +2633,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/students/{code}": {
-            "get": {
-                "description": "Get a student by their code",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "students"
-                ],
-                "summary": "Get student by code",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Student code",
-                        "name": "code",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.Student"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/students/{id}": {
             "put": {
                 "description": "Update a student's information",
@@ -2382,6 +2729,46 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "controllers.CheckInOutRecordItem": {
+            "type": "object",
+            "properties": {
+                "checkin": {
+                    "description": "เวลา check in (HH:mm format) (optional)",
+                    "type": "string",
+                    "example": "09:00"
+                },
+                "checkout": {
+                    "description": "เวลา check out (HH:mm format) (optional)",
+                    "type": "string",
+                    "example": "17:30"
+                },
+                "date": {
+                    "description": "วันที่ (YYYY-MM-DD)",
+                    "type": "string",
+                    "example": "2024-10-26"
+                }
+            }
+        },
+        "controllers.CreateTestEnrollmentRequest": {
+            "type": "object",
+            "properties": {
+                "food": {
+                    "description": "อาหาร (optional)",
+                    "type": "string",
+                    "example": "vegetarian"
+                },
+                "programItemId": {
+                    "description": "ID ของ programItem",
+                    "type": "string",
+                    "example": "507f1f77bcf86cd799439"
+                },
+                "studentCode": {
+                    "description": "รหัสนิสิต",
+                    "type": "string",
+                    "example": "6516030959"
+                }
+            }
+        },
         "controllers.LoginRequest": {
             "type": "object",
             "properties": {
@@ -2412,6 +2799,23 @@ const docTemplate = `{
                         }
                     ],
                     "example": "approved"
+                }
+            }
+        },
+        "controllers.UpdateCheckInOutRequest": {
+            "type": "object",
+            "properties": {
+                "checkinoutRecord": {
+                    "description": "รายการ check-in/out",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.CheckInOutRecordItem"
+                    }
+                },
+                "enrollmentId": {
+                    "description": "ID ของ enrollment",
+                    "type": "string",
+                    "example": "507f1f77bcf86cd799439"
                 }
             }
         },
@@ -2487,9 +2891,13 @@ const docTemplate = `{
         "models.Course": {
             "type": "object",
             "properties": {
-                "description": {
+                "certificateName": {
                     "type": "string",
-                    "example": "Learn the basics of programming with this introductory course"
+                    "example": "Introduction to Programming Certificate"
+                },
+                "certificateNameEng": {
+                    "type": "string",
+                    "example": "Introduction to Programming Certificate"
                 },
                 "hour": {
                     "type": "integer",
@@ -2498,6 +2906,11 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "example": "507f1f77bcf86cd799439011"
+                },
+                "imagePath": {
+                    "description": "Image file URL for course",
+                    "type": "string",
+                    "example": "upload/image.jpg"
                 },
                 "isActive": {
                     "type": "boolean",
@@ -2520,10 +2933,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Introduction to Programming"
                 },
-                "name_en": {
-                    "type": "string",
-                    "example": "Introduction to Programming"
-                },
                 "type": {
                     "type": "string",
                     "enum": [
@@ -2532,6 +2941,11 @@ const docTemplate = `{
                         "thaimooc"
                     ],
                     "example": "lms"
+                },
+                "videoUrl": {
+                    "description": "Tutorial video URL for certificate claiming",
+                    "type": "string",
+                    "example": "https://www.youtube.com/watch?v=example"
                 }
             }
         },
@@ -2966,6 +3380,10 @@ const docTemplate = `{
                 "status": {
                     "description": "0พ้นสภาพ 1ชั่วโมงน้อยมาก 2ชั่วโมงน้อย 3ชั่วโมงครบแล้ว 4ออกผึกแล้ว",
                     "type": "integer"
+                },
+                "year": {
+                    "description": "ปีการศึกษา เช่น \"2567\"",
+                    "type": "string"
                 }
             }
         },

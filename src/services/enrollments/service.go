@@ -171,6 +171,82 @@ func GetEnrollmentsByStudent(studentID primitive.ObjectID, params models.Paginat
 	return programs, total, totalPages, nil
 }
 
+// checkTimeOverlapWithActiveEnrollments ตรวจสอบเวลาทับซ้อนกับ enrollment ที่มีอยู่
+// คืนค่า error ถ้ามีเวลาทับซ้อน, nil ถ้าไม่ทับ
+func checkTimeOverlapWithActiveEnrollments(ctx context.Context, studentID primitive.ObjectID, newDates []models.Dates) error {
+	// ใช้ aggregation เพื่อ join ข้อมูลทั้งหมดใน 1 query (ประสิทธิภาพดีกว่า N+1 queries)
+	pipeline := mongo.Pipeline{
+		// 1. หา enrollments ของ student นี้
+		bson.D{{Key: "$match", Value: bson.M{"studentId": studentID}}},
+
+		// 2. join กับ Program_Items
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "Program_Items",
+			"localField":   "programItemId",
+			"foreignField": "_id",
+			"as":           "programItem",
+		}}},
+		bson.D{{Key: "$unwind", Value: "$programItem"}},
+
+		// 3. join กับ Programs
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "Programs",
+			"localField":   "programItem.programId",
+			"foreignField": "_id",
+			"as":           "program",
+		}}},
+		bson.D{{Key: "$unwind", Value: "$program"}},
+
+		// 4. กรองเฉพาะ program ที่ status เป็น open หรือ close
+		bson.D{{Key: "$match", Value: bson.M{
+			"program.programState": bson.M{"$in": []string{"open", "close"}},
+		}}},
+
+		// 5. เลือกเฉพาะ field ที่ต้องใช้
+		bson.D{{Key: "$project", Value: bson.M{
+			"programItemName": "$programItem.name",
+			"dates":           "$programItem.dates",
+		}}},
+	}
+
+	cursor, err := DB.EnrollmentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(ctx)
+
+	// struct สำหรับรับข้อมูลจาก aggregation
+	type existingEnrollmentData struct {
+		ProgramItemName *string        `bson:"programItemName"`
+		Dates           []models.Dates `bson:"dates"`
+	}
+
+	var existingEnrollments []existingEnrollmentData
+	if err := cursor.All(ctx, &existingEnrollments); err != nil {
+		return err
+	}
+
+	// เปรียบเทียบวันเวลาทับซ้อน
+	for _, existing := range existingEnrollments {
+		for _, dOld := range existing.Dates {
+			for _, dNew := range newDates {
+				if dOld.Date == dNew.Date { // วันเดียวกัน
+					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
+						existingName := "ไม่ระบุชื่อ"
+						if existing.ProgramItemName != nil {
+							existingName = *existing.ProgramItemName
+						}
+						return fmt.Errorf("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว\nวันที่: %s เวลา %s-%s\nกิจกรรม: %s",
+							dOld.Date, dOld.Stime, dOld.Etime, existingName)
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // Student ลงทะเบียนกิจกรรม (ลงซ้ำไม่ได้ + เช็ค major + กันเวลาทับซ้อน)
 func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -205,43 +281,7 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 		// fmt.Println("Updated food vote for:", *food)
 	}
 
-	// 3) กันเวลาทับซ้อนกับ enrollment ที่เคยลงไว้แล้ว
-	existingEnrollmentsCursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
-	if err != nil {
-		return err
-	}
-	defer existingEnrollmentsCursor.Close(ctx)
-
-	for existingEnrollmentsCursor.Next(ctx) {
-		var existing models.Enrollment
-		if err := existingEnrollmentsCursor.Decode(&existing); err != nil {
-			continue
-		}
-
-		// ดึง programItem เดิมที่เคยลง
-		var existingItem models.ProgramItem
-		if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": existing.ProgramItemID}).Decode(&existingItem); err != nil {
-			continue
-		}
-
-		// เปรียบเทียบวันเวลา
-		for _, dOld := range existingItem.Dates {
-			for _, dNew := range programItem.Dates {
-				if dOld.Date == dNew.Date { // วันเดียวกัน
-					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
-						existingName := "ไม่ระบุชื่อ"
-						if existingItem.Name != nil {
-							existingName = *existingItem.Name
-						}
-						return fmt.Errorf("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว\nวันที่: %s เวลา %s-%s\nกิจกรรม: %s",
-							dOld.Date, dOld.Stime, dOld.Etime, existingName)
-					}
-				}
-			}
-		}
-	}
-
-	// 4) โหลด student และเช็ค major ให้ตรงกับ programItem.Majors (ถ้ามีจำกัด)
+	// 3) โหลด student และเช็ค major ให้ตรงกับ programItem.Majors (ถ้ามีจำกัด)
 	var student models.Student
 	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -264,6 +304,30 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 		if !allowed {
 			return errors.New("ไม่สามารถลงทะเบียนได้: สาขาไม่ตรงกับเงื่อนไขของกิจกรรม")
 		}
+	}
+
+	// ✅ เช็คชั้นปี: กิจกรรมอนุญาตเฉพาะบางชั้นปี
+	if len(programItem.StudentYears) > 0 {
+		// สร้าง prefix ชั้นปีที่อนุญาต (เช่น 67, 66, 65, 64)
+		allowedPrefixes := programs.GenerateStudentCodeFilter(programItem.StudentYears)
+
+		// ตรวจสอบว่ารหัสนิสิตขึ้นต้นด้วย prefix ที่อนุญาตหรือไม่
+		allowed := false
+		for _, prefix := range allowedPrefixes {
+			if strings.HasPrefix(student.Code, prefix) {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			return errors.New("ไม่สามารถลงทะเบียนได้: ชั้นปีไม่ตรงกับเงื่อนไขของกิจกรรม")
+		}
+	}
+
+	// 4) กันเวลาทับซ้อนกับ enrollment ที่เคยลงไว้แล้ว (เฉพาะ program ที่ status เป็น open หรือ close)
+	if err := checkTimeOverlapWithActiveEnrollments(ctx, studentID, programItem.Dates); err != nil {
+		return err
 	}
 
 	// (ถ้าต้องการเช็คชั้นปีด้วย ให้เพิ่มเงื่อนไขจาก programItem.StudentYears ที่นี่ได้)
@@ -380,38 +444,12 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 		// fmt.Println("Updated food vote for:", *food)
 	}
 
-	// 3) กันเวลาทับซ้อนกับ enrollment ที่เคยลงไว้แล้ว
-	existingEnrollmentsCursor, err := DB.EnrollmentCollection.Find(ctx, bson.M{"studentId": studentID})
-	if err != nil {
+	// 3) กันเวลาทับซ้อนกับ enrollment ที่เคยลงไว้แล้ว (เฉพาะ program ที่ status เป็น open หรือ close)
+	if err := checkTimeOverlapWithActiveEnrollments(ctx, studentID, programItem.Dates); err != nil {
 		return err
 	}
-	defer existingEnrollmentsCursor.Close(ctx)
 
-	for existingEnrollmentsCursor.Next(ctx) {
-		var existing models.Enrollment
-		if err := existingEnrollmentsCursor.Decode(&existing); err != nil {
-			continue
-		}
-
-		// ดึง programItem เดิมที่เคยลง
-		var existingItem models.ProgramItem
-		if err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": existing.ProgramItemID}).Decode(&existingItem); err != nil {
-			continue
-		}
-
-		// เปรียบเทียบวันเวลา
-		for _, dOld := range existingItem.Dates {
-			for _, dNew := range programItem.Dates {
-				if dOld.Date == dNew.Date { // วันเดียวกัน
-					if isTimeOverlap(dOld.Stime, dOld.Etime, dNew.Stime, dNew.Etime) {
-						return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากมีกิจกรรมที่เวลาเดียวกันอยู่แล้ว")
-					}
-				}
-			}
-		}
-	}
-
-	// 4) โหลด student และเช็ค major ให้ตรงกับ programItem.Majors (ถ้ามีจำกัด)
+	// 4) โหลด student และเช็ค major + ชั้นปี ให้ตรงกับ programItem (ถ้ามีจำกัด)
 	// var student models.Student
 	// if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 	// 	if err == mongo.ErrNoDocuments {
@@ -420,7 +458,7 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 	// 	return err
 	// }
 
-	// ✅ เช็คสาขา: กิจกรรมอนุญาตเฉพาะบาง major
+	// // ✅ เช็คสาขา: กิจกรรมอนุญาตเฉพาะบาง major
 	// if len(programItem.Majors) > 0 {
 	// 	allowed := false
 	// 	for _, m := range programItem.Majors {
@@ -436,9 +474,26 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 	// 	}
 	// }
 
-	// (ถ้าต้องการเช็คชั้นปีด้วย ให้เพิ่มเงื่อนไขจาก programItem.StudentYears ที่นี่ได้)
+	// // ✅ เช็คชั้นปี: กิจกรรมอนุญาตเฉพาะบางชั้นปี
+	// if len(programItem.StudentYears) > 0 {
+	// 	// สร้าง prefix ชั้นปีที่อนุญาต (เช่น 67, 66, 65, 64)
+	// 	allowedPrefixes := programs.GenerateStudentCodeFilter(programItem.StudentYears)
 
-	// 5) กันเต็มโควต้า
+	// 	// ตรวจสอบว่ารหัสนิสิตขึ้นต้นด้วย prefix ที่อนุญาตหรือไม่
+	// 	allowed := false
+	// 	for _, prefix := range allowedPrefixes {
+	// 		if strings.HasPrefix(student.Code, prefix) {
+	// 			allowed = true
+	// 			break
+	// 		}
+	// 	}
+
+	// 	if !allowed {
+	// 		return errors.New("ไม่สามารถลงทะเบียนได้: ชั้นปีไม่ตรงกับเงื่อนไขของกิจกรรม")
+	// 	}
+	// }
+
+	// // 5) กันเต็มโควต้า
 	// if programItem.MaxParticipants != nil && programItem.EnrollmentCount >= *programItem.MaxParticipants {
 	// 	return errors.New("ไม่สามารถลงทะเบียนได้ เนื่องจากจำนวนผู้เข้าร่วมเต็มแล้ว")
 	// }

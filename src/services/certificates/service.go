@@ -4,6 +4,7 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/courses"
+	hourhistory "Backend-Bluelock-007/src/services/hour-history"
 	"Backend-Bluelock-007/src/services/students"
 	"context"
 	"errors"
@@ -146,11 +147,9 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 1: pending -> approved (Admin อนุมัติ)
 	if oldCert.Status == models.StatusPending && newStatus == models.StatusApproved {
-		fmt.Println("▶️ Adding hours for pending -> approved")
+		fmt.Println("▶️ Adding hours for pending -> approved 1")
 
-		if oldCert.Remark == "" {
-			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
-		}
+		certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
 
 		if err := updateCertificateHoursApproved(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
@@ -159,11 +158,17 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 2: approved -> rejected (Admin ปฏิเสธ certificate ที่เคยอนุมัติแล้ว)
 	if oldCert.Status == models.StatusApproved && newStatus == models.StatusRejected {
-		fmt.Println("▶️ Removing hours for approved -> rejected")
+		fmt.Println("▶️ Removing hours for approved -> rejected 2")
 
-		if oldCert.Remark == "" {
+		if remark == "" {
 			certForHours.Remark = "ปฏิเสธโดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
+
+		// fmt remark
+		fmt.Printf("▶️ Old Remark: %s\n", oldCert.Remark)
+		fmt.Printf("▶️ Remark for hours removal: %s\n", certForHours.Remark)
 
 		if err := updateCertificateHoursRejected(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
@@ -172,10 +177,10 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 3: rejected -> approved (Admin เปลี่ยนใจอนุมัติ)
 	if oldCert.Status == models.StatusRejected && newStatus == models.StatusApproved {
-		fmt.Println("▶️ Adding hours for rejected -> approved")
-		if oldCert.Remark == "" {
-			certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
-		}
+		fmt.Println("▶️ Adding hours for rejected -> approved 3")
+
+		certForHours.Remark = "อนุมัติโดยเจ้าหน้าที่"
+
 		if err := updateCertificateHoursApproved(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to add hours: %v", err)
 		}
@@ -183,22 +188,33 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 
 	// กรณีที่ 4: approved -> pending (Admin ถอนการอนุมัติ ต้องรอพิจารณาใหม่)
 	if oldCert.Status == models.StatusApproved && newStatus == models.StatusPending {
-		fmt.Println("▶️ Removing hours for approved -> pending")
-		if oldCert.Remark == "" {
+		fmt.Println("▶️ Removing hours for approved -> pending 4")
+		if remark == "" {
 			certForHours.Remark = "รอพิจารณาใหม่โดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
+
+		// ลบชั่วโมงที่เคยได้รับการอนุมัติ
 		if err := updateCertificateHoursRejected(ctx, &certForHours); err != nil {
 			return nil, fmt.Errorf("failed to remove hours: %v", err)
+		}
+
+		// บันทึก history record ด้วยสถานะ pending
+		if err := recordCertificatePending(ctx, &certForHours, certForHours.Remark); err != nil {
+			fmt.Printf("Warning: Failed to record certificate pending status: %v\n", err)
 		}
 	}
 
 	// กรณีที่ 5: pending -> rejected (Admin ปฏิเสธตั้งแต่แรก - ไม่ต้องลบชั่วโมงเพราะไม่เคยเพิ่ม)
 	// แต่ยังต้องบันทึก history record
 	if oldCert.Status == models.StatusPending && newStatus == models.StatusRejected {
-		fmt.Println("▶️ Rejecting pending certificate (no hours to remove)")
+		fmt.Println("▶️ Rejecting pending certificate (no hours to remove) 5")
 
-		if oldCert.Remark == "" {
+		if remark == "" {
 			certForHours.Remark = "ปฏิเสธโดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
 
 		if err := recordCertificateRejection(ctx, &certForHours, remark); err != nil {
@@ -209,10 +225,12 @@ func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remar
 	// กรณีที่ 6: rejected -> pending (Admin เปลี่ยนใจให้พิจารณาใหม่ - ไม่ต้องทำอะไร)
 	// บันทึก history record ด้วยสถานะ pending
 	if oldCert.Status == models.StatusRejected && newStatus == models.StatusPending {
-		fmt.Println("▶️ Moving rejected certificate back to pending (no hours change)")
+		fmt.Println("▶️ Moving rejected certificate back to pending (no hours change) 6")
 
-		if oldCert.Remark == "" {
+		if remark == "" {
 			certForHours.Remark = "รอพิจารณาใหม่โดยเจ้าหน้าที่"
+		} else {
+			certForHours.Remark = remark
 		}
 
 		if err := recordCertificatePending(ctx, &certForHours, remark); err != nil {
@@ -325,13 +343,22 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 	if params.Major != "" || params.Year != "" {
 		needJoin = true
 	}
-	fmt.Println("  needJoin for student lookup:", needJoin)
+
 	if needJoin {
 		if pagination.Search != "" {
 			pipeline = append(pipeline,
 				bson.D{{Key: "$match", Value: bson.M{
-					"student.name": bson.M{
-						"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
+					"$or": []bson.M{
+						{
+							"student.name": bson.M{
+								"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
+							},
+						},
+						{
+							"student.code": bson.M{
+								"$regex": primitive.Regex{Pattern: pagination.Search, Options: "i"},
+							},
+						},
 					},
 				}}},
 			)
@@ -428,11 +455,6 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 		{Key: sortByField, Value: sortOrder},
 	}}})
 
-	// Debug: print pipeline (best-effort)
-	pipelineBytes, _ := bson.MarshalExtJSON(pipeline, true, true)
-	fmt.Println(" major", params.Major)
-	fmt.Println("  Aggregation pipeline:", string(pipelineBytes))
-
 	rows, meta, err := models.AggregatePaginateGlobal[models.UploadCertificate](
 		ctx, DB.UploadCertificateCollection, pipeline, pagination.Page, pagination.Limit,
 	)
@@ -441,7 +463,6 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 	}
 
 	// Debug: number of returned rows
-	fmt.Printf("  Aggregation returned %d rows\n", len(rows))
 	return rows, meta, nil
 }
 
@@ -972,10 +993,10 @@ func updateCertificateHoursApproved(ctx context.Context, certificate *models.Upl
 	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
 	if certificate.IsDuplicate {
 		fmt.Printf("Skipping hours addition for duplicate certificate %s\n", certificate.ID.Hex())
-		return nil // ไม่ต้อง error แค่ไม่เพิ่มชั่วโมง
+		return nil
 	}
 
-	// 1. ดึงข้อมูล course เพื่อหาจำนวนชั่วโมงและประเภท skill
+	// ดึงข้อมูล course และ student
 	course, err := courses.GetCourseByID(certificate.CourseId)
 	if err != nil {
 		return fmt.Errorf("course not found: %v", err)
@@ -983,52 +1004,153 @@ func updateCertificateHoursApproved(ctx context.Context, certificate *models.Upl
 
 	if course.Hour <= 0 {
 		fmt.Printf("Warning: Course %s has no hours defined (%d), skipping hours addition\n", course.ID.Hex(), course.Hour)
-		return nil // ไม่ error แต่ไม่เพิ่มชั่วโมง
+		return nil
 	}
 
-	// Validation: ตรวจสอบว่า course active
 	if !course.IsActive {
 		return fmt.Errorf("cannot add hours for inactive course: %s", course.Name)
 	}
 
-	// 2. ดึงข้อมูล student
 	student, err := students.GetStudentById(certificate.StudentId)
 	if err != nil {
 		return fmt.Errorf("student not found: %v", err)
 	}
 
-	// 3. กำหนด skill type
+	// กำหนด skill type
 	skillType := "soft"
 	if course.IsHardSkill {
 		skillType = "hard"
 	}
 
-	// 4. เพิ่มชั่วโมงให้กับนิสิต
-	var update bson.M
-	switch skillType {
-	case "soft":
-		update = bson.M{
-			"$inc": bson.M{
-				"softSkill": course.Hour,
-			},
-		}
-	case "hard":
-		update = bson.M{
-			"$inc": bson.M{
-				"hardSkill": course.Hour,
-			},
-		}
-	default:
-		return fmt.Errorf("invalid skill type: %s", skillType)
+	// คำนวณชั่วโมงที่สามารถเพิ่มได้
+	currentCertHours, err := calculateCurrentCertificateHours(ctx, certificate.StudentId, skillType)
+	if err != nil {
+		return fmt.Errorf("failed to calculate current certificate hours: %v", err)
 	}
 
-	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": certificate.StudentId}, update)
+	maxTrainingHours := getMaxTrainingHours(skillType, student.Major)
+	hoursToAdd := calculateHoursToAdd(course.Hour, currentCertHours, maxTrainingHours, student.Code, skillType)
+
+	// อัพเดทชั่วโมงของนักศึกษา
+	if err := updateStudentHours(ctx, certificate.StudentId, skillType, hoursToAdd); err != nil {
+		return err
+	}
+
+	// บันทึก hour history
+	if err := saveOrUpdateHourHistory(ctx, certificate, *course, skillType, hoursToAdd, models.HCStatusApproved); err != nil {
+		return err
+	}
+
+	// แสดงผลลัพธ์
+	if hoursToAdd > 0 {
+		fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s (max: %d, current: %d)\n",
+			hoursToAdd, skillType, student.Code, certificate.ID.Hex(), maxTrainingHours, currentCertHours+hoursToAdd)
+	} else {
+		fmt.Printf("ℹ️ No hours added to student %s (already at max %s training hours: %d/%d)\n",
+			student.Code, skillType, currentCertHours, maxTrainingHours)
+	}
+
+	// อัพเดท student status
+	if err := hourhistory.UpdateStudentStatus(ctx, certificate.StudentId); err != nil {
+		fmt.Printf("⚠️ Warning: Failed to update student status for %s: %v\n", student.Code, err)
+	}
+
+	return nil
+}
+
+// calculateCurrentCertificateHours คำนวณชั่วโมงรวมจาก certificate ที่ approved แล้ว (sourceType = "certificate")
+func calculateCurrentCertificateHours(ctx context.Context, studentID primitive.ObjectID, skillType string) (int, error) {
+	// Query: หา HourChangeHistory ที่เป็น certificate และ approved
+	filter := bson.M{
+		"studentId":  studentID,
+		"sourceType": "certificate",
+		"status":     models.HCStatusApproved,
+		"skillType":  skillType,
+	}
+
+	cursor, err := DB.HourChangeHistoryCollection.Find(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query hour change history: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	totalHours := 0
+	for cursor.Next(ctx) {
+		var record models.HourChangeHistory
+		if err := cursor.Decode(&record); err != nil {
+			continue
+		}
+		totalHours += record.HourChange
+	}
+
+	return totalHours, nil
+}
+
+// getMaxTrainingHours คำนวณชั่วโมงอบรมสูงสุดตามประเภท skill และสาขา
+func getMaxTrainingHours(skillType string, major string) int {
+	if skillType == "soft" {
+		return 15 // soft skill: อบรมไม่เกิน 15 ชั่วโมง (ทุกสาขา)
+	}
+
+	// hard skill: ขึ้นอยู่กับสาขา
+	majorUpper := strings.ToUpper(major)
+	if majorUpper == "SE" || majorUpper == "AAI" {
+		return 9 // SE และ AAI: อบรมไม่เกิน 9 ชั่วโมง
+	}
+
+	// ITDI, CS และสาขาอื่นๆ
+	return 6 // อบรมไม่เกิน 6 ชั่วโมง
+}
+
+// calculateHoursToAdd คำนวณชั่วโมงที่สามารถเพิ่มได้จริง (ไม่เกิน max)
+func calculateHoursToAdd(courseHour, currentHours, maxHours int, studentCode, skillType string) int {
+	hoursToAdd := courseHour
+
+	if currentHours+hoursToAdd > maxHours {
+		hoursToAdd = maxHours - currentHours
+		if hoursToAdd < 0 {
+			hoursToAdd = 0
+		}
+
+		if hoursToAdd > 0 {
+			fmt.Printf("⚠️ Certificate hours capped: Student %s already has %d/%d %s training hours, adding only %d (original: %d)\n",
+				studentCode, currentHours, maxHours, skillType, hoursToAdd, courseHour)
+		} else {
+			fmt.Printf("⚠️ Student %s has reached max %s training hours (%d/%d), no hours added\n",
+				studentCode, skillType, currentHours, maxHours)
+		}
+	}
+
+	return hoursToAdd
+}
+
+// updateStudentHours อัพเดทชั่วโมงของนักศึกษา
+func updateStudentHours(ctx context.Context, studentID primitive.ObjectID, skillType string, hoursToAdd int) error {
+	if hoursToAdd <= 0 {
+		return nil // ไม่มีชั่วโมงที่จะเพิ่ม
+	}
+
+	var fieldName string
+	if skillType == "soft" {
+		fieldName = "softSkill"
+	} else {
+		fieldName = "hardSkill"
+	}
+
+	update := bson.M{"$inc": bson.M{fieldName: hoursToAdd}}
+	_, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": studentID}, update)
 	if err != nil {
 		return fmt.Errorf("failed to update student hours: %v", err)
 	}
 
-	// 5. อัพเดทหรือสร้าง hour history record
-	// หา history record สำหรับ certificate นี้ (pending หรือ rejected)
+	return nil
+}
+
+// saveOrUpdateHourHistory บันทึกหรืออัพเดท hour history record
+func saveOrUpdateHourHistory(ctx context.Context, certificate *models.UploadCertificate, course models.Course, skillType string, hoursToAdd int, status string) error {
+	now := time.Now()
+
+	// หา history record สำหรับ certificate นี้
 	histFilter := bson.M{
 		"sourceType": "certificate",
 		"sourceId":   certificate.ID,
@@ -1036,12 +1158,17 @@ func updateCertificateHoursApproved(ctx context.Context, certificate *models.Upl
 		"status":     bson.M{"$in": []string{string(models.HCStatusPending), string(models.HCStatusRejected)}},
 	}
 
+	remark := "อนุมัติใบรับรอง"
+	if status == models.HCStatusRejected {
+		remark = "ปฏิเสธใบรับรอง"
+	}
+
 	histUpdate := bson.M{
 		"$set": bson.M{
-			"status":     models.HCStatusApproved,
-			"hourChange": course.Hour, // เพิ่มชั่วโมง
-			"remark":     "อนุมัติใบรับรอง",
-			"changeAt":   time.Now(),
+			"status":     status,
+			"hourChange": hoursToAdd,
+			"remark":     remark,
+			"changeAt":   now,
 			"title":      course.Name,
 			"skillType":  skillType,
 		},
@@ -1058,10 +1185,10 @@ func updateCertificateHoursApproved(ctx context.Context, certificate *models.Upl
 			ID:           primitive.NewObjectID(),
 			StudentID:    certificate.StudentId,
 			SkillType:    skillType,
-			Status:       models.HCStatusApproved,
-			HourChange:   course.Hour,
-			Remark:       "อนุมัติใบรับรอง",
-			ChangeAt:     time.Now(),
+			Status:       status,
+			HourChange:   hoursToAdd,
+			Remark:       remark,
+			ChangeAt:     now,
 			Title:        course.Name,
 			SourceType:   "certificate",
 			SourceID:     certificate.ID,
@@ -1070,15 +1197,12 @@ func updateCertificateHoursApproved(ctx context.Context, certificate *models.Upl
 
 		_, err = DB.HourChangeHistoryCollection.InsertOne(ctx, hourChange)
 		if err != nil {
-			fmt.Printf("Warning: Failed to insert hour history: %v\n", err)
+			return fmt.Errorf("failed to insert hour history: %v", err)
 		}
 		fmt.Printf("📝 Created new hour history for certificate %s\n", certificate.ID.Hex())
 	} else {
-		fmt.Printf("📝 Updated existing hour history (pending/rejected -> approved) for certificate %s\n", certificate.ID.Hex())
+		fmt.Printf("📝 Updated existing hour history for certificate %s\n", certificate.ID.Hex())
 	}
-
-	fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s\n",
-		course.Hour, skillType, student.Code, certificate.ID.Hex())
 
 	return nil
 }
@@ -1158,11 +1282,16 @@ func updateCertificateHoursRejected(ctx context.Context, certificate *models.Upl
 		return fmt.Errorf("failed to update student hours: %v", err)
 	}
 
+	// Log remarks
+	fmt.Printf("▶️ Old Remark: %s\n", certificate.Remark)
+
 	// 5. อัพเดทหรือสร้าง hour history record
 	remark := "ปฏิเสธใบรับรอง"
 	if certificate.Remark != "" {
 		remark = certificate.Remark
 	}
+
+	fmt.Printf("▶️ New Remark for Hour History: %s\n", remark)
 
 	// หา history record สำหรับ certificate นี้ (pending หรือ approved)
 	histFilter := bson.M{
@@ -1234,6 +1363,12 @@ func updateCertificateHoursRejected(ctx context.Context, certificate *models.Upl
 
 	fmt.Printf("❌ Removed %d hours (%s skill) from student %s for certificate %s\n",
 		hoursToRemove, skillType, student.Code, certificate.ID.Hex())
+
+	// 🔄 Update student status หลังจากมีการเปลี่ยนแปลงชั่วโมง
+	if err := hourhistory.UpdateStudentStatus(ctx, certificate.StudentId); err != nil {
+		fmt.Printf("⚠️ Warning: Failed to update student status for %s: %v\n", student.Code, err)
+		// ไม่ return error เพราะการอัปเดตชั่วโมงสำเร็จแล้ว เหลือแค่ status
+	}
 
 	return nil
 }
@@ -1400,16 +1535,33 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 		skillType = "hard"
 	}
 
-	// apply student hours if not duplicate
-	if !upload.IsDuplicate && course.Hour > 0 && course.IsActive {
-		var inc bson.M
-		if skillType == "soft" {
-			inc = bson.M{"$inc": bson.M{"softSkill": course.Hour}}
-		} else {
-			inc = bson.M{"$inc": bson.M{"hardSkill": course.Hour}}
+	// Get student data for major-based hour limits
+	student, err := students.GetStudentById(upload.StudentId)
+	if err != nil {
+		return fmt.Errorf("student not found: %v", err)
+	}
+
+	// คำนวณชั่วโมงที่สามารถเพิ่มได้
+	currentCertHours, err := calculateCurrentCertificateHours(ctx, upload.StudentId, skillType)
+	if err != nil {
+		return fmt.Errorf("failed to calculate current certificate hours: %v", err)
+	}
+
+	maxTrainingHours := getMaxTrainingHours(skillType, student.Major)
+	hoursToAdd := calculateHoursToAdd(course.Hour, currentCertHours, maxTrainingHours, student.Code, skillType)
+
+	// apply student hours if not duplicate and hoursToAdd > 0
+	if !upload.IsDuplicate && course.IsActive {
+		if err := updateStudentHours(ctx, upload.StudentId, skillType, hoursToAdd); err != nil {
+			return err
 		}
-		if _, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": upload.StudentId}, inc); err != nil {
-			return fmt.Errorf("failed to update student hours: %v", err)
+
+		if hoursToAdd > 0 {
+			fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s (max: %d, current: %d)\n",
+				hoursToAdd, skillType, student.Code, upload.ID.Hex(), maxTrainingHours, currentCertHours+hoursToAdd)
+		} else {
+			fmt.Printf("ℹ️ No hours added to student %s (already at max %s training hours: %d/%d)\n",
+				student.Code, skillType, currentCertHours, maxTrainingHours)
 		}
 	}
 
@@ -1417,7 +1569,7 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 	histFilter := bson.M{"sourceType": "certificate", "sourceId": upload.ID, "studentId": upload.StudentId}
 	histUpdate := bson.M{"$set": bson.M{
 		"status":     models.HCStatusApproved,
-		"hourChange": course.Hour,
+		"hourChange": hoursToAdd, // ใช้ชั่วโมงที่คำนวณแล้ว (อาจถูก cap)
 		"remark":     "อนุมัติใบรับรอง",
 		"changeAt":   time.Now(),
 		"title":      course.Name,
@@ -1433,7 +1585,7 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 			StudentID:  upload.StudentId,
 			SkillType:  skillType,
 			Status:     models.HCStatusApproved,
-			HourChange: course.Hour,
+			HourChange: hoursToAdd, // ใช้ชั่วโมงที่คำนวณแล้ว (อาจถูก cap)
 			Remark:     "อนุมัติใบรับรอง",
 			ChangeAt:   time.Now(),
 			Title:      course.Name,

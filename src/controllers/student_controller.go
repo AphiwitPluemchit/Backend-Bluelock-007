@@ -342,14 +342,14 @@ func GetSammaryAll(c *fiber.Ctx) error {
 	return c.JSON(summary)
 }
 
-//	func UpdateStudentStatus(c *fiber.Ctx) error {
-//		id := c.Params("id")
-//		err := students.UpdateStudentStatus(id)
-//		if err != nil {
-//			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error updating student status"})
-//		}
-//		return c.JSON(fiber.Map{"message": "Student status updated successfully"})
-//	}
+func UpdateStudentStatus(c *fiber.Ctx) error {
+	id := c.Params("id")
+	err := students.UpdateStudentStatus(id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"message": "Student status updated successfully"})
+}
 func calculateStatus(softSkill, hardSkill int) int {
 	total := softSkill + hardSkill
 

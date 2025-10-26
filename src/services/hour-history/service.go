@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -410,12 +411,18 @@ func VerifyAndGrantHours(
 	log.Printf("🔍 [DEBUG]   ├─ Status: %s", newStatus)
 	log.Printf("🔍 [DEBUG]   ├─ Hours Granted: %d", newHourChange)
 	log.Printf("🔍 [DEBUG]   └─ Remark: %s", newRemark)
-	log.Printf("��📝 Updating hour change history for enrollment %s: status=%s, hours=%d",
+	log.Printf("📝 Updating hour change history for enrollment %s: status=%s, hours=%d",
 		enrollmentID.Hex(), newStatus, newHourChange)
 
 	_, err = DB.HourChangeHistoryCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to verify and grant hours: %v", err)
+	}
+
+	// 🔄 Update student status หลังจากมีการเปลี่ยนแปลงชั่วโมง
+	if err := updateStudentStatus(ctx, enrollment.StudentID); err != nil {
+		log.Printf("⚠️ Warning: Failed to update student status for %s: %v", enrollment.StudentID.Hex(), err)
+		// ไม่ return error เพราะการอัปเดตชั่วโมงสำเร็จแล้ว เหลือแค่ status
 	}
 
 	return nil
@@ -726,4 +733,131 @@ func GetStudentHoursSummary(ctx context.Context, studentID primitive.ObjectID) (
 	}
 
 	return summary, nil
+}
+
+// ========================================
+// Student Status Management
+// ========================================
+
+// UpdateStudentStatus - คำนวณและอัปเดตสถานะของนักศึกษาตามชั่วโมงสุทธิที่ได้รับจาก HourChangeHistory
+// Exported เพื่อให้ packages อื่น (certificates, students) เรียกใช้ได้
+func UpdateStudentStatus(ctx context.Context, studentID primitive.ObjectID) error {
+	// 1) ดึงข้อมูล student (ฐานชั่วโมง)
+	var student models.Student
+	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
+		return fmt.Errorf("student not found: %v", err)
+	}
+
+	// 2) คำนวณชั่วโมงสุทธิจาก HourChangeHistory
+	softNet, hardNet, err := CalculateNetHours(ctx, studentID, student.SoftSkill, student.HardSkill)
+	if err != nil {
+		return err
+	}
+
+	// 3) คำนวณสถานะใหม่จาก "สุทธิ"
+	newStatus := CalculateStatus(softNet, hardNet)
+
+	// 4) อัปเดตสถานะ (ถ้าเปลี่ยนแปลง)
+	if student.Status != newStatus {
+		update := bson.M{"$set": bson.M{"status": newStatus}}
+		if _, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": studentID}, update); err != nil {
+			return fmt.Errorf("failed to update student status: %v", err)
+		}
+
+		log.Printf("✅ [UpdateStudentStatus] %s (%s) base(soft=%d,hard=%d) => net(soft=%d,hard=%d) => status: %d -> %d",
+			student.ID.Hex(), student.Name, student.SoftSkill, student.HardSkill, softNet, hardNet, student.Status, newStatus)
+	} else {
+		log.Printf("ℹ️ [UpdateStudentStatus] %s (%s) status unchanged (status=%d, soft=%d, hard=%d)",
+			student.ID.Hex(), student.Name, newStatus, softNet, hardNet)
+	}
+
+	return nil
+}
+
+// updateStudentStatus - internal wrapper (backward compatibility)
+func updateStudentStatus(ctx context.Context, studentID primitive.ObjectID) error {
+	return UpdateStudentStatus(ctx, studentID)
+}
+
+// CalculateNetHours - คำนวณชั่วโมงสุทธิจาก base hours + hour history delta
+// Exported เพื่อให้ packages อื่นเรียกใช้ได้
+func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSoft, baseHard int) (softNet, hardNet int, err error) {
+	pipeline := []bson.M{
+		{"$match": bson.M{
+			"studentId": studentID,
+			"status": bson.M{"$in": []string{
+				models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved,
+			}},
+		}},
+		{"$addFields": bson.M{
+			"deltaHours": bson.M{
+				"$switch": bson.M{
+					"branches": bson.A{
+						bson.M{
+							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+						},
+						bson.M{
+							"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
+							"then": bson.M{
+								"$multiply": bson.A{
+									-1,
+									bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+								},
+							},
+						},
+					},
+					"default": 0,
+				},
+			},
+		}},
+		{"$group": bson.M{
+			"_id":        "$skillType", // "soft" | "hard"
+			"totalHours": bson.M{"$sum": "$deltaHours"},
+		}},
+	}
+
+	cursor, aggErr := DB.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
+	if aggErr != nil {
+		return 0, 0, fmt.Errorf("aggregate hour deltas error: %v", aggErr)
+	}
+	defer cursor.Close(ctx)
+
+	type agg struct {
+		ID         string `bson:"_id"`
+		TotalHours int64  `bson:"totalHours"`
+	}
+	var aggRows []agg
+	if aggErr := cursor.All(ctx, &aggRows); aggErr != nil {
+		return 0, 0, fmt.Errorf("aggregate decode error: %v", aggErr)
+	}
+
+	// บวกผลรวมสุทธิกับฐานชั่วโมงใน student
+	softNet = baseSoft
+	hardNet = baseHard
+	for _, r := range aggRows {
+		switch strings.ToLower(r.ID) {
+		case "soft":
+			softNet += int(r.TotalHours)
+		case "hard":
+			hardNet += int(r.TotalHours)
+		}
+	}
+
+	return softNet, hardNet, nil
+}
+
+// CalculateStatus - คำนวณสถานะของนักศึกษาจากชั่วโมง soft skill และ hard skill
+// Exported เพื่อให้ packages อื่นเรียกใช้ได้
+func CalculateStatus(softSkill, hardSkill int) int {
+	total := softSkill + hardSkill
+
+	switch {
+	case softSkill >= 30 && hardSkill >= 12:
+		return 3 // ครบ
+	case total >= 20:
+		return 2 // น้อย
+	default:
+		return 1 // น้อยมาก
+	}
 }
