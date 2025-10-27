@@ -1,4 +1,4 @@
-package email
+package programs
 
 import (
 	DB "Backend-Bluelock-007/src/database"
@@ -15,21 +15,15 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// เพิ่มพารามิเตอร์ programResolver และ codePrefixFn
-func HandleNotifyOpenProgram(
-	sender MailSender,
-	registerURLBuilder func(programID string) string,
-	programResolver func(programID string) (*models.ProgramDto, error),
-	codePrefixFn func(years []int) []string,
-) asynq.HandlerFunc {
+func HandleNotifyOpenProgram(sender MailSender, registerURLBuilder func(programID string) string) asynq.HandlerFunc {
 	return func(ctx context.Context, t *asynq.Task) error {
 		var p NotifyOpenProgramPayload
 		if err := json.Unmarshal(t.Payload(), &p); err != nil {
 			return err
 		}
 
-		// 1) โหลด Program ด้วย resolver ที่ส่งเข้ามา
-		prog, err := programResolver(p.ProgramID)
+		// 1) โหลด Program + Items
+		prog, err := GetProgramByID(p.ProgramID)
 		if err != nil || prog == nil {
 			return fmt.Errorf("program not found: %s", p.ProgramID)
 		}
@@ -63,8 +57,8 @@ func HandleNotifyOpenProgram(
 			years = append(years, k)
 		}
 
-		// 3) ใช้ฟังก์ชันสร้าง prefix ที่ถูกส่งเข้ามา
-		prefixes := codePrefixFn(years)
+		// 3) สร้าง prefix จากปีการศึกษา (เช่น 67,66,...)
+		prefixes := GenerateStudentCodeFilter(years)
 		if len(prefixes) == 0 {
 			log.Println("notify-open: empty prefixes, skip")
 			return nil
@@ -74,24 +68,35 @@ func HandleNotifyOpenProgram(
 			return fmt.Errorf("bad student code regex: %s", re)
 		}
 
-		// 4) query students
+		// (ทางเลือก) ถ้ากังวลเรื่องตัวพิมพ์ของ major ใน DB ไม่ตรง
+		// ให้สร้าง $or เป็น regex ไม่สนตัวพิมพ์แทน:
+		// ors := make([]bson.M, 0, len(majors))
+		// for _, m := range majors {
+		// 	ors = append(ors, bson.M{"major": bson.M{"$regex": "^" + regexp.QuoteMeta(m) + "$", "$options": "i"}})
+		// }
+		// majorCond := bson.M{"$or": ors}
+		// ถ้าเชื่อว่าฟอร์แมตตรงกัน ใช้ $in ได้เลย:
+		majorCond := bson.M{"$in": majors}
+
 		match := bson.M{
-			"major":  bson.M{"$in": majors},
-			"code":   bson.M{"$regex": re},
-			"status": bson.M{"$in": []interface{}{1, 2, "1", "2"}},
+			"major": majorCond,
+			"code":  bson.M{"$regex": re},
+			"status": bson.M{"$in": bson.A{1, 2}},
 		}
 
+		// ✅ ดีบัก: นับจำนวนก่อนส่ง
 		total, _ := DB.StudentCollection.CountDocuments(ctx, match)
 		log.Printf("notify-open: matched students=%d majors=%v regex=%s", total, majors, re)
 		if total == 0 {
+			// ไม่ถือว่า error แต่อย่างน้อยรู้ว่าเงื่อนไขค้นหาไม่เจอใคร
 			return nil
 		}
 
 		findOpts := options.Find().
-			SetProjection(bson.M{"name": 1, "code": 1, "major": 1}).
+			SetProjection(bson.M{"name": 1, "code": 1, "major": 1}). // ใช้ฟิลด์เท่าที่จำเป็น
 			SetBatchSize(500)
 
-		cur, err := DB.StudentCollection.Find(ctx, match, findOpts)
+		cur, err := DB.StudentCollection.Find(ctx, match, findOpts) // ← ชื่อคอลเลกชันแก้เป็น StudentsCollection
 		if err != nil {
 			return err
 		}
@@ -119,8 +124,10 @@ func HandleNotifyOpenProgram(
 			}
 		}
 
+		// 5) ส่งเป็น batch
 		batch := 100
 		buf := make([]models.Student, 0, batch)
+
 		for cur.Next(ctx) {
 			var st models.Student
 			if err := cur.Decode(&st); err != nil {

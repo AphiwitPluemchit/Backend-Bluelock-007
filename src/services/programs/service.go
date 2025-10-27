@@ -643,28 +643,60 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		}
 	}
 
-	newState := strings.ToLower(program.ProgramState)
+newState := strings.ToLower(program.ProgramState)
 	oldState := strings.ToLower(oldProgram.ProgramState)
 
+	// ✅ เมื่อสถานะเปลี่ยนจากอื่น -> open
 	if oldState != "open" && newState == "open" {
 		progName := ""
 		if program.Name != nil {
 			progName = *program.Name
 		}
 
-		email.NotifyStudentsOnOpen(
-			id.Hex(),
-			progName,
-			GetProgramByID,
-			GenerateStudentCodeFilter,
-		)
-	}
+		// ถ้ามี Redis → ใช้คิวปกติ
+		if DB.AsynqClient != nil {
+			if task, err := NewNotifyOpenProgramTask(id.Hex(), progName); err != nil {
+				log.Println("❌ Failed to create notify-open task:", err)
+			} else {
+				if _, err := DB.AsynqClient.Enqueue(
+					task,
+					asynq.TaskID("notify-open-"+id.Hex()),
+					asynq.MaxRetry(3),
+				); err != nil {
+					log.Println("❌ Failed to enqueue notify-open task:", err)
+				} else {
+					log.Println("✅ Enqueued notify-open task:", id.Hex())
+				}
+			}
+		} else {
+			// 🚀 DEV MODE: ไม่มี Redis → ส่งเมลทันที
+			log.Println("⚠️ Redis not available → sending open-notify emails synchronously")
 
-	updated, err := GetProgramByID(id.Hex())
-	if err != nil {
-		return nil, err
+			sender, err := NewSMTPSenderFromEnv()
+			if err != nil {
+				log.Println("❌ DEV fallback: cannot init mail sender:", err)
+			} else {
+				handler := HandleNotifyOpenProgram(sender, func(pid string) string {
+					base := strings.TrimRight(os.Getenv("APP_BASE_URL"), "/")
+					if base == "" {
+						base = "http://localhost:9000"
+					}
+					return base + "/Student/Programs/" + pid
+				})
+				payload, _ := json.Marshal(NotifyOpenProgramPayload{
+					ProgramID:   id.Hex(),
+					ProgramName: progName,
+				})
+				task := asynq.NewTask(TypeNotifyOpenProgram, payload)
+
+				if err := handler(context.Background(), task); err != nil {
+					log.Printf("❌ DEV fallback: failed to send emails: %v", err)
+				} else {
+					log.Printf("✅ DEV fallback: sent open-notify emails for program %s", id.Hex())
+				}
+			}
+		}
 	}
-	email.ScheduleReminderJobs(updated)
 
 	// ✅ ดึงข้อมูล Program ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
 	return GetProgramByID(id.Hex())
