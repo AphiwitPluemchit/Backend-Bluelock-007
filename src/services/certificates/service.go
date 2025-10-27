@@ -1031,12 +1031,7 @@ func updateCertificateHoursApproved(ctx context.Context, certificate *models.Upl
 	maxTrainingHours := getMaxTrainingHours(skillType, student.Major)
 	hoursToAdd := calculateHoursToAdd(course.Hour, currentCertHours, maxTrainingHours, student.Code, skillType)
 
-	// อัพเดทชั่วโมงของนักศึกษา
-	if err := updateStudentHours(ctx, certificate.StudentId, skillType, hoursToAdd); err != nil {
-		return err
-	}
-
-	// บันทึก hour history
+	// บันทึก hour history (ไม่อัพเดท softSkill/hardSkill โดยตรงอีกต่อไป - ใช้ hour history เป็นแหล่งข้อมูลหลัก)
 	if err := saveOrUpdateHourHistory(ctx, certificate, *course, skillType, hoursToAdd, models.HCStatusApproved); err != nil {
 		return err
 	}
@@ -1122,28 +1117,6 @@ func calculateHoursToAdd(courseHour, currentHours, maxHours int, studentCode, sk
 	}
 
 	return hoursToAdd
-}
-
-// updateStudentHours อัพเดทชั่วโมงของนักศึกษา
-func updateStudentHours(ctx context.Context, studentID primitive.ObjectID, skillType string, hoursToAdd int) error {
-	if hoursToAdd <= 0 {
-		return nil // ไม่มีชั่วโมงที่จะเพิ่ม
-	}
-
-	var fieldName string
-	if skillType == "soft" {
-		fieldName = "softSkill"
-	} else {
-		fieldName = "hardSkill"
-	}
-
-	update := bson.M{"$inc": bson.M{fieldName: hoursToAdd}}
-	_, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": studentID}, update)
-	if err != nil {
-		return fmt.Errorf("failed to update student hours: %v", err)
-	}
-
-	return nil
 }
 
 // saveOrUpdateHourHistory บันทึกหรืออัพเดท hour history record
@@ -1238,49 +1211,8 @@ func updateCertificateHoursRejected(ctx context.Context, certificate *models.Upl
 		skillType = "hard"
 	}
 
-	// 4. ลบชั่วโมงจากนิสิต (ไม่ให้ติดลบ)
-	var update bson.M
-	var hoursToRemove int
-
-	switch skillType {
-	case "soft":
-		hoursToRemove = course.Hour
-		if student.SoftSkill < course.Hour {
-			hoursToRemove = student.SoftSkill
-			fmt.Printf("Warning: Student %s has insufficient soft skill hours (%d < %d), removing only %d\n",
-				student.Code, student.SoftSkill, course.Hour, hoursToRemove)
-		}
-		update = bson.M{
-			"$inc": bson.M{
-				"softSkill": -hoursToRemove,
-			},
-		}
-	case "hard":
-		hoursToRemove = course.Hour
-		if student.HardSkill < course.Hour {
-			hoursToRemove = student.HardSkill
-			fmt.Printf("Warning: Student %s has insufficient hard skill hours (%d < %d), removing only %d\n",
-				student.Code, student.HardSkill, course.Hour, hoursToRemove)
-		}
-		update = bson.M{
-			"$inc": bson.M{
-				"hardSkill": -hoursToRemove,
-			},
-		}
-	default:
-		return fmt.Errorf("invalid skill type: %s", skillType)
-	}
-
-	// Skip if no hours to remove
-	if hoursToRemove <= 0 {
-		fmt.Printf("No hours to remove for student %s\n", student.Code)
-		return nil
-	}
-
-	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": certificate.StudentId}, update)
-	if err != nil {
-		return fmt.Errorf("failed to update student hours: %v", err)
-	}
+	// 4. คำนวณชั่วโมงที่จะลบ (ไม่อัพเดท softSkill/hardSkill โดยตรงอีกต่อไป - ใช้ hour history เป็นแหล่งข้อมูลหลัก)
+	hoursToRemove := course.Hour
 
 	// Log remarks
 	fmt.Printf("▶️ Old Remark: %s\n", certificate.Remark)
@@ -1550,12 +1482,8 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 	maxTrainingHours := getMaxTrainingHours(skillType, student.Major)
 	hoursToAdd := calculateHoursToAdd(course.Hour, currentCertHours, maxTrainingHours, student.Code, skillType)
 
-	// apply student hours if not duplicate and hoursToAdd > 0
+	// Log hours information (ไม่อัพเดท softSkill/hardSkill โดยตรงอีกต่อไป - ใช้ hour history เป็นแหล่งข้อมูลหลัก)
 	if !upload.IsDuplicate && course.IsActive {
-		if err := updateStudentHours(ctx, upload.StudentId, skillType, hoursToAdd); err != nil {
-			return err
-		}
-
 		if hoursToAdd > 0 {
 			fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s (max: %d, current: %d)\n",
 				hoursToAdd, skillType, student.Code, upload.ID.Hex(), maxTrainingHours, currentCertHours+hoursToAdd)

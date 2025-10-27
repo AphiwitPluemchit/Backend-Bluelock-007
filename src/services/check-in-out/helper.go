@@ -43,11 +43,7 @@ func processStudentHours(
 	// 3) ใช้ข้อมูลจาก Enrollment และ participation ต่อวัน แทนการอ่าน CheckinCollection ตรงๆ
 	var enrollment models.Enrollment
 	if err := DB.EnrollmentCollection.FindOne(ctx, bson.M{"_id": enrollmentID}).Decode(&enrollment); err != nil {
-		// ถ้า enrollment ไม่พบ ให้ถือว่าไม่มีการเข้าร่วม
-		if err := removeStudentHours(ctx, studentID, *programItem.Hour, skillType); err != nil {
-			return nil, err
-		}
-
+		// ถ้า enrollment ไม่พบ ให้บันทึกประวัติเท่านั้น (ไม่อัพเดท softSkill/hardSkill โดยตรง)
 		// บันทึกประวัติ - ใช้ชื่อ program เป็น title
 		remark := "ไม่พบ Enrollment สำหรับการคำนวณชั่วโมง"
 		_ = hourhistory.SaveHourHistory(
@@ -118,20 +114,14 @@ func processStudentHours(
 		// ถ้าไม่ตรงเวลา ไม่เพิ่มชั่วโมง (0)
 	}
 
-	// 6) Apply hours and save history
+	// 6) บันทึกประวัติชั่วโมง (ไม่อัพเดท softSkill/hardSkill โดยตรงอีกต่อไป - ใช้ hour history เป็นแหล่งข้อมูลหลัก)
 	remark := ""
 
 	switch {
 	case totalHoursToAdd > 0:
-		if err := addStudentHours(ctx, studentID, totalHoursToAdd, skillType); err != nil {
-			return nil, err
-		}
 		remark = "เช็คอิน/เช็คเอาท์เข้าเกณฑ์ - เพิ่มชั่วโมง"
 
 	case totalHoursToAdd < 0:
-		if err := removeStudentHours(ctx, studentID, -totalHoursToAdd, skillType); err != nil {
-			return nil, err
-		}
 		remark = "เช็คอิน/เช็คเอาท์ไม่เข้าเกณฑ์ - ลบชั่วโมง"
 
 	default:
@@ -196,87 +186,7 @@ func parseTime(date, timeStr string) (time.Time, error) {
 	return time.ParseInLocation("2006-01-02 15:04", date+" "+timeStr, loc)
 }
 
-// addStudentHours adds hours to student's skill count based on program skill type
-func addStudentHours(ctx context.Context, studentID primitive.ObjectID, hours int, skillType string) error {
-	// ดึงข้อมูลนักเรียน
-	var student models.Student
-	err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student)
-	if err != nil {
-		return fmt.Errorf("student not found: %v", err)
-	}
-
-	// อัพเดทชั่วโมงตาม skill type
-	var update bson.M
-	switch skillType {
-	case "soft":
-		update = bson.M{
-			"$inc": bson.M{
-				"softSkill": hours,
-			},
-		}
-	case "hard":
-		update = bson.M{
-			"$inc": bson.M{
-				"hardSkill": hours,
-			},
-		}
-	default:
-		return fmt.Errorf("invalid skill type: %s", skillType)
-	}
-
-	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": studentID}, update)
-	if err != nil {
-		return fmt.Errorf("ไม่สามารถอัปเดตชั่วโมงเรียนของนักศึกษาได้: %v", err)
-	}
-
-	return nil
-}
-
-// removeStudentHours removes hours from student's skill count based on program skill type
-func removeStudentHours(ctx context.Context, studentID primitive.ObjectID, hours int, skillType string) error {
-	// ดึงข้อมูลนักเรียน
-	var student models.Student
-	err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student)
-	if err != nil {
-		return fmt.Errorf("student not found: %v", err)
-	}
-
-	// อัพเดทชั่วโมงตาม skill type
-	var update bson.M
-	switch skillType {
-	case "soft":
-		// คำนวณชั่วโมงที่จะลบ (ไม่ให้ติดลบ)
-		softSkillToRemove := hours
-		if student.SoftSkill < hours {
-			softSkillToRemove = student.SoftSkill
-		}
-		update = bson.M{
-			"$inc": bson.M{
-				"softSkill": -softSkillToRemove,
-			},
-		}
-	case "hard":
-		// คำนวณชั่วโมงที่จะลบ (ไม่ให้ติดลบ)
-		hardSkillToRemove := hours
-		if student.HardSkill < hours {
-			hardSkillToRemove = student.HardSkill
-		}
-		update = bson.M{
-			"$inc": bson.M{
-				"hardSkill": -hardSkillToRemove,
-			},
-		}
-	default:
-		return fmt.Errorf("invalid skill type: %s", skillType)
-	}
-
-	_, err = DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": studentID}, update)
-	if err != nil {
-		return fmt.Errorf("ไม่สามารถอัปเดตชั่วโมงเรียนของนักศึกษาได้: %v", err)
-	}
-
-	return nil
-}
+// addStudentHours และ removeStudentHours ถูกลบออก - ใช้ hour history เป็นแหล่งข้อมูลหลักแทน
 
 const (
 	ChangeTypeAdd      = "add"
