@@ -693,22 +693,22 @@ func GetStudentHoursSummary(ctx context.Context, studentID primitive.ObjectID) (
 // Student Status Management
 // ========================================
 
-// UpdateStudentStatus - คำนวณและอัปเดตสถานะของนักศึกษาตามชั่วโมงสุทธิที่ได้รับจาก HourChangeHistory
+// UpdateStudentStatus - คำนวณและอัปเดตสถานะของนักศึกษาตามชั่วโมงจาก HourChangeHistory
 // Exported เพื่อให้ packages อื่น (certificates, students) เรียกใช้ได้
 func UpdateStudentStatus(ctx context.Context, studentID primitive.ObjectID) error {
-	// 1) ดึงข้อมูล student (ฐานชั่วโมง)
+	// 1) ดึงข้อมูล student
 	var student models.Student
 	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		return fmt.Errorf("student not found: %v", err)
 	}
 
-	// 2) คำนวณชั่วโมงสุทธิจาก HourChangeHistory
-	softNet, hardNet, err := CalculateNetHours(ctx, studentID, student.SoftSkill, student.HardSkill)
+	// 2) คำนวณชั่วโมงจาก HourChangeHistory เท่านั้น
+	softNet, hardNet, err := CalculateNetHours(ctx, studentID, 0, 0)
 	if err != nil {
 		return err
 	}
 
-	// 3) คำนวณสถานะใหม่จาก "สุทธิ"
+	// 3) คำนวณสถานะใหม่
 	newStatus := CalculateStatus(softNet, hardNet)
 
 	// 4) อัปเดตสถานะ (ถ้าเปลี่ยนแปลง)
@@ -718,8 +718,8 @@ func UpdateStudentStatus(ctx context.Context, studentID primitive.ObjectID) erro
 			return fmt.Errorf("failed to update student status: %v", err)
 		}
 
-		log.Printf("✅ [UpdateStudentStatus] %s (%s) base(soft=%d,hard=%d) => net(soft=%d,hard=%d) => status: %d -> %d",
-			student.ID.Hex(), student.Name, student.SoftSkill, student.HardSkill, softNet, hardNet, student.Status, newStatus)
+		log.Printf("✅ [UpdateStudentStatus] %s (%s) hours(soft=%d,hard=%d) => status: %d -> %d",
+			student.ID.Hex(), student.Name, softNet, hardNet, student.Status, newStatus)
 	} else {
 		log.Printf("ℹ️ [UpdateStudentStatus] %s (%s) status unchanged (status=%d, soft=%d, hard=%d)",
 			student.ID.Hex(), student.Name, newStatus, softNet, hardNet)
@@ -733,7 +733,8 @@ func updateStudentStatus(ctx context.Context, studentID primitive.ObjectID) erro
 	return UpdateStudentStatus(ctx, studentID)
 }
 
-// CalculateNetHours - คำนวณชั่วโมงสุทธิจาก base hours + hour history delta
+// CalculateNetHours - คำนวณชั่วโมงจาก hour history เท่านั้น (ไม่ใช้ base hours)
+// baseSoft และ baseHard parameters ยังคงไว้เพื่อ backward compatibility แต่จะไม่ถูกใช้งาน
 // Exported เพื่อให้ packages อื่นเรียกใช้ได้
 func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSoft, baseHard int) (softNet, hardNet int, err error) {
 	pipeline := []bson.M{
@@ -786,9 +787,9 @@ func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSo
 		return 0, 0, fmt.Errorf("aggregate decode error: %v", aggErr)
 	}
 
-	// บวกผลรวมสุทธิกับฐานชั่วโมงใน student
-	softNet = baseSoft
-	hardNet = baseHard
+	// คำนวณจาก hour history เท่านั้น (ไม่ใช้ base hours)
+	softNet = 0
+	hardNet = 0
 	for _, r := range aggRows {
 		switch strings.ToLower(r.ID) {
 		case "soft":

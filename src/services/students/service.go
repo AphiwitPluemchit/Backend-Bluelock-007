@@ -166,7 +166,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 		},
 	}}})
 
-	// 📌 Project: บวกฐาน + delta, แก้ email index → 0
+	// 📌 Project: ใช้เฉพาะ delta จาก hour history (ไม่บวกกับ base hours จาก student)
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
 		"_id":     0,
 		"id":      "$_id",
@@ -176,14 +176,8 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 		"status":  1,
 		"major":   1,
 		"email":   bson.M{"$arrayElemAt": bson.A{"$user.email", 0}},
-		"softSkill": bson.M{"$add": bson.A{
-			bson.M{"$ifNull": bson.A{"$softSkill", 0}},
-			bson.M{"$ifNull": bson.A{"$softDelta", 0}},
-		}},
-		"hardSkill": bson.M{"$add": bson.A{
-			bson.M{"$ifNull": bson.A{"$hardSkill", 0}},
-			bson.M{"$ifNull": bson.A{"$hardDelta", 0}},
-		}},
+		"softSkill": bson.M{"$ifNull": bson.A{"$softDelta", 0}},
+		"hardSkill": bson.M{"$ifNull": bson.A{"$hardDelta", 0}},
 	}}})
 
 	// 🔁 Sort / Skip / Limit
@@ -594,8 +588,8 @@ func GetStudentWithCalculatedHours(ctx context.Context, studentID primitive.Obje
 		email = user.Email
 	}
 
-	// 3) คำนวณชั่วโมงสุทธิจาก hour history
-	softSkillHours, hardSkillHours, err := hourhistory.CalculateNetHours(ctx, studentID, student.SoftSkill, student.HardSkill)
+	// 3) คำนวณชั่วโมงจาก hour history เท่านั้น (ไม่ใช้ base hours จาก student collection)
+	softSkillHours, hardSkillHours, err := hourhistory.CalculateNetHours(ctx, studentID, 0, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate net hours: %v", err)
 	}
@@ -784,8 +778,9 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 
 	for _, s := range students {
 		d := deltaMap[s.ID]
-		netSoft := int64(s.SoftSkill) + d.soft
-		netHard := int64(s.HardSkill) + d.hard
+		// คำนวณจาก hour history เท่านั้น (ไม่ใช้ base hours จาก student)
+		netSoft := d.soft
+		netHard := d.hard
 
 		if netSoft >= int64(softSkillTarget) {
 			softCompleted++
