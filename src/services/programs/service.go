@@ -4,6 +4,8 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	hourhistory "Backend-Bluelock-007/src/services/hour-history"
+	"Backend-Bluelock-007/src/services/programs/email"
+	"strings"
 
 	// "Backend-Bluelock-007/src/services/programs/email"
 	"Backend-Bluelock-007/src/services/summary_reports"
@@ -663,11 +665,6 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 		return nil, err
 	}
 	email.ScheduleReminderJobs(updated)
-
-	err = updateSummaryReportsForProgramChanges(id, &oldProgram, &program)
-	if err != nil {
-		log.Printf("⚠️ Warning: Failed to update summary reports for program changes: %v", err)
-	}
 
 	// ✅ ดึงข้อมูล Program ที่เพิ่งสร้างเสร็จกลับมาให้ Response ✅
 	return GetProgramByID(id.Hex())

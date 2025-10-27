@@ -2,9 +2,12 @@ package email
 
 import (
 	// "crypto/tls"
-	gomail "gopkg.in/gomail.v2"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
+
+	gomail "gopkg.in/gomail.v2"
 )
 
 type MailSender interface {
