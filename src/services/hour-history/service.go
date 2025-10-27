@@ -55,6 +55,7 @@ func CreateHourChangeHistory(
 	ctx context.Context,
 	studentID primitive.ObjectID,
 	enrollmentID *primitive.ObjectID,
+	programItemID *primitive.ObjectID,
 	sourceType string,
 	sourceID primitive.ObjectID,
 	skillType string,
@@ -64,17 +65,18 @@ func CreateHourChangeHistory(
 	remark string,
 ) (*models.HourChangeHistory, error) {
 	history := models.HourChangeHistory{
-		ID:           primitive.NewObjectID(),
-		SourceType:   sourceType,
-		SourceID:     sourceID,
-		SkillType:    skillType,
-		Status:       status,
-		HourChange:   hourChange,
-		Remark:       remark,
-		ChangeAt:     time.Now(),
-		Title:        title,
-		StudentID:    studentID,
-		EnrollmentID: enrollmentID,
+		ID:            primitive.NewObjectID(),
+		SourceType:    sourceType,
+		SourceID:      sourceID,
+		SkillType:     skillType,
+		Status:        status,
+		HourChange:    hourChange,
+		Remark:        remark,
+		ChangeAt:      time.Now(),
+		Title:         title,
+		StudentID:     studentID,
+		EnrollmentID:  enrollmentID,
+		ProgramItemID: programItemID,
 	}
 
 	_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history)
@@ -95,6 +97,7 @@ func RecordEnrollmentHourChange(
 	ctx context.Context,
 	studentID primitive.ObjectID,
 	enrollmentID primitive.ObjectID,
+	programItemID primitive.ObjectID,
 	programID primitive.ObjectID,
 	programName string,
 	skillType string,
@@ -105,6 +108,7 @@ func RecordEnrollmentHourChange(
 		ctx,
 		studentID,
 		&enrollmentID,
+		&programItemID,
 		"program",
 		programID,
 		skillType,
@@ -674,6 +678,66 @@ func GetHistoryWithFilters(
 	var histories []models.HourChangeHistory
 	if err := cursor.All(ctx, &histories); err != nil {
 		return nil, 0, fmt.Errorf("ไม่สามารถถอดรหัสประวัติการเปลี่ยนแปลงชั่วโมงได้: %v", err)
+	}
+
+	return histories, totalCount, nil
+}
+
+// PopulateHistoryDetails ดึงข้อมูล Program, ProgramItem, และ Certificate มา populate ใน histories
+func PopulateHistoryDetails(ctx context.Context, histories []models.HourChangeHistory) error {
+	for i := range histories {
+		history := &histories[i]
+
+		// Populate ตาม sourceType
+		if history.SourceType == "program" {
+			// ดึง Program
+			var program models.Program
+			err := DB.ProgramCollection.FindOne(ctx, bson.M{"_id": history.SourceID}).Decode(&program)
+			if err == nil {
+				history.Program = &program
+			}
+
+			// ดึง ProgramItem (ถ้ามี programItemId)
+			if history.ProgramItemID != nil {
+				var programItem models.ProgramItem
+				err := DB.ProgramItemCollection.FindOne(ctx, bson.M{"_id": *history.ProgramItemID}).Decode(&programItem)
+				if err == nil {
+					history.ProgramItem = &programItem
+				}
+			}
+		} else if history.SourceType == "certificate" {
+			// ดึง Certificate
+			var certificate models.UploadCertificate
+			err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": history.SourceID}).Decode(&certificate)
+			if err == nil {
+				history.Certificate = &certificate
+			}
+		}
+	}
+
+	return nil
+}
+
+// GetHistoryWithDetailsAndFilters ดึงประวัติการเปลี่ยนแปลงชั่วโมงพร้อม populate objects
+func GetHistoryWithDetailsAndFilters(
+	ctx context.Context,
+	studentID *primitive.ObjectID,
+	sourceType string,
+	statuses []string,
+	searchTitle string,
+	limit int,
+	skip int,
+) ([]models.HourChangeHistory, int64, error) {
+	// ใช้ GetHistoryWithFilters เดิม
+	histories, totalCount, err := GetHistoryWithFilters(ctx, studentID, sourceType, statuses, searchTitle, limit, skip)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Populate details
+	if err := PopulateHistoryDetails(ctx, histories); err != nil {
+		log.Printf("Warning: failed to populate history details: %v", err)
+		// ไม่ return error เพราะข้อมูลหลักยังใช้ได้
 	}
 
 	return histories, totalCount, nil
