@@ -1,10 +1,13 @@
-package programs
+package email
 
 import (
-	"crypto/tls"
-	gomail "gopkg.in/gomail.v2"
+	// "crypto/tls"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
+
+	gomail "gopkg.in/gomail.v2"
 )
 
 type MailSender interface {
@@ -19,16 +22,27 @@ type SMTPSender struct {
 	From string
 }
 
+// mail_sender.go
 func NewSMTPSenderFromEnv() (*SMTPSender, error) {
-	port, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
-	return &SMTPSender{
-		Host: os.Getenv("SMTP_HOST"),
-		Port: port,
-		User: os.Getenv("SMTP_USER"),
-		Pass: os.Getenv("SMTP_PASS"),
-		From: os.Getenv("SMTP_FROM"),
-	}, nil
+    host := os.Getenv("SMTP_HOST")
+    port, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
+    user := os.Getenv("SMTP_USER")
+    pass := os.Getenv("SMTP_PASS")
+    from := os.Getenv("SMTP_FROM")
+
+    missing := []string{}
+    if host == "" { missing = append(missing, "SMTP_HOST") }
+    if port == 0  { missing = append(missing, "SMTP_PORT") }
+    if user == "" { missing = append(missing, "SMTP_USER") }
+    if pass == "" { missing = append(missing, "SMTP_PASS") }
+    if from == "" { missing = append(missing, "SMTP_FROM") }
+
+    if len(missing) > 0 {
+        return nil, fmt.Errorf("missing SMTP env: %v", strings.Join(missing, ", "))
+    }
+    return &SMTPSender{Host: host, Port: port, User: user, Pass: pass, From: from}, nil
 }
+
 
 func (s *SMTPSender) Send(to, subject, html string) error {
 	m := gomail.NewMessage()
@@ -39,10 +53,10 @@ func (s *SMTPSender) Send(to, subject, html string) error {
 
 	d := gomail.NewDialer(s.Host, s.Port, s.User, s.Pass)
 
-	d.TLSConfig = &tls.Config{
-		ServerName: s.Host,
-		MinVersion: tls.VersionTLS12,
-	}
+	// d.TLSConfig = &tls.Config{
+	// 	ServerName: s.Host,
+	// 	MinVersion: tls.VersionTLS12,
+	// }
 
 	return d.DialAndSend(m)
 }

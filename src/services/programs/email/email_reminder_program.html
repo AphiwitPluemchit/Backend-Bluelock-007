@@ -1,0 +1,18 @@
+<div style="font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;line-height:1.6">
+  <h2>แจ้งเตือนกิจกรรมใกล้เริ่ม: {{.ProgramName}}</h2>
+  <p>เรียน {{.StudentName}} ({{.Major}})</p>
+
+  <p>กิจกรรมที่คุณลงทะเบียนไว้กำลังจะเริ่มในอีก 3 วัน</p>
+
+  <p><b>กำหนดการคาบแรก</b><br/>
+    • {{.FirstDate}} {{.FirstStime}}–{{.FirstEtime}}<br/>
+    <small>หากมีหลายคาบ โปรดตรวจสอบรายละเอียดทั้งหมดในหน้ากิจกรรม</small>
+  </p>
+
+  <p>
+    <a href="{{.DetailLink}}" target="_blank">ดูรายละเอียด / ตรวจสอบข้อมูลกิจกรรม</a>
+  </p>
+
+  <hr/>
+  <small>อีเมลนี้ส่งอัตโนมัติจากระบบกิจกรรมนิสิต</small>
+</div>
