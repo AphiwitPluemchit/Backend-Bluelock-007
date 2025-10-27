@@ -231,7 +231,11 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 	for i, item := range programItems {
 		programItemIds[i] = item.ID
 		// DEBUG: แสดงข้อมูลดิบของ programItem
-		fmt.Printf("DEBUG: ProgramItem[%d] ID=%s, Name=%s\n", i, item.ID.Hex(), item.Name)
+		nameStr := "nil"
+		if item.Name != nil {
+			nameStr = *item.Name
+		}
+		fmt.Printf("DEBUG: ProgramItem[%d] ID=%s, Name=%s\n", i, item.ID.Hex(), nameStr)
 		for j, d := range item.Dates {
 			fmt.Printf("  - Date[%d]: date=%s, stime=%s, etime=%s\n", j, d.Date, d.Stime, d.Etime)
 		}
