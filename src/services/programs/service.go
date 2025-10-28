@@ -631,16 +631,27 @@ func UpdateProgram(id primitive.ObjectID, program models.ProgramDto) (*models.Pr
 			DeleteTask("close-enroll-"+programIDHex, programIDHex, DB.RedisURI)
 			log.Println("✅ Removed scheduled jobs due to manual state change for program:", programIDHex)
 		} else if stateChanged && oldProgram.ProgramState == "close" && program.ProgramState == "success" {
-			// Case 3: Program was "close" and is now "success" (completed)
 			programIDHex := id.Hex()
 			DeleteTask("complete-program-"+programIDHex, programIDHex, DB.RedisURI)
 			log.Println("✅ Ensured no scheduled jobs for success program:", programIDHex)
-			// update student enrollment hours history
+
 			if err := hourhistory.ProcessEnrollmentsForCompletedProgram(ctx, id); err != nil {
 				log.Printf("⚠️ Warning: failed to process enrollments for program %s: %v", id.Hex(), err)
-				// don't return error - admin manual completion should succeed even if hour processing fails
+				// allow continue
 			}
+
+			// ✅ ส่งอีเมลแบบที่ 3: Completed
+			progName := ""
+			if program.Name != nil {
+				progName = *program.Name
+			}
+			email.NotifyStudentsOnCompleted(
+				programIDHex,
+				progName,
+				GetProgramByID,
+			)
 		}
+
 	}
 
 	newState := strings.ToLower(program.ProgramState)

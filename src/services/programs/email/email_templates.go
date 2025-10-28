@@ -74,3 +74,34 @@ func RenderReminderEmailHTML(data ReminderEmailData) (string, error) {
 	}
 	return buf.String(), nil
 }
+
+// --- Completed Email ---
+
+type CompletedItem struct {
+	Name string
+	Hour int
+}
+
+type CompletedEmailData struct {
+	StudentName string
+	Major       string
+	ProgramName string
+	TotalHours  int
+	Items       []CompletedItem
+	DetailLink  string
+}
+
+//go:embed email_completed_program.html
+var completedEmailHTML string
+
+func RenderCompletedEmailHTML(data CompletedEmailData) (string, error) {
+	tmpl, err := template.New("completed").Parse(completedEmailHTML)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}

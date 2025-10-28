@@ -59,7 +59,7 @@ func ScheduleReminderJobs(prog *models.ProgramDto) {
 	}
 }
 
-// reminder_scheduler.go
+// 🕒 คำนวณเวลาแจ้งเตือนก่อน 3 วัน "เวลาเดียวกัน"
 func computeReminderTime(dateStr, stime string) (time.Time, error) {
     if stime == "" { stime = "00:00" }
     loc, _ := time.LoadLocation("Asia/Bangkok")
