@@ -62,7 +62,7 @@ func CreateQRToken(programId string, qrType string) (string, int64, error) {
 		return "", 0, err
 	}
 	now := time.Now().Unix()
-	expiresAt := now + 30 // 30 วินาที
+	expiresAt := now + 10 // 30 วินาที
 	qrToken := models.QRToken{
 		Token:     token,
 		ProgramID: programObjID,

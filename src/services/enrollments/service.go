@@ -515,6 +515,7 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 	newEnrollment := models.Enrollment{
 		ID:               primitive.NewObjectID(),
 		StudentID:        studentID,
+		ProgramID:        programItem.ProgramID,
 		ProgramItemID:    programItemID,
 		RegistrationDate: time.Now(),
 		Food:             food,
