@@ -458,3 +458,63 @@ func generatePassword(code, engName string) string {
 //     "notCompleted": 54,
 //     "progress": 72
 // }}
+
+// GetStudentLegacyHours godoc
+// @Summary Get student legacy hours details
+// @Description Get legacy hours from legacy_import source and total hours calculated from all sources
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param code path string true "Student code"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Router /students/{code}/legacy-hours [get]
+func GetStudentLegacyHours(c *fiber.Ctx) error {
+	code := c.Params("code")
+	if code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Student code is required"})
+	}
+
+	data, err := students.GetStudentLegacyHours(code)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(data)
+}
+
+// UpdateStudentLegacyHours godoc
+// @Summary Update student legacy hours
+// @Description Update legacy hours by updating hour history records with sourceType = 'legacy_import'
+// @Tags students
+// @Accept json
+// @Produce json
+// @Param code path string true "Student code"
+// @Param hours body map[string]int true "Legacy hours to update"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Router /students/{code}/legacy-hours [put]
+func UpdateStudentLegacyHours(c *fiber.Ctx) error {
+	code := c.Params("code")
+	if code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Student code is required"})
+	}
+
+	var req struct {
+		SoftSkill int `json:"softSkill"`
+		HardSkill int `json:"hardSkill"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input format"})
+	}
+
+	err := students.UpdateStudentLegacyHours(code, req.SoftSkill, req.HardSkill)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"message": "Legacy hours updated successfully"})
+}

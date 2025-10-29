@@ -1019,3 +1019,137 @@ func UpdateStudentStatus(id string) error {
 	return hourhistory.UpdateStudentStatus(ctx, objID)
 }
 
+// GetStudentLegacyHours - ดึงข้อมูล legacy hours และ total hours แยกกัน
+func GetStudentLegacyHours(code string) (bson.M, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1) ดึงข้อมูล student
+	var student models.Student
+	if err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student); err != nil {
+		return nil, errors.New("student not found")
+	}
+
+	// 2) ดึงอีเมลจาก Users collection
+	var user models.User
+	email := ""
+	if err := DB.UserCollection.FindOne(ctx, bson.M{"refId": student.ID}).Decode(&user); err == nil {
+		email = user.Email
+	}
+
+	// 3) ดึง legacy hours จาก hour history ที่มี sourceType = "legacy_import"
+	legacySoftHours, legacyHardHours, err := getLegacyHoursFromHistory(ctx, student.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get legacy hours: %v", err)
+	}
+
+	// 4) คำนวณ total hours จาก hour history ทั้งหมด
+	totalSoftHours, totalHardHours, err := hourhistory.CalculateNetHours(ctx, student.ID, 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate total hours: %v", err)
+	}
+
+	// 5) ส่งกลับข้อมูลที่แยกกัน
+	return bson.M{
+		"id":          student.ID.Hex(),
+		"studentId":   student.ID.Hex(),
+		"code":        student.Code,
+		"name":        student.Name,
+		"major":       student.Major,
+		"email":       email,
+		"status":      student.Status,
+		"legacyHours": bson.M{
+			"softSkill": legacySoftHours,
+			"hardSkill": legacyHardHours,
+		},
+		"totalHours": bson.M{
+			"softSkill": totalSoftHours,
+			"hardSkill": totalHardHours,
+		},
+	}, nil
+}
+
+// getLegacyHoursFromHistory - helper function ดึงชั่วโมงจาก legacy import เท่านั้น
+func getLegacyHoursFromHistory(ctx context.Context, studentID primitive.ObjectID) (int, int, error) {
+	pipeline := mongo.Pipeline{
+		// match เฉพาะ legacy import
+		{{Key: "$match", Value: bson.M{
+			"studentId":  studentID,
+			"sourceType": "legacy_import",
+			"status":     models.HCStatusApproved,
+		}}},
+		// คำนวณ deltaHours
+		{{Key: "$addFields", Value: bson.M{
+			"deltaHours": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
+		}}},
+		// group ตาม skillType
+		{{Key: "$group", Value: bson.M{
+			"_id":        "$skillType",
+			"totalHours": bson.M{"$sum": "$deltaHours"},
+		}}},
+	}
+
+	cursor, err := DB.HourChangeHistoryCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var softHours, hardHours int
+	for cursor.Next(ctx) {
+		var result struct {
+			ID         string `bson:"_id"`
+			TotalHours int    `bson:"totalHours"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			continue
+		}
+		switch result.ID {
+		case "soft":
+			softHours = result.TotalHours
+		case "hard":
+			hardHours = result.TotalHours
+		}
+	}
+
+	return softHours, hardHours, nil
+}
+
+// UpdateStudentLegacyHours - อัปเดต legacy hours โดยการ update hour history ที่มี sourceType = "legacy_import"
+func UpdateStudentLegacyHours(code string, legacySoftSkill, legacyHardSkill int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// 1) ดึงข้อมูล student
+	var student models.Student
+	if err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student); err != nil {
+		return errors.New("student not found")
+	}
+
+	// 2) ลบ hour history เก่าที่มา sourceType = "legacy_import"
+	_, err := DB.HourChangeHistoryCollection.DeleteMany(ctx, bson.M{
+		"studentId":  student.ID,
+		"sourceType": "legacy_import",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete old legacy hour history: %v", err)
+	}
+
+	// 3) สร้าง hour history ใหม่สำหรับ soft skill
+	if err := createLegacyHourHistory(ctx, student.ID, "soft", legacySoftSkill); err != nil {
+		return fmt.Errorf("failed to create soft skill legacy hour history: %v", err)
+	}
+
+	// 4) สร้าง hour history ใหม่สำหรับ hard skill
+	if err := createLegacyHourHistory(ctx, student.ID, "hard", legacyHardSkill); err != nil {
+		return fmt.Errorf("failed to create hard skill legacy hour history: %v", err)
+	}
+
+	// 5) อัปเดตสถานะนักศึกษาตามชั่วโมงใหม่
+	if err := hourhistory.UpdateStudentStatus(ctx, student.ID); err != nil {
+		log.Printf("Warning: Failed to update student status after legacy hours update: %v", err)
+	}
+
+	return nil
+}
+
