@@ -12,18 +12,16 @@ import (
 )
 
 // CreateStudent godoc
-// @Summary Create students
-// @Description Create one or more students
+// @Summary Create or update students
+// @Description Create new students or update existing ones with hour history for legacy hours
 // @Tags students
 // @Accept json
 // @Produce json
-// @Param students body []models.Student true "List of students to create"
+// @Param students body []models.Student true "List of students to create or update"
 // @Success 201 {object} map[string]interface{}
 // @Failure 400 {object} map[string]interface{}
 // @Failure 409 {object} map[string]interface{}
 // @Router /students [post]
-// ✅ CreateStudent - เพิ่ม Student หลายคน
-// ✅ CreateStudent - เพิ่ม Student หลายคน (แบบ validate ทั้งก้อนก่อน)
 func CreateStudent(c *fiber.Ctx) error {
 	var req []struct {
 		Name      string `json:"name"`
@@ -68,29 +66,25 @@ func CreateStudent(c *fiber.Ctx) error {
 		}
 	}
 
-	// ---------- ตรวจซ้ำใน DB ----------
-	existCodes, err := students.FindExistingCodes(codes)
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to check duplicates"})
-	}
-
-	// ถ้ามีซ้ำ (ใน payload หรือใน DB) หรือมี invalid → ไม่บันทึกใครเลย
-	if len(payloadDup) > 0 || len(existCodes) > 0 || len(invalid) > 0 {
+	// ถ้ามี invalid หรือซ้ำใน payload → ไม่บันทึกใครเลย
+	if len(payloadDup) > 0 || len(invalid) > 0 {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{
 			"error":              "Duplicate or invalid codes found",
 			"duplicateInPayload": payloadDup,
-			"duplicateInDB":      existCodes,
 			"invalid":            invalid,
 		})
 	}
 
-	// ---------- เริ่มบันทึก (ผ่าน service ทีละคน หรือใช้ Transaction ก็ได้) ----------
+	// ---------- เริ่มบันทึก (รองรับทั้ง create และ update) ----------
 	var failed []string
+	var created []string
+	var updated []string
+
 	for _, s := range req {
 		stu := models.Student{
 			Code:      s.Code,
 			Name:      s.Name,
-			EngName:   cleanName(s.EngName), // ✅ ใช้ EngName ที่มาจากฟอร์ม ไม่ใช่ Name
+			EngName:   cleanName(s.EngName),
 			Status:    calculateStatus(s.SoftSkill, s.HardSkill),
 			SoftSkill: s.SoftSkill,
 			HardSkill: s.HardSkill,
@@ -100,21 +94,34 @@ func CreateStudent(c *fiber.Ctx) error {
 			Email:    strings.ToLower(s.Code + "@go.buu.ac.th"),
 			Password: s.Code + "ABC",
 		}
-		if err := students.CreateStudent(&usr, &stu); err != nil {
-			log.Println("❌ Failed to create student:", s.Code, err)
+
+		// เรียกใช้ service ที่รองรับ upsert
+		isNew, err := students.CreateOrUpdateStudent(&usr, &stu, s.SoftSkill, s.HardSkill)
+		if err != nil {
+			log.Println("❌ Failed to create/update student:", s.Code, err)
 			failed = append(failed, s.Code)
+		} else {
+			if isNew {
+				created = append(created, s.Code)
+			} else {
+				updated = append(updated, s.Code)
+			}
 		}
 	}
 
 	if len(failed) > 0 {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{
-			"error":  "Failed to create some students",
-			"failed": failed,
+			"error":   "Failed to process some students",
+			"failed":  failed,
+			"created": created,
+			"updated": updated,
 		})
 	}
 
 	return c.Status(http.StatusCreated).JSON(fiber.Map{
-		"message": "Students created successfully",
+		"message": "Students processed successfully",
+		"created": created,
+		"updated": updated,
 	})
 }
 

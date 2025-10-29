@@ -385,6 +385,161 @@ func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	return nil
 }
 
+// ✅ CreateOrUpdateStudent - สร้างหรืออัปเดต Student พร้อมจัดการ hour history สำหรับชั่วโมงจากระบบเก่า
+func CreateOrUpdateStudent(userInput *models.User, studentInput *models.Student, legacySoftSkill, legacyHardSkill int) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// ตรวจสอบว่า student มีอยู่แล้วหรือไม่
+	var existingStudent models.Student
+	err := DB.StudentCollection.FindOne(ctx, bson.M{"code": studentInput.Code}).Decode(&existingStudent)
+	
+	if err == mongo.ErrNoDocuments {
+		// Student ไม่มีอยู่ - สร้างใหม่
+		if err := createNewStudentWithHourHistory(ctx, userInput, studentInput, legacySoftSkill, legacyHardSkill); err != nil {
+			return false, err
+		}
+		return true, nil // isNew = true
+	} else if err != nil {
+		return false, fmt.Errorf("error checking student existence: %v", err)
+	}
+
+	// Student มีอยู่แล้ว - อัปเดต
+	if err := updateExistingStudentWithHourHistory(ctx, existingStudent.ID, userInput, studentInput, legacySoftSkill, legacyHardSkill); err != nil {
+		return false, err
+	}
+	return false, nil // isNew = false
+}
+
+// helper function สำหรับสร้าง student ใหม่พร้อม hour history
+func createNewStudentWithHourHistory(ctx context.Context, userInput *models.User, studentInput *models.Student, legacySoftSkill, legacyHardSkill int) error {
+	// เข้ารหัสรหัสผ่าน
+	hashedPassword, err := hashPassword(userInput.Password)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %v", err)
+	}
+	userInput.Password = hashedPassword
+
+	// สร้าง student
+	studentInput.ID = primitive.NewObjectID()
+	// ไม่ใช้ soft/hard skill จาก studentInput แต่จะเก็บเป็น 0 เพราะจะใช้ hour history แทน
+	studentInput.SoftSkill = 0
+	studentInput.HardSkill = 0
+	
+	_, err = DB.StudentCollection.InsertOne(ctx, studentInput)
+	if err != nil {
+		return fmt.Errorf("failed to create student: %v", err)
+	}
+
+	// สร้าง user
+	userInput.ID = primitive.NewObjectID()
+	userInput.Role = "Student"
+	userInput.RefID = studentInput.ID
+	userInput.Email = strings.ToLower(strings.TrimSpace(userInput.Email))
+	userInput.IsActive = true
+
+	_, err = DB.UserCollection.InsertOne(ctx, userInput)
+	if err != nil {
+		// rollback student
+		DB.StudentCollection.DeleteOne(ctx, bson.M{"_id": studentInput.ID})
+		return fmt.Errorf("failed to create user: %v", err)
+	}
+
+	// สร้าง hour history สำหรับ soft skill (เสมอ แม้จะเป็น 0)
+	if err := createLegacyHourHistory(ctx, studentInput.ID, "soft", legacySoftSkill); err != nil {
+		log.Printf("Warning: Failed to create soft skill hour history for student %s: %v", studentInput.Code, err)
+	}
+
+	// สร้าง hour history สำหรับ hard skill (เสมอ แม้จะเป็น 0)
+	if err := createLegacyHourHistory(ctx, studentInput.ID, "hard", legacyHardSkill); err != nil {
+		log.Printf("Warning: Failed to create hard skill hour history for student %s: %v", studentInput.Code, err)
+	}
+
+
+
+
+
+
+
+
+
+ // ใช้ student ID เป็ source ID
+
+
+	return nil
+}
+
+// createLegacyHourHistory - helper function สำหรับสร้าง hour history สำหรับ legacy import
+func createLegacyHourHistory(ctx context.Context, studentID primitive.ObjectID, skillType string, hours int) error {
+	skillTitle := "Soft Skill"
+	if skillType == "hard" {
+		skillTitle = "Hard Skill"
+	}
+	
+	history := models.HourChangeHistory{
+		ID:         primitive.NewObjectID(),
+		SkillType:  skillType,
+		Status:     models.HCStatusApproved,
+		HourChange: hours,
+		Remark:     "ชั่วโมงจากระบบเก่า",
+		ChangeAt:   time.Now(),
+		Title:      fmt.Sprintf("นำเข้าชั่วโมงจากระบบเก่า (%s)", skillTitle),
+		StudentID:  studentID,
+		SourceType: "legacy_import",
+		SourceID:   studentID,
+	}
+	
+	_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history)
+	return err
+}
+
+// helper function สำหรับอัปเดต student ที่มีอยู่แล้วพร้อม hour history
+func updateExistingStudentWithHourHistory(ctx context.Context, studentID primitive.ObjectID, userInput *models.User, studentInput *models.Student, legacySoftSkill, legacyHardSkill int) error {
+	// อัปเดตข้อมูล student
+	updateData := bson.M{
+		"name":    studentInput.Name,
+		"engName": studentInput.EngName,
+		"major":   studentInput.Major,
+		"status":  studentInput.Status,
+	}
+	
+	_, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": studentID}, bson.M{"$set": updateData})
+	if err != nil {
+		return fmt.Errorf("failed to update student: %v", err)
+	}
+
+	// อัปเดต user
+	_, err = DB.UserCollection.UpdateOne(ctx,
+		bson.M{"refId": studentID, "role": "Student"},
+		bson.M{"$set": bson.M{
+			"name":  studentInput.Name,
+			"email": userInput.Email,
+		}})
+	if err != nil {
+		log.Printf("Warning: Failed to update user for student %v: %v", studentID, err)
+	}
+
+	// ลบ hour history เก่าที่มา sourceType = "legacy_import"
+	_, err = DB.HourChangeHistoryCollection.DeleteMany(ctx, bson.M{
+		"studentId":  studentID,
+		"sourceType": "legacy_import",
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to delete old legacy hour history for student %v: %v", studentID, err)
+	}
+
+	// สร้าง hour history ใหม่โดยใช้ helper function
+	if err := createLegacyHourHistory(ctx, studentID, "soft", legacySoftSkill); err != nil {
+		log.Printf("Warning: Failed to create updated soft skill hour history for student %v: %v", studentID, err)
+	}
+	
+	if err := createLegacyHourHistory(ctx, studentID, "hard", legacyHardSkill); err != nil {
+		log.Printf("Warning: Failed to create updated hard skill hour history for student %v: %v", studentID, err)
+	}
+
+	return nil
+}
+
 // UpdateStudent - อัปเดตข้อมูล Student และ sync ไปยัง User
 func UpdateStudent(id string, student *models.Student, email string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
