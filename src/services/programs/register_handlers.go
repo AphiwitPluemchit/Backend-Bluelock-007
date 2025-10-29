@@ -42,7 +42,9 @@ func RegisterProgramHandlers(mux *asynq.ServeMux) error {
 			GetProgramByID,
 		),
 	)
-	// ✅ แจ้ง “กิจกรรมเสร็จสิ้น”
+
+	// ✅ แจ้ง “กิจกรรมเสร็จสิ้น” (completed → นักศึกษาที่ได้รับชั่วโมง)
+	// ให้ส่ง registerURL เข้าไปด้วย เพื่อแทรกลิงก์ดูรายละเอียดกิจกรรมในเมล
 	mux.HandleFunc(
 		emailpkg.TypeNotifyProgramCompleted,
 		emailpkg.HandleNotifyProgramCompleted(

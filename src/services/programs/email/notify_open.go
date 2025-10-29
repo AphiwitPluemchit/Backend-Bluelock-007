@@ -19,7 +19,21 @@ func NotifyStudentsOnOpen(
 	// มี Redis → เข้าคิว
 	if DB.AsynqClient != nil {
 		task, _ := NewNotifyOpenProgramTask(programID, programName)
-		if _, err := DB.AsynqClient.Enqueue(task, asynq.TaskID("notify-open-"+programID), asynq.MaxRetry(3)); err != nil {
+
+		// ✅ ใช้ taskID กลาง และลบของเดิมก่อนเสมอเพื่อกันชน
+		taskID := NotifyOpenTaskID(programID) // = "notify-open-"+programID
+		inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: DB.RedisURI})
+		if err := inspector.DeleteTask("default", taskID); err != nil && err != asynq.ErrTaskNotFound {
+			log.Printf("⚠️ Failed to delete old task %s, then skipping: %v", taskID, err)
+		} else if err == nil {
+			log.Printf("🗑️ Deleted previous task: %s", taskID)
+		}
+
+		if _, err := DB.AsynqClient.Enqueue(
+			task,
+			asynq.TaskID(taskID),
+			asynq.MaxRetry(3),
+		); err != nil {
 			log.Println("❌ enqueue notify-open task:", err)
 		} else {
 			log.Println("✅ Enqueued notify-open task:", programID)

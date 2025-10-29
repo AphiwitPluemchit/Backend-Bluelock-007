@@ -5,10 +5,12 @@ import (
 	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/routes"
+	"Backend-Bluelock-007/src/services/programs" // 👈 ผูก email handlers ที่นี่
 	"fmt"
 	"log"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -16,87 +18,95 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-// @title Bluelock API
-// @version 1.0
-// @description This is the API documentation for Bluelock project.
-// @host
-// @BasePath
-
 func main() {
-
-	// get url from .env
-	appURI := os.Getenv("APP_URI")
-	if appURI == "" {
-		appURI = "8888" // ใช้ 8888 เป็นค่าเริ่มต้น
+	// ใช้ Asia/Bangkok เป็น default timezone ของโปรเซส
+	if loc, err := time.LoadLocation("Asia/Bangkok"); err == nil {
+		time.Local = loc
+		log.Println("✅ Set process timezone to Asia/Bangkok (time.Local)")
+	} else {
+		log.Println("⚠️ Failed to load Asia/Bangkok location, using system default")
 	}
 
-	origins := os.Getenv("ALLOWED_ORIGINS") // ✅ เปิดใช้งาน CORS Middleware
+	// ---- App / CORS ----
+	appURI := os.Getenv("APP_URI")
+	if appURI == "" {
+		appURI = "8888"
+	}
+	origins := os.Getenv("ALLOWED_ORIGINS")
 	if origins == "" {
 		origins = "*"
 	}
 
-	// เชื่อมต่อกับ MongoDB
-	err := database.ConnectMongoDB()
-	if err != nil {
-		log.Fatalf("Error connecting to the database: %v", err)
+	// ---- MongoDB ----
+	if err := database.ConnectMongoDB(); err != nil {
+		log.Fatalf("Error connecting to MongoDB: %v", err)
 	}
+	log.Println("✅ MongoDB connected")
 
-	fmt.Println("🚀 Server is starting...", origins)
+	// ---- Redis & Asynq ----
+	database.InitRedis() // sets database.RedisURI and database.RedisClient (if ok)
+	database.InitAsynq() // sets database.AsynqClient (if Redis ok)
 
-	// ✅ สร้าง Redis Client สําหรับการเชื่อมต่อ ทำ Redis Cache
-	database.InitRedis()
-
-	// ✅ สร้าง Asynq Client (ถ้า Redis พร้อมใช้งาน)
-	database.InitAsynq()
-
-	// ✅ เริ่มรัน Asynq Worker (ถ้า Asynq Client พร้อมใช้งาน)
-	if database.AsynqClient != nil {
+	// ---- Start Asynq Worker (background goroutine) ----
+	if database.AsynqClient != nil && database.RedisURI != "" {
 		go func() {
 			srv := asynq.NewServer(
 				asynq.RedisClientOpt{Addr: database.RedisURI},
 				asynq.Config{
-					Concurrency: 10, // รันพร้อมกันได้ 10 task
+					// ปรับตามโหลดงานจริง
+					Concurrency: 10,
+					Queues: map[string]int{
+						// ใช้คิว default ทั้งหมด
+						"default": 1,
+					},
 				},
 			)
+
 			mux := asynq.NewServeMux()
+
+			// ✅ งานเปลี่ยนสถานะโปรแกรม (ของเดิม)
 			mux.HandleFunc(jobs.TypeCompleteProgram, jobs.HandleCompleteProgramTask)
 			mux.HandleFunc(jobs.TypeCloseEnroll, jobs.HandleCloseEnrollTask)
 
-			log.Println("🚀 Asynq Worker is starting...")
+			// ✅ งานอีเมล: เปิดลงทะเบียน / แจ้งเตือนก่อนเริ่ม 3 วัน
+			// (ภายในจะผูก handler: programs/email.TypeNotifyOpenProgram, programs/email.TypeNotifyProgramReminder)
+			
+			if err := programs.RegisterProgramHandlers(mux); err != nil {
+				log.Println("⚠️ RegisterProgramHandlers error:", err)
+			}
+			log.Println("🚀 Asynq Worker is starting on Redis:", database.RedisURI)
 			if err := srv.Run(mux); err != nil {
 				log.Println("⚠️ Asynq worker stopped:", err)
 			}
 		}()
 	} else {
-		log.Println("⚠️ Asynq worker will not start. Background jobs disabled.")
+		log.Println("⚠️ Asynq worker will not start. Background jobs disabled (no Redis).")
 	}
 
-	// สร้าง app instance
+	// ---- Fiber App ----
 	app := fiber.New()
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Skip-Loading, X-Skip-Auth-Redirect",
-		AllowCredentials: false, // ❌ ต้องเป็น false ถ้าใช้ "*"
+		AllowCredentials: false,
 		ExposeHeaders:    "Content-Length, Content-Type",
-		MaxAge:           300, // Cache preflight requests for 5 minutes
+		MaxAge:           300,
 	}))
 
-	// Group API routes under /api
+	// Routes
 	routes.InitRoutes(app)
 
-	// เปิดใช้งาน Swagger ที่ URL /swagger
+	// Swagger
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
-	// ✅ ให้บริการไฟล์ใน uploads/program/images/
+	// Static uploads
 	app.Static("/uploads", "./uploads")
 
-	// เริ่มเซิร์ฟเวอร์
-	log.Println("Server is running on port " + appURI)
-	err = app.Listen(fmt.Sprintf(":%s", url.PathEscape(appURI)))
-	if err != nil {
+	// ---- Start HTTP Server ----
+	log.Println("🚀 Server is running on port", appURI)
+	if err := app.Listen(fmt.Sprintf(":%s", url.PathEscape(appURI))); err != nil {
 		log.Fatal(err)
 	}
-
 }
