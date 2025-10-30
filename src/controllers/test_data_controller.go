@@ -356,7 +356,7 @@ func UpdateCheckInOutRecords(c *fiber.Ctx) error {
 					StudentID:    enrollment.StudentID,
 					EnrollmentID: &enrollment.ID,
 					SourceType:   "program",
-					SourceID:     programItem.ProgramID,
+					SourceID:     &programItem.ProgramID,
 				}
 				_, err = database.HourChangeHistoryCollection.InsertOne(ctx, hourHistory)
 				if err != nil {

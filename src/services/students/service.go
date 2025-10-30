@@ -456,17 +456,6 @@ func createNewStudentWithHourHistory(ctx context.Context, userInput *models.User
 		log.Printf("Warning: Failed to create hard skill hour history for student %s: %v", studentInput.Code, err)
 	}
 
-
-
-
-
-
-
-
-
- // ใช้ student ID เป็ source ID
-
-
 	return nil
 }
 
@@ -487,7 +476,7 @@ func createLegacyHourHistory(ctx context.Context, studentID primitive.ObjectID, 
 		Title:      fmt.Sprintf("นำเข้าชั่วโมงจากระบบเก่า (%s)", skillTitle),
 		StudentID:  studentID,
 		SourceType: "program",
-		SourceID:   primitive.NilObjectID, // ใช้ zero value ของ ObjectID
+		SourceID:   &primitive.NilObjectID, // ใช้ zero value ของ ObjectID
 	}
 	
 	_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history)

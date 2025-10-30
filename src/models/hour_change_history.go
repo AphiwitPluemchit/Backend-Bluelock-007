@@ -19,7 +19,7 @@ type HourChangeHistory struct {
 	EnrollmentID  *primitive.ObjectID `bson:"enrollmentId,omitempty" json:"enrollmentId,omitempty"`   // enrollment ID (สำหรับ program)
 	ProgramItemID *primitive.ObjectID `bson:"programItemId,omitempty" json:"programItemId,omitempty"` // program item ID (สำหรับ program)
 	SourceType    string              `bson:"sourceType" json:"sourceType"`                           // "program" | "certificate"
-	SourceID      primitive.ObjectID  `bson:"sourceId" json:"sourceId"`                               // ID ของ program/certificate ที่เป็นต้นเหตุ
+	SourceID      *primitive.ObjectID `bson:"sourceId" json:"sourceId"`                               // ID ของ program/certificate ที่เป็นต้นเหตุ
 
 	// Fields สำหรับ populate/map objects (ไม่บันทึกลง database)
 	Program     *Program           `bson:"-" json:"program,omitempty"`

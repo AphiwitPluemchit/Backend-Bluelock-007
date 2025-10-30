@@ -40,7 +40,7 @@ func SaveHourHistory(
 		StudentID:    studentID,
 		EnrollmentID: enrollmentID,
 		SourceType:   sourceType,
-		SourceID:     sourceID,
+		SourceID:     &sourceID,
 	}
 
 	if _, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history); err != nil {
@@ -67,7 +67,7 @@ func CreateHourChangeHistory(
 	history := models.HourChangeHistory{
 		ID:            primitive.NewObjectID(),
 		SourceType:    sourceType,
-		SourceID:      sourceID,
+		SourceID:      &sourceID,
 		SkillType:     skillType,
 		Status:        status,
 		HourChange:    hourChange,

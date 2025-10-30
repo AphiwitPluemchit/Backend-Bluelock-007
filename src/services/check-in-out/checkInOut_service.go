@@ -267,7 +267,7 @@ func AddHoursForStudent(programItemId string) (*AddHoursForStudentResult, error)
 				StudentID:    en.StudentID,
 				EnrollmentID: &en.ID,
 				SourceType:   "program",
-				SourceID:     programItem.ProgramID,
+				SourceID:     &programItem.ProgramID,
 				SkillType:    program.Skill,
 				HourChange:   0,
 				Title:        programName, // ใช้ชื่อ program แทน

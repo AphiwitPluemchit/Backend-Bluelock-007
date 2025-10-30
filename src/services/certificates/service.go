@@ -1164,7 +1164,7 @@ func saveOrUpdateHourHistory(ctx context.Context, certificate *models.UploadCert
 			ChangeAt:     now,
 			Title:        course.Name,
 			SourceType:   "certificate",
-			SourceID:     certificate.ID,
+			SourceID:     &certificate.ID,
 			EnrollmentID: nil,
 		}
 
@@ -1280,7 +1280,7 @@ func updateCertificateHoursRejected(ctx context.Context, certificate *models.Upl
 			ChangeAt:     time.Now(),
 			Title:        course.Name,
 			SourceType:   "certificate",
-			SourceID:     certificate.ID,
+			SourceID:     &certificate.ID,
 			EnrollmentID: nil,
 		}
 
@@ -1360,7 +1360,7 @@ func recordCertificateRejection(ctx context.Context, certificate *models.UploadC
 			ChangeAt:     time.Now(),
 			Title:        course.Name,
 			SourceType:   "certificate",
-			SourceID:     certificate.ID,
+			SourceID:     &certificate.ID,
 			EnrollmentID: nil,
 		}
 
@@ -1436,7 +1436,7 @@ func recordCertificatePending(ctx context.Context, certificate *models.UploadCer
 			ChangeAt:     time.Now(),
 			Title:        course.Name,
 			SourceType:   "certificate",
-			SourceID:     certificate.ID,
+			SourceID:     &certificate.ID,
 			EnrollmentID: nil,
 		}
 
@@ -1518,7 +1518,7 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 			ChangeAt:   time.Now(),
 			Title:      course.Name,
 			SourceType: "certificate",
-			SourceID:   upload.ID,
+			SourceID:   &upload.ID,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to insert approved history: %v", err)
@@ -1559,7 +1559,7 @@ func finalizePendingHistoryRejected(ctx context.Context, upload *models.UploadCe
 			ChangeAt:   time.Now(),
 			Title:      course.Name,
 			SourceType: "certificate",
-			SourceID:   upload.ID,
+			SourceID:   &upload.ID,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to insert rejected history: %v", err)
