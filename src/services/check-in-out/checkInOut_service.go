@@ -232,6 +232,8 @@ func HasCheckedInToday(studentId, programId string) (bool, error) {
 	loc, _ := time.LoadLocation("Asia/Bangkok")
 	dateKey := time.Now().In(loc).Format("2006-01-02")
 
+	fmt.Printf("🔍 [HasCheckedInToday] Checking check-in for studentId: %s, programId: %s on %s", studentId, programId, dateKey)
+
 	// หา Enrollment
 	var enrollment models.Enrollment
 	err = DB.EnrollmentCollection.FindOne(ctx, bson.M{
@@ -248,6 +250,48 @@ func HasCheckedInToday(studentId, programId string) (bool, error) {
 		for _, record := range *enrollment.CheckinoutRecord {
 			if record.Checkin != nil {
 				recDate := record.Checkin.In(loc).Format("2006-01-02")
+				if recDate == dateKey {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+// HasCheckedOutToday - ตรวจสอบว่าเช็คชื่อออกวันนี้แล้วหรือยัง
+func HasCheckedOutToday(studentId, programId string) (bool, error) {
+	ctx := context.TODO()
+	studentObjID, err := primitive.ObjectIDFromHex(studentId)
+	if err != nil {
+		return false, err
+	}
+
+	programObjID, err := primitive.ObjectIDFromHex(programId)
+	if err != nil {
+		return false, err
+	}
+
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	dateKey := time.Now().In(loc).Format("2006-01-02")
+
+	// หา Enrollment
+	var enrollment models.Enrollment
+	err = DB.EnrollmentCollection.FindOne(ctx, bson.M{
+		"studentId": studentObjID,
+		"programId": programObjID,
+	}).Decode(&enrollment)
+
+	if err != nil {
+		return false, nil
+	}
+
+	// ตรวจสอบ Checkout Record วันนี้
+	if enrollment.CheckinoutRecord != nil {
+		for _, record := range *enrollment.CheckinoutRecord {
+			if record.Checkout != nil {
+				recDate := record.Checkout.In(loc).Format("2006-01-02")
 				if recDate == dateKey {
 					return true, nil
 				}
@@ -334,16 +378,6 @@ func ValidateClaimToken(claimToken, studentId string) (*models.QRTokenClaim, err
 		}
 
 		log.Printf("✅ [ValidateClaimToken] Student enrolled in %d items", len(itemIDs))
-
-		// ✅ ตรวจสอบว่าเช็คชื่อวันนี้แล้วหรือยัง (สำหรับ checkin)
-		if claim.Type == "checkin" {
-			hasCheckedIn, _ := HasCheckedInToday(studentId, claim.ProgramID.Hex())
-			if hasCheckedIn {
-				log.Printf("❌ [ValidateClaimToken] Already checked in today: %s", studentId)
-				return nil, fmt.Errorf("คุณได้เช็คชื่อเข้าแล้วในวันนี้")
-			}
-			log.Printf("✅ [ValidateClaimToken] Student has not checked in today")
-		}
 
 		// อัปเดต StudentID
 		_, err = DB.QrClaimCollection.UpdateOne(ctx, bson.M{

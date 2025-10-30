@@ -151,13 +151,21 @@ func StudentCheckin(c *fiber.Ctx) error {
 	var programId string
 	var checkErr error
 
-	// 1️⃣ ถ้ามี ClaimToken → ใช้ ValidateClaimToken
+	// 1️⃣ ถ้ามี ClaimToken → ตรวจสอบก่อนว่า check-in แล้วหรือยัง
+
+	// ✅ เช็คว่า check-in ไปแล้วหรือยัง (ก่อนบันทึก)
+	hasCheckedIn, _ := checkInOut.HasCheckedInToday(studentId, programId)
+	if hasCheckedIn {
+		return c.Status(400).JSON(fiber.Map{"error": "คุณได้เช็คชื่อเข้าแล้วในวันนี้"})
+	}
+
 	if body.ClaimToken != "" {
 		claim, err := checkInOut.ValidateClaimToken(body.ClaimToken, studentId)
 		if err != nil {
 			return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 		}
 		programId = claim.ProgramID.Hex()
+
 	} else if body.Token != "" {
 		// 2️⃣ ถ้าไม่มี ClaimToken → ใช้ Token เดิม (Legacy)
 		qrToken, err := checkInOut.ClaimQRToken(body.Token, studentId)
@@ -201,13 +209,19 @@ func StudentCheckout(c *fiber.Ctx) error {
 	var programId string
 	var checkErr error
 
-	// 1️⃣ ถ้ามี ClaimToken → ใช้ ValidateClaimToken
+	// 1️⃣ ถ้ามี ClaimToken → ตรวจสอบก่อนว่า check-out แล้วหรือยัง
 	if body.ClaimToken != "" {
 		claim, err := checkInOut.ValidateClaimToken(body.ClaimToken, studentId)
 		if err != nil {
 			return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 		}
 		programId = claim.ProgramID.Hex()
+
+		// ✅ เช็คว่า check-out ไปแล้วหรือยัง (ก่อนบันทึก)
+		hasCheckedOut, _ := checkInOut.HasCheckedOutToday(studentId, programId)
+		if hasCheckedOut {
+			return c.Status(400).JSON(fiber.Map{"error": "คุณได้เช็คชื่อออกแล้วในวันนี้"})
+		}
 	} else if body.Token != "" {
 		// 2️⃣ ถ้าไม่มี ClaimToken → ใช้ Token เดิม (Legacy)
 		qrToken, err := checkInOut.ClaimQRToken(body.Token, studentId)
