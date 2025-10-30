@@ -17,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -485,11 +486,50 @@ func createLegacyHourHistory(ctx context.Context, studentID primitive.ObjectID, 
 		ChangeAt:   time.Now(),
 		Title:      fmt.Sprintf("นำเข้าชั่วโมงจากระบบเก่า (%s)", skillTitle),
 		StudentID:  studentID,
-		SourceType: "legacy_import",
-		SourceID:   studentID,
+		SourceType: "program",
+		SourceID:   primitive.NilObjectID, // ใช้ zero value ของ ObjectID
 	}
 	
 	_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history)
+	return err
+}
+
+// upsertLegacyHourHistory - helper function สำหรับ upsert hour history สำหรับ legacy import
+func upsertLegacyHourHistory(ctx context.Context, studentID primitive.ObjectID, skillType string, hours int) error {
+	skillTitle := "Soft Skill"
+	if skillType == "hard" {
+		skillTitle = "Hard Skill"
+	}
+
+	// Filter สำหรับหา legacy hour history ที่มีอยู่
+	filter := bson.M{
+		"studentId":  studentID,
+		"sourseId":   primitive.NilObjectID, // ใช้ zero value ของ ObjectID
+		"sourceType": "program",
+		"skillType":  skillType,
+	}
+
+	// Update data
+	update := bson.M{
+		"$set": bson.M{
+			"skillType":  skillType,
+			"status":     models.HCStatusApproved,
+			"hourChange": hours,
+			"remark":     "ชั่วโมงจากระบบเก่า",
+			"changeAt":   time.Now(),
+			"title":      fmt.Sprintf("นำเข้าชั่วโมงจากระบบเก่า (%s)", skillTitle),
+			"studentId":  studentID,
+			"sourceType": "program",
+			"sourceId":   primitive.NilObjectID, // ใช้ zero value ของ ObjectID
+		},
+		"$setOnInsert": bson.M{
+			"_id": primitive.NewObjectID(),
+		},
+	}
+
+	// ใช้ upsert: update ถ้าพบ, insert ถ้าไม่พบ
+	opts := options.Update().SetUpsert(true)
+	_, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, filter, update, opts)
 	return err
 }
 
@@ -519,22 +559,13 @@ func updateExistingStudentWithHourHistory(ctx context.Context, studentID primiti
 		log.Printf("Warning: Failed to update user for student %v: %v", studentID, err)
 	}
 
-	// ลบ hour history เก่าที่มา sourceType = "legacy_import"
-	_, err = DB.HourChangeHistoryCollection.DeleteMany(ctx, bson.M{
-		"studentId":  studentID,
-		"sourceType": "legacy_import",
-	})
-	if err != nil {
-		log.Printf("Warning: Failed to delete old legacy hour history for student %v: %v", studentID, err)
-	}
-
-	// สร้าง hour history ใหม่โดยใช้ helper function
-	if err := createLegacyHourHistory(ctx, studentID, "soft", legacySoftSkill); err != nil {
-		log.Printf("Warning: Failed to create updated soft skill hour history for student %v: %v", studentID, err)
+	// อัปเดต hour history เก่าที่มา sourceType = "legacy_import" โดยใช้ upsert
+	if err := upsertLegacyHourHistory(ctx, studentID, "soft", legacySoftSkill); err != nil {
+		log.Printf("Warning: Failed to upsert updated soft skill hour history for student %v: %v", studentID, err)
 	}
 	
-	if err := createLegacyHourHistory(ctx, studentID, "hard", legacyHardSkill); err != nil {
-		log.Printf("Warning: Failed to create updated hard skill hour history for student %v: %v", studentID, err)
+	if err := upsertLegacyHourHistory(ctx, studentID, "hard", legacyHardSkill); err != nil {
+		log.Printf("Warning: Failed to upsert updated hard skill hour history for student %v: %v", studentID, err)
 	}
 
 	return nil
@@ -1115,7 +1146,7 @@ func getLegacyHoursFromHistory(ctx context.Context, studentID primitive.ObjectID
 	return softHours, hardHours, nil
 }
 
-// UpdateStudentLegacyHours - อัปเดต legacy hours โดยการ update hour history ที่มี sourceType = "legacy_import"
+// UpdateStudentLegacyHours - อัปเดต legacy hours โดยการ upsert hour history ที่มี sourceType = "legacy_import"
 func UpdateStudentLegacyHours(code string, legacySoftSkill, legacyHardSkill int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -1126,26 +1157,17 @@ func UpdateStudentLegacyHours(code string, legacySoftSkill, legacyHardSkill int)
 		return errors.New("student not found")
 	}
 
-	// 2) ลบ hour history เก่าที่มา sourceType = "legacy_import"
-	_, err := DB.HourChangeHistoryCollection.DeleteMany(ctx, bson.M{
-		"studentId":  student.ID,
-		"sourceType": "legacy_import",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to delete old legacy hour history: %v", err)
+	// 2) ใช้ upsert แทนการลบและสร้างใหม่
+	if err := upsertLegacyHourHistory(ctx, student.ID, "soft", legacySoftSkill); err != nil {
+		return fmt.Errorf("failed to upsert soft skill legacy hour history: %v", err)
 	}
 
-	// 3) สร้าง hour history ใหม่สำหรับ soft skill
-	if err := createLegacyHourHistory(ctx, student.ID, "soft", legacySoftSkill); err != nil {
-		return fmt.Errorf("failed to create soft skill legacy hour history: %v", err)
+	// 3) ใช้ upsert แทนการลบและสร้างใหม่
+	if err := upsertLegacyHourHistory(ctx, student.ID, "hard", legacyHardSkill); err != nil {
+		return fmt.Errorf("failed to upsert hard skill legacy hour history: %v", err)
 	}
 
-	// 4) สร้าง hour history ใหม่สำหรับ hard skill
-	if err := createLegacyHourHistory(ctx, student.ID, "hard", legacyHardSkill); err != nil {
-		return fmt.Errorf("failed to create hard skill legacy hour history: %v", err)
-	}
-
-	// 5) อัปเดตสถานะนักศึกษาตามชั่วโมงใหม่
+	// 4) อัปเดตสถานะนักศึกษาตามชั่วโมงใหม่
 	if err := hourhistory.UpdateStudentStatus(ctx, student.ID); err != nil {
 		log.Printf("Warning: Failed to update student status after legacy hours update: %v", err)
 	}
