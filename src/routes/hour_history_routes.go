@@ -22,4 +22,8 @@ func hourHistoryRoutes(router fiber.Router) {
 	// GET /hour-history/student-hours-summary - ดึงชั่วโมงรวมของนิสิตจาก hour history
 	// Query params: studentId (required)
 	hourHistoryGroup.Get("/student-hours-summary", controllers.GetStudentHoursSummary)
+
+	// POST /hour-history/direct - สร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin
+	// Body: CreateDirectHourChangeRequest
+	hourHistoryGroup.Post("/direct", controllers.CreateDirectHourChange)
 }

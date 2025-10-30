@@ -198,3 +198,72 @@ func GetStudentHoursSummary(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(summary)
 }
+
+// CreateDirectHourChange สร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin
+// @Summary Create direct hour change by admin
+// @Description สร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin โดยไม่ต้องผ่าน program หรือ certificate
+// @Tags HourHistory
+// @Accept json
+// @Produce json
+// @Param body body models.CreateDirectHourChangeRequest true "Direct hour change data"
+// @Success 201 {object} models.HourChangeHistory
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /hour-history/direct [post]
+func CreateDirectHourChange(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	// Parse request body
+	var req models.CreateDirectHourChangeRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	// Validate required fields
+	if req.StudentID == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "studentId is required")
+	}
+	if req.Title == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "title is required")
+	}
+	if req.SourceType == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "sourceType is required")
+	}
+	if req.SkillType == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "skillType is required")
+	}
+	if req.HourChange == 0 {
+		return utils.HandleError(c, fiber.StatusBadRequest, "hourChange cannot be zero")
+	}
+
+	// Validate enums
+	if req.SourceType != "program" && req.SourceType != "certificate" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "sourceType must be 'program' or 'certificate'")
+	}
+	if req.SkillType != "soft" && req.SkillType != "hard" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "skillType must be 'soft' or 'hard'")
+	}
+
+	// Parse studentID
+	studentID, err := primitive.ObjectIDFromHex(req.StudentID)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid studentId format")
+	}
+
+	// Create direct hour change
+	history, err := hourhistory.CreateDirectHourChange(
+		ctx,
+		studentID,
+		req.SourceType,
+		req.SkillType,
+		req.HourChange,
+		req.Title,
+		req.Remark,
+	)
+
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(history)
+}

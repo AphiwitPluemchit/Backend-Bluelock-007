@@ -56,3 +56,13 @@ type HourHistoryPaginatedResponse struct {
 	Data []HourChangeHistory `json:"data"`
 	Meta PaginationMeta      `json:"meta"`
 }
+
+// CreateDirectHourChangeRequest สำหรับสร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin
+type CreateDirectHourChangeRequest struct {
+	StudentID  string `json:"studentId" validate:"required"`  // Student ObjectID
+	SourceType string `json:"sourceType" validate:"required"` // "program" | "certificate"
+	SkillType  string `json:"skillType" validate:"required"`  // "soft" | "hard"
+	HourChange int    `json:"hourChange" validate:"required"` // จำนวนชั่วโมงที่เปลี่ยน (บวก = เพิ่ม, ลบ = ลด)
+	Title      string `json:"title" validate:"required"`      // หัวข้อ/ชื่อของการเปลี่ยนแปลง
+	Remark     string `json:"remark,omitempty"`               // หมายเหตุ
+}

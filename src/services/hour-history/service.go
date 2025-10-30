@@ -87,6 +87,48 @@ func CreateHourChangeHistory(
 	return &history, nil
 }
 
+// CreateDirectHourChange สร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin
+func CreateDirectHourChange(
+	ctx context.Context,
+	studentID primitive.ObjectID,
+	sourceType string,
+	skillType string,
+	hourChange int,
+	title string,
+	remark string,
+) (*models.HourChangeHistory, error) {
+
+	// กำหนด status ตาม sourceType
+	var status string
+	if sourceType == "program" {
+		status = models.HCStatusAttended // ถือว่าเข้าร่วมแล้ว
+	} else {
+		status = models.HCStatusApproved // ถือว่าอนุมัติแล้ว
+	}
+
+	history := models.HourChangeHistory{
+		ID:            primitive.NewObjectID(),
+		SourceType:    sourceType,
+		SourceID:      nil,
+		SkillType:     skillType,
+		Status:        status,
+		HourChange:    hourChange,
+		Remark:        remark,
+		ChangeAt:      time.Now(),
+		Title:         title,
+		StudentID:     studentID,
+		EnrollmentID:  nil, // ไม่มี enrollment สำหรับ direct entry
+		ProgramItemID: nil, // ไม่มี program item สำหรับ direct entry
+	}
+
+	_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct hour change: %v", err)
+	}
+
+	return &history, nil
+}
+
 // ========================================
 // Program-specific Functions
 // ========================================
