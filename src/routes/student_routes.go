@@ -20,8 +20,4 @@ func studentRoutes(router fiber.Router) {
 	studentGroup.Get("/sammary-with-hours/:code", controllers.GetSammaryByCodeWithHourHistory) // ดึงข้อมูลสรุปพร้อมชั่วโมงจาก hour history
 	studentGroup.Post("/update-status-by-ids", controllers.UpdateStudentStatusByIDs)           // เพิ่ม route ใหม่
 	studentGroup.Put("/update-status/:id", controllers.UpdateStudentStatus)                    // อัปเดตสถานะนักเรียน
-
-	// Legacy hours management endpoints
-	studentGroup.Get("/:code/legacy-hours", controllers.GetStudentLegacyHours)    // ดึงข้อมูล legacy hours แยกจาก total hours
-	studentGroup.Put("/:code/legacy-hours", controllers.UpdateStudentLegacyHours) // อัปเดต legacy hours
 }
