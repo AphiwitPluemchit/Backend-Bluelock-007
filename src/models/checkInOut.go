@@ -37,7 +37,7 @@ type CheckinRecord struct {
 	Timestamp     time.Time          `bson:"timestamp" json:"timestamp"`
 }
 
-// QRClaim สำหรับเก็บข้อมูลการ claim QR ใน MongoDB
+// QRClaim สำหรับเก็บข้อมูลการ claim QR ใน MongoDB (Legacy)
 // { token, studentId, programId, type, claimedAt, expireAt }
 type QRClaim struct {
 	Token     string             `bson:"token" json:"token"`
@@ -46,6 +46,21 @@ type QRClaim struct {
 	Type      string             `bson:"type" json:"type"`
 	ClaimedAt time.Time          `bson:"claimedAt" json:"claimedAt"`
 	ExpireAt  time.Time          `bson:"expireAt" json:"expireAt"`
+}
+
+// QRTokenClaim สำหรับเก็บข้อมูลการ claim QR (New System)
+// Claim Token ที่สร้างเมื่อ Student scan QR สำเร็จ (ภายใน 5 วิ)
+// ให้เวลา 10 นาทีสำหรับ Login และ Check-in
+type QRTokenClaim struct {
+	ID            primitive.ObjectID  `bson:"_id,omitempty" json:"id,omitempty"`
+	ClaimToken    string              `bson:"claimToken" json:"claimToken"`                   // Claim Token (UUID)
+	OriginalToken string              `bson:"originalToken" json:"originalToken"`             // QR Token เดิม
+	ProgramID     primitive.ObjectID  `bson:"programId" json:"programId"`                     // Program ID
+	Type          string              `bson:"type" json:"type"`                               // checkin/checkout
+	StudentID     *primitive.ObjectID `bson:"studentId,omitempty" json:"studentId,omitempty"` // Student ID (nullable - อาจยังไม่ Login)
+	CreatedAt     time.Time           `bson:"createdAt" json:"createdAt"`                     // เวลาที่ Claim
+	ExpiresAt     time.Time           `bson:"expiresAt" json:"expiresAt"`                     // หมดอายุ (10 นาที)
+	Used          bool                `bson:"used" json:"used"`                               // ใช้ไปแล้วหรือยัง
 }
 
 // CheckinoutRecord สำหรับการแสดงข้อมูลการเช็คชื่อ

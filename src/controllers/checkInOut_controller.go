@@ -63,6 +63,26 @@ func AdminCreateQRToken(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"token": token, "expiresAt": expiresAt, "url": url, "type": body.Type})
 }
 
+// GET /public/qr/:token - Anonymous claim (ไม่ต้อง Login)
+func PublicClaimQRToken(c *fiber.Ctx) error {
+	token := c.Params("token")
+	if token == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ token"})
+	}
+
+	claimToken, qrToken, err := checkInOut.ClaimQRTokenAnonymous(token)
+	if err != nil {
+		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"claimToken": claimToken,
+		"programId":  qrToken.ProgramID.Hex(),
+		"type":       qrToken.Type,
+		"message":    "Claim สำเร็จ กรุณา Login เพื่อเช็คชื่อ",
+	})
+}
+
 // GET /Student/qr/:token
 func StudentClaimQRToken(c *fiber.Ctx) error {
 	userIdRaw := c.Locals("userId")
@@ -78,7 +98,7 @@ func StudentClaimQRToken(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"programId": qrToken.ProgramID.Hex(), "token": qrToken.Token, "type": qrToken.Type})
 }
 
-// GET /Student/validate/:token
+// GET /Student/validate/:token (Legacy)
 func StudentValidateQRToken(c *fiber.Ctx) error {
 	userIdRaw := c.Locals("userId")
 	studentId, ok := userIdRaw.(string)
@@ -97,51 +117,123 @@ func StudentValidateQRToken(c *fiber.Ctx) error {
 	})
 }
 
-// POST /Student/checkin
-func StudentCheckin(c *fiber.Ctx) error {
-	var body struct {
-		Token string `json:"token"`
+// GET /Student/validate-claim/:claimToken
+func StudentValidateClaimToken(c *fiber.Ctx) error {
+	userIdRaw := c.Locals("userId")
+	studentId, ok := userIdRaw.(string)
+	if !ok || studentId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	studentId := c.Locals("userId").(string)
-	if err := c.BodyParser(&body); err != nil || body.Token == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ token"})
-	}
-	qrToken, err := checkInOut.ClaimQRToken(body.Token, studentId)
-	if err != nil && (err.Error() == "QR token expired or invalid" || err.Error() == "QR Code นี้หมดอายุแล้ว หรือ ยังไม่ถูก claim") {
-		// fallback validate
-		qrToken, err = checkInOut.ValidateQRToken(body.Token, studentId)
-	}
+	claimToken := c.Params("claimToken")
+	claim, err := checkInOut.ValidateClaimToken(claimToken, studentId)
 	if err != nil {
 		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
 	}
-	err = checkInOut.SaveCheckInOut(studentId, qrToken.ProgramID.Hex(), "checkin")
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	return c.JSON(fiber.Map{
+		"claimToken": claim.ClaimToken,
+		"programId":  claim.ProgramID.Hex(),
+		"type":       claim.Type,
+		"expiresAt":  claim.ExpiresAt.Unix(),
+	})
+}
+
+// POST /Student/checkin
+func StudentCheckin(c *fiber.Ctx) error {
+	var body struct {
+		Token      string `json:"token"`      // QR Token หรือ Claim Token
+		ClaimToken string `json:"claimToken"` // Claim Token (ถ้ามี)
 	}
+	studentId := c.Locals("userId").(string)
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ข้อมูลไม่ถูกต้อง"})
+	}
+
+	var programId string
+	var checkErr error
+
+	// 1️⃣ ถ้ามี ClaimToken → ใช้ ValidateClaimToken
+	if body.ClaimToken != "" {
+		claim, err := checkInOut.ValidateClaimToken(body.ClaimToken, studentId)
+		if err != nil {
+			return c.Status(403).JSON(fiber.Map{"error": err.Error()})
+		}
+		programId = claim.ProgramID.Hex()
+	} else if body.Token != "" {
+		// 2️⃣ ถ้าไม่มี ClaimToken → ใช้ Token เดิม (Legacy)
+		qrToken, err := checkInOut.ClaimQRToken(body.Token, studentId)
+		if err != nil && (err.Error() == "QR token expired or invalid" || err.Error() == "QR Code หมดอายุ กรุณาสแกนใหม่") {
+			// fallback validate (legacy)
+			qrToken, err = checkInOut.ValidateQRToken(body.Token, studentId)
+		}
+		if err != nil {
+			return c.Status(403).JSON(fiber.Map{"error": err.Error()})
+		}
+		programId = qrToken.ProgramID.Hex()
+	} else {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ token หรือ claimToken"})
+	}
+
+	// 3️⃣ บันทึก Check-in
+	checkErr = checkInOut.SaveCheckInOut(studentId, programId, "checkin")
+	if checkErr != nil {
+		return c.Status(400).JSON(fiber.Map{"error": checkErr.Error()})
+	}
+
+	// 4️⃣ ทำเครื่องหมาย Claim Token ว่าใช้แล้ว (ถ้ามี)
+	if body.ClaimToken != "" {
+		checkInOut.MarkClaimTokenAsUsed(body.ClaimToken)
+	}
+
 	return c.JSON(fiber.Map{"message": "ลงทะเบียนเข้าสำเร็จ"})
 }
 
 // POST /Student/checkout
 func StudentCheckout(c *fiber.Ctx) error {
 	var body struct {
-		Token string `json:"token"`
+		Token      string `json:"token"`      // QR Token หรือ Claim Token
+		ClaimToken string `json:"claimToken"` // Claim Token (ถ้ามี)
 	}
 	studentId := c.Locals("userId").(string)
-	if err := c.BodyParser(&body); err != nil || body.Token == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ token"})
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ข้อมูลไม่ถูกต้อง"})
 	}
-	qrToken, err := checkInOut.ClaimQRToken(body.Token, studentId)
-	if err != nil && (err.Error() == "QR token expired or invalid" || err.Error() == "QR token not claimed or expired") {
-		// fallback validate
-		qrToken, err = checkInOut.ValidateQRToken(body.Token, studentId)
+
+	var programId string
+	var checkErr error
+
+	// 1️⃣ ถ้ามี ClaimToken → ใช้ ValidateClaimToken
+	if body.ClaimToken != "" {
+		claim, err := checkInOut.ValidateClaimToken(body.ClaimToken, studentId)
+		if err != nil {
+			return c.Status(403).JSON(fiber.Map{"error": err.Error()})
+		}
+		programId = claim.ProgramID.Hex()
+	} else if body.Token != "" {
+		// 2️⃣ ถ้าไม่มี ClaimToken → ใช้ Token เดิม (Legacy)
+		qrToken, err := checkInOut.ClaimQRToken(body.Token, studentId)
+		if err != nil && (err.Error() == "QR token expired or invalid" || err.Error() == "QR token not claimed or expired" || err.Error() == "QR Code หมดอายุ กรุณาสแกนใหม่") {
+			// fallback validate (legacy)
+			qrToken, err = checkInOut.ValidateQRToken(body.Token, studentId)
+		}
+		if err != nil {
+			return c.Status(403).JSON(fiber.Map{"error": err.Error()})
+		}
+		programId = qrToken.ProgramID.Hex()
+	} else {
+		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ token หรือ claimToken"})
 	}
-	if err != nil {
-		return c.Status(403).JSON(fiber.Map{"error": err.Error()})
+
+	// 3️⃣ บันทึก Check-out
+	checkErr = checkInOut.SaveCheckInOut(studentId, programId, "checkout")
+	if checkErr != nil {
+		return c.Status(400).JSON(fiber.Map{"error": checkErr.Error()})
 	}
-	err = checkInOut.SaveCheckInOut(studentId, qrToken.ProgramID.Hex(), "checkout")
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+
+	// 4️⃣ ทำเครื่องหมาย Claim Token ว่าใช้แล้ว (ถ้ามี)
+	if body.ClaimToken != "" {
+		checkInOut.MarkClaimTokenAsUsed(body.ClaimToken)
 	}
+
 	return c.JSON(fiber.Map{"message": "ลงทะเบียนออกสำเร็จ"})
 }
 
