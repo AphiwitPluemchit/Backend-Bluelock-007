@@ -322,17 +322,12 @@ func hashPassword(password string) (string, error) {
 	return string(bytes), err
 }
 
-// ✅ ตรวจสอบว่ามี Student ที่ `code` หรือ `email` ซ้ำกันหรือไม่
+// ✅ ตรวจสอบว่ามี Student ที่ `code` ซ้ำกันหรือไม่
 func isStudentExists(code string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	count, err := DB.StudentCollection.CountDocuments(ctx, bson.M{
-		"$or": []bson.M{
-			{"code": code},
-		},
-	})
-
+	count, err := DB.StudentCollection.CountDocuments(ctx, bson.M{"code": code})
 	if err != nil {
 		return false, err
 	}
@@ -340,18 +335,51 @@ func isStudentExists(code string) (bool, error) {
 	return count > 0, nil
 }
 
-// ✅ สร้าง Student พร้อมเพิ่ม User
+// ✅ ตรวจสอบว่ามี User ที่ `email` ซ้ำกันหรือไม่
+func isUserEmailExists(email string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	count, err := DB.UserCollection.CountDocuments(ctx, bson.M{"email": normalizedEmail})
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// ✅ ตรวจสอบการซ้ำซ้อนทั้ง Student และ User
+func checkDuplicates(code, email string) error {
+	// ตรวจสอบ student code
+	studentExists, err := isStudentExists(code)
+	if err != nil {
+		return fmt.Errorf("error checking student existence: %v", err)
+	}
+	if studentExists {
+		return errors.New("student code already exists")
+	}
+
+	// ตรวจสอบ user email
+	emailExists, err := isUserEmailExists(email)
+	if err != nil {
+		return fmt.Errorf("error checking email existence: %v", err)
+	}
+	if emailExists {
+		return errors.New("email already exists")
+	}
+
+	return nil
+}
+
+// ✅ สร้าง Student พร้อมเพิ่ม User พร้อมตรวจสอบการซ้ำซ้อน
 func CreateStudent(userInput *models.User, studentInput *models.Student) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 🔍 ตรวจว่าซ้ำหรือไม่
-	exists, err := isStudentExists(studentInput.Code)
-	if err != nil {
+	// 🔍 ตรวจสอบการซ้ำซ้อนทั้ง student code และ user email
+	if err := checkDuplicates(studentInput.Code, userInput.Email); err != nil {
 		return err
-	}
-	if exists {
-		return errors.New("student already exists")
 	}
 
 	// ✅ เข้ารหัสรหัสผ่าน
@@ -395,7 +423,16 @@ func CreateOrUpdateStudent(userInput *models.User, studentInput *models.Student,
 	err := DB.StudentCollection.FindOne(ctx, bson.M{"code": studentInput.Code}).Decode(&existingStudent)
 	
 	if err == mongo.ErrNoDocuments {
-		// Student ไม่มีอยู่ - สร้างใหม่
+		// Student ไม่มีอยู่ - ตรวจสอบการซ้ำซ้อนของ email ก่อนสร้างใหม่
+		emailExists, err := isUserEmailExists(userInput.Email)
+		if err != nil {
+			return false, fmt.Errorf("error checking email existence: %v", err)
+		}
+		if emailExists {
+			return false, errors.New("email already exists")
+		}
+
+		// สร้าง student ใหม่
 		if err := createNewStudentWithHourHistory(ctx, userInput, studentInput, legacySoftSkill, legacyHardSkill); err != nil {
 			return false, err
 		}
@@ -404,7 +441,26 @@ func CreateOrUpdateStudent(userInput *models.User, studentInput *models.Student,
 		return false, fmt.Errorf("error checking student existence: %v", err)
 	}
 
-	// Student มีอยู่แล้ว - อัปเดต
+	// Student มีอยู่แล้ว - ตรวจสอบ email ซ้ำกับ user อื่น (ไม่ใช่ตัวเอง)
+	var existingUser models.User
+	err = DB.UserCollection.FindOne(ctx, bson.M{"refId": existingStudent.ID, "role": "Student"}).Decode(&existingUser)
+	if err != nil {
+		return false, fmt.Errorf("error finding existing user: %v", err)
+	}
+
+	// ตรวจสอบ email ซ้ำกับคนอื่น (ไม่ใช่ตัวเอง)
+	normalizedEmail := strings.ToLower(strings.TrimSpace(userInput.Email))
+	if normalizedEmail != strings.ToLower(existingUser.Email) {
+		emailExists, err := isUserEmailExists(normalizedEmail)
+		if err != nil {
+			return false, fmt.Errorf("error checking email existence: %v", err)
+		}
+		if emailExists {
+			return false, errors.New("email already exists")
+		}
+	}
+
+	// อัปเดต student ที่มีอยู่
 	if err := updateExistingStudentWithHourHistory(ctx, existingStudent.ID, userInput, studentInput, legacySoftSkill, legacyHardSkill); err != nil {
 		return false, err
 	}
@@ -455,17 +511,6 @@ func createNewStudentWithHourHistory(ctx context.Context, userInput *models.User
 		log.Printf("Warning: Failed to create hard skill hour history for student %s: %v", studentInput.Code, err)
 	}
 
-
-
-
-
-
-
-
-
- // ใช้ student ID เป็ source ID
-
-
 	return nil
 }
 
@@ -508,15 +553,16 @@ func updateExistingStudentWithHourHistory(ctx context.Context, studentID primiti
 		return fmt.Errorf("failed to update student: %v", err)
 	}
 
-	// อัปเดต user
+	// อัปเดต user (อัปเดตเฉพาะข้อมูลที่จำเป็น)
+	normalizedEmail := strings.ToLower(strings.TrimSpace(userInput.Email))
 	_, err = DB.UserCollection.UpdateOne(ctx,
 		bson.M{"refId": studentID, "role": "Student"},
 		bson.M{"$set": bson.M{
 			"name":  studentInput.Name,
-			"email": userInput.Email,
+			"email": normalizedEmail,
 		}})
 	if err != nil {
-		log.Printf("Warning: Failed to update user for student %v: %v", studentID, err)
+		return fmt.Errorf("failed to update user for student %v: %v", studentID, err)
 	}
 
 	// ลบ hour history เก่าที่มา sourceType = "legacy_import"
@@ -547,20 +593,41 @@ func UpdateStudent(id string, student *models.Student, email string) error {
 		return errors.New("invalid student ID")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// ตรวจสอบการซ้ำซ้อนของ email (ไม่ใช่ตัวเอง)
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	var existingUser models.User
+	err = DB.UserCollection.FindOne(ctx, bson.M{"refId": objID, "role": "Student"}).Decode(&existingUser)
+	if err != nil {
+		return fmt.Errorf("user not found for student: %v", err)
+	}
+
+	// ตรวจสอบ email ซ้ำกับคนอื่น (ไม่ใช่ตัวเอง)
+	if normalizedEmail != strings.ToLower(existingUser.Email) {
+		emailExists, err := isUserEmailExists(normalizedEmail)
+		if err != nil {
+			return fmt.Errorf("error checking email existence: %v", err)
+		}
+		if emailExists {
+			return errors.New("email already exists")
+		}
+	}
+
 	// ✅ อัปเดต student
 	filter := bson.M{"_id": objID}
 	update := bson.M{"$set": student}
-	if _, err := DB.StudentCollection.UpdateOne(context.Background(), filter, update); err != nil {
+	if _, err := DB.StudentCollection.UpdateOne(ctx, filter, update); err != nil {
 		return err
 	}
 
 	// ✅ Sync ทั้ง name และ email ไปยัง user
-
-	_, err = DB.UserCollection.UpdateOne(context.Background(),
-		bson.M{"refId": objID, "role": "student"},
+	_, err = DB.UserCollection.UpdateOne(ctx,
+		bson.M{"refId": objID, "role": "Student"},
 		bson.M{"$set": bson.M{
 			"name":  student.Name,
-			"email": email, // ✅ เพิ่ม email
+			"email": normalizedEmail,
 		}})
 	return err
 }
@@ -572,18 +639,25 @@ func DeleteStudent(id string) error {
 		return errors.New("invalid student ID")
 	}
 
-	// ลบ user ที่ refId เป็น student.id และ role เป็น "student"
-	_, err = DB.UserCollection.DeleteOne(context.Background(), bson.M{
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// ลบ user ที่ refId เป็น student.id และ role เป็น "Student"
+	_, err = DB.UserCollection.DeleteOne(ctx, bson.M{
 		"refId": objID,
-		"role":  "student",
+		"role":  "Student",
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete user: %v", err)
 	}
 
 	// ลบ student
-	_, err = DB.StudentCollection.DeleteOne(context.Background(), bson.M{"_id": objID})
-	return err
+	_, err = DB.StudentCollection.DeleteOne(ctx, bson.M{"_id": objID})
+	if err != nil {
+		return fmt.Errorf("failed to delete student: %v", err)
+	}
+
+	return nil
 }
 
 // UpdateStudentStatusByIDs - อัปเดตสถานะนักเรียนหลายคนโดยใช้ ID
@@ -1151,5 +1225,168 @@ func UpdateStudentLegacyHours(code string, legacySoftSkill, legacyHardSkill int)
 	}
 
 	return nil
+}
+
+// ✅ ฟังก์ชันใหม่: ตรวจสอบและแก้ไขข้อมูลที่มีปัญหาการซ้ำซ้อน
+func ValidateAndCleanupDuplicates() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	log.Println("Starting duplicate validation and cleanup...")
+
+	// 1) ตรวจสอบ student codes ที่ซ้ำกัน
+	studentDuplicates, err := findDuplicateStudentCodes(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to find duplicate student codes: %v", err)
+	}
+	if len(studentDuplicates) > 0 {
+		log.Printf("Found %d duplicate student codes: %v", len(studentDuplicates), studentDuplicates)
+	}
+
+	// 2) ตรวจสอบ user emails ที่ซ้ำกัน
+	emailDuplicates, err := findDuplicateUserEmails(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to find duplicate user emails: %v", err)
+	}
+	if len(emailDuplicates) > 0 {
+		log.Printf("Found %d duplicate user emails: %v", len(emailDuplicates), emailDuplicates)
+	}
+
+	// 3) ตรวจสอบ users ที่ไม่มี student หรือ students ที่ไม่มี user
+	orphanedUsers, orphanedStudents, err := findOrphanedRecords(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to find orphaned records: %v", err)
+	}
+	if len(orphanedUsers) > 0 {
+		log.Printf("Found %d orphaned users (no matching student): %v", len(orphanedUsers), orphanedUsers)
+	}
+	if len(orphanedStudents) > 0 {
+		log.Printf("Found %d orphaned students (no matching user): %v", len(orphanedStudents), orphanedStudents)
+	}
+
+	log.Println("Duplicate validation completed.")
+	return nil
+}
+
+// helper function: หา student codes ที่ซ้ำกัน
+func findDuplicateStudentCodes(ctx context.Context) ([]string, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$group", Value: bson.M{
+			"_id":   "$code",
+			"count": bson.M{"$sum": 1},
+		}}},
+		{{Key: "$match", Value: bson.M{
+			"count": bson.M{"$gt": 1},
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"code": "$_id",
+			"_id":  0,
+		}}},
+	}
+
+	cursor, err := DB.StudentCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var duplicates []string
+	for cursor.Next(ctx) {
+		var result struct{ Code string `bson:"code"` }
+		if err := cursor.Decode(&result); err == nil {
+			duplicates = append(duplicates, result.Code)
+		}
+	}
+	return duplicates, nil
+}
+
+// helper function: หา user emails ที่ซ้ำกัน
+func findDuplicateUserEmails(ctx context.Context) ([]string, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$group", Value: bson.M{
+			"_id":   "$email",
+			"count": bson.M{"$sum": 1},
+		}}},
+		{{Key: "$match", Value: bson.M{
+			"count": bson.M{"$gt": 1},
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"email": "$_id",
+			"_id":   0,
+		}}},
+	}
+
+	cursor, err := DB.UserCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var duplicates []string
+	for cursor.Next(ctx) {
+		var result struct{ Email string `bson:"email"` }
+		if err := cursor.Decode(&result); err == nil {
+			duplicates = append(duplicates, result.Email)
+		}
+	}
+	return duplicates, nil
+}
+
+// helper function: หา users ที่ไม่มี student หรือ students ที่ไม่มี user
+func findOrphanedRecords(ctx context.Context) ([]string, []string, error) {
+	// หา users ที่เป็น Student role แต่ไม่มี student record
+	userPipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"role": "Student"}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "Students",
+			"localField":   "refId",
+			"foreignField": "_id",
+			"as":           "student",
+		}}},
+		{{Key: "$match", Value: bson.M{"student": bson.M{"$size": 0}}}},
+		{{Key: "$project", Value: bson.M{"email": 1, "_id": 0}}},
+	}
+
+	cursor, err := DB.UserCollection.Aggregate(ctx, userPipeline)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var orphanedUsers []string
+	for cursor.Next(ctx) {
+		var result struct{ Email string `bson:"email"` }
+		if err := cursor.Decode(&result); err == nil {
+			orphanedUsers = append(orphanedUsers, result.Email)
+		}
+	}
+
+	// หา students ที่ไม่มี user record
+	studentPipeline := mongo.Pipeline{
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "Users",
+			"localField":   "_id",
+			"foreignField": "refId",
+			"as":           "user",
+		}}},
+		{{Key: "$match", Value: bson.M{"user": bson.M{"$size": 0}}}},
+		{{Key: "$project", Value: bson.M{"code": 1, "_id": 0}}},
+	}
+
+	cursor2, err := DB.StudentCollection.Aggregate(ctx, studentPipeline)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer cursor2.Close(ctx)
+
+	var orphanedStudents []string
+	for cursor2.Next(ctx) {
+		var result struct{ Code string `bson:"code"` }
+		if err := cursor2.Decode(&result); err == nil {
+			orphanedStudents = append(orphanedStudents, result.Code)
+		}
+	}
+
+	return orphanedUsers, orphanedStudents, nil
 }
 
