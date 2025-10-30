@@ -112,16 +112,16 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 			bson.D{{Key: "$match", Value: bson.M{
 				"$expr": bson.M{"$eq": bson.A{"$studentId", "$$sid"}},
 				"status": bson.M{"$in": bson.A{
-					models.HCStatusAttended, models.HCStatusApproved, models.HCStatusAbsent,
+					models.HCStatusAttended, models.HCStatusApproved, models.HCStatusAbsent, models.HCStatusManual,
 				}},
 			}}},
-			// คำนวณ deltaHours (+abs attended/approved, -abs absent)
+			// คำนวณ deltaHours (+abs attended/approved/manual, -abs absent)
 			bson.D{{Key: "$addFields", Value: bson.M{
 				"deltaHours": bson.M{
 					"$switch": bson.M{
 						"branches": bson.A{
 							bson.M{
-								"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+								"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved, models.HCStatusManual}}},
 								"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
 							},
 							bson.M{
@@ -871,7 +871,7 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 		{{Key: "$match", Value: bson.M{
 			"studentId": bson.M{"$in": ids},
 			"status": bson.M{"$in": bson.A{
-				models.HCStatusAttended, models.HCStatusApproved, models.HCStatusAbsent,
+				models.HCStatusAttended, models.HCStatusApproved, models.HCStatusAbsent, models.HCStatusManual,
 			}},
 		}}},
 		// normalize skillType -> skillKey (lower-case)
@@ -884,7 +884,7 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 				"$switch": bson.M{
 					"branches": bson.A{
 						bson.M{
-							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved, models.HCStatusManual}}},
 							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
 						},
 						bson.M{

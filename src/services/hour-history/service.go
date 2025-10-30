@@ -98,20 +98,13 @@ func CreateDirectHourChange(
 	remark string,
 ) (*models.HourChangeHistory, error) {
 
-	// กำหนด status ตาม sourceType
-	var status string
-	if sourceType == "program" {
-		status = models.HCStatusAttended // ถือว่าเข้าร่วมแล้ว
-	} else {
-		status = models.HCStatusApproved // ถือว่าอนุมัติแล้ว
-	}
-
+	// ใช้ status "manual" สำหรับการเพิ่มชั่วโมงโดยตรงจาก Admin
 	history := models.HourChangeHistory{
 		ID:            primitive.NewObjectID(),
 		SourceType:    sourceType,
 		SourceID:      nil,
 		SkillType:     skillType,
-		Status:        status,
+		Status:        models.HCStatusManual, // เพิ่มชั่วโมงโดยตรงจาก Admin
 		HourChange:    hourChange,
 		Remark:        remark,
 		ChangeAt:      time.Now(),
@@ -676,16 +669,16 @@ func GetHistoryWithDetailsAndFilters(
 }
 
 // GetStudentHoursSummary คำนวณชั่วโมงรวมของนิสิตจาก hour history
-// รวมทั้ง attended (บวก) และ absent (ลบ) เพื่อคำนวณชั่วโมงที่แท้จริง
+// รวมทั้ง attended (บวก), approved, manual และ absent (ลบ) เพื่อคำนวณชั่วโมงที่แท้จริง
 func GetStudentHoursSummary(ctx context.Context, studentID primitive.ObjectID) (map[string]interface{}, error) {
 	// Aggregate pipeline เพื่อรวมชั่วโมงตาม skillType
-	// รวมทั้ง attended และ absent (absent จะมี hourChange เป็นลบ)
+	// รวมทั้ง attended, approved, manual และ absent (absent จะมี hourChange เป็นลบ)
 	pipeline := []bson.M{
 		{
 			"$match": bson.M{
 				"studentId": studentID,
 				"status": bson.M{
-					"$in": []string{models.HCStatusAttended, models.HCStatusAbsent}, // รวมทั้ง attended และ absent
+					"$in": []string{models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved, models.HCStatusManual}, // รวมทั้ง attended, approved, manual และ absent
 				},
 			},
 		},
@@ -693,7 +686,7 @@ func GetStudentHoursSummary(ctx context.Context, studentID primitive.ObjectID) (
 			"$group": bson.M{
 				"_id": "$skillType", // group ตาม soft/hard
 				"totalHours": bson.M{
-					"$sum": "$hourChange", // รวมชั่วโมง (attended = +, absent = -)
+					"$sum": "$hourChange", // รวมชั่วโมง (attended/approved/manual = +, absent = -)
 				},
 			},
 		},
@@ -783,7 +776,7 @@ func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSo
 		{"$match": bson.M{
 			"studentId": studentID,
 			"status": bson.M{"$in": []string{
-				models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved,
+				models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved, models.HCStatusManual,
 			}},
 		}},
 		{"$addFields": bson.M{
@@ -791,7 +784,7 @@ func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSo
 				"$switch": bson.M{
 					"branches": bson.A{
 						bson.M{
-							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved}}},
+							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved, models.HCStatusManual}}},
 							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
 						},
 						bson.M{

@@ -41,6 +41,9 @@ const (
 	HCStatusPending  = "pending"  // รออนุมัติ (certificate)
 	HCStatusApproved = "approved" // อนุมัติแล้ว (certificate)
 	HCStatusRejected = "rejected" // ปฏิเสธแล้ว (certificate)
+
+	// Direct/Manual entry status
+	HCStatusManual = "manual" // เพิ่มชั่วโมงโดยตรงจาก Admin
 )
 
 // HourHistoryFilters ใช้เก็บค่าการกรองสำหรับ hour history
