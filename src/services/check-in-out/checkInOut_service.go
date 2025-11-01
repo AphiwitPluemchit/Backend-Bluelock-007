@@ -177,15 +177,6 @@ func ClaimQRToken(token, studentId string) (*models.QRToken, error) {
 
 		log.Printf("✅ [ClaimQRToken] Student enrolled in %d items", len(itemIDs))
 
-		// ✅ ตรวจสอบว่าเช็คชื่อวันนี้แล้วหรือยัง (สำหรับ checkin)
-		if qrToken.Type == "checkin" {
-			hasCheckedIn, _ := HasCheckedInToday(studentId, qrToken.ProgramID.Hex())
-			if hasCheckedIn {
-				log.Printf("❌ [ClaimQRToken] Already checked in today: %s", studentId)
-				return nil, fmt.Errorf("คุณได้เช็คชื่อเข้าแล้วในวันนี้")
-			}
-			log.Printf("✅ [ClaimQRToken] Student has not checked in today")
-		}
 	}
 
 	// 3️⃣ สร้าง Claim Token (หมดอายุ 10 นาที)
@@ -320,7 +311,7 @@ func ValidateQRToken(token, studentId string) (*models.QRToken, error) {
 	}
 	err = DB.QrClaimCollection.FindOne(ctx, bson.M{"token": token, "studentId": studentObjID, "expireAt": bson.M{"$gt": time.Now()}}).Decode(&claim)
 	if err != nil {
-		return nil, fmt.Errorf("QR token not claimed or expired")
+		return nil, fmt.Errorf("QR token not claimed or expired: %v", err)
 	}
 
 	// ตรวจสอบว่านักศึกษาได้ลงทะเบียนในกิจกรรมนี้หรือไม่
