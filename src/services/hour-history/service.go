@@ -18,63 +18,42 @@ import (
 // Core Function - สร้าง HourChangeHistory
 // ========================================
 
-// SaveHourHistory บันทึกประวัติการเปลี่ยนแปลงชั่วโมง
-func SaveHourHistory(
-	ctx context.Context,
-	studentID primitive.ObjectID,
-	skillType string, // "soft" | "hard"
-	hourChange int, // บวก = เพิ่ม, ลบ = ลด
-	title string,
-	remark string,
-	sourceType string, // "program" | "certificate"
-	sourceID primitive.ObjectID,
-	enrollmentID *primitive.ObjectID, // optional, สำหรับ program เท่านั้น
-) error {
-	history := models.HourChangeHistory{
-		ID:           primitive.NewObjectID(),
-		SkillType:    skillType,
-		HourChange:   hourChange,
-		Remark:       remark,
-		ChangeAt:     time.Now(),
-		Title:        title,
-		StudentID:    studentID,
-		EnrollmentID: enrollmentID,
-		SourceType:   sourceType,
-		SourceID:     &sourceID,
-	}
-
-	if _, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history); err != nil {
-		return fmt.Errorf("failed to save hour change history: %v", err)
-	}
-
-	return nil
-}
-
-// CreateHourChangeHistory สร้างบันทึก HourChangeHistory พร้อม status
+// CreateHourChangeHistory สร้างบันทึก HourChangeHistory (ฟังก์ชันหลักในการสร้าง record)
+// Parameters:
+//   - studentID: รหัสนักศึกษา
+//   - sourceType: ประเภทแหล่งที่มา "program" | "certificate" | "manual"
+//   - sourceID: รหัสของแหล่งที่มา (nil สำหรับ manual)
+//   - skillType: ประเภททักษะ "soft" | "hard"
+//   - status: สถานะ (upcoming, participating, attended, absent, approved, manual)
+//   - hourChange: จำนวนชั่วโมงที่เปลี่ยนแปลง (บวก = เพิ่ม, ลบ = ลด)
+//   - title: หัวข้อ
+//   - remark: หมายเหตุ
+//   - enrollmentID: รหัสการลงทะเบียน (optional, สำหรับ program)
+//   - programItemID: รหัส program item (optional, สำหรับ program)
 func CreateHourChangeHistory(
 	ctx context.Context,
 	studentID primitive.ObjectID,
-	enrollmentID *primitive.ObjectID,
-	programItemID *primitive.ObjectID,
 	sourceType string,
-	sourceID primitive.ObjectID,
+	sourceID *primitive.ObjectID,
 	skillType string,
 	status string,
 	hourChange int,
 	title string,
 	remark string,
+	enrollmentID *primitive.ObjectID,
+	programItemID *primitive.ObjectID,
 ) (*models.HourChangeHistory, error) {
 	history := models.HourChangeHistory{
 		ID:            primitive.NewObjectID(),
+		StudentID:     studentID,
 		SourceType:    sourceType,
-		SourceID:      &sourceID,
+		SourceID:      sourceID,
 		SkillType:     skillType,
 		Status:        status,
 		HourChange:    hourChange,
+		Title:         title,
 		Remark:        remark,
 		ChangeAt:      time.Now(),
-		Title:         title,
-		StudentID:     studentID,
 		EnrollmentID:  enrollmentID,
 		ProgramItemID: programItemID,
 	}
@@ -87,7 +66,7 @@ func CreateHourChangeHistory(
 	return &history, nil
 }
 
-// CreateDirectHourChange สร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin
+// CreateDirectHourChange สร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin (wrapper function)
 func CreateDirectHourChange(
 	ctx context.Context,
 	studentID primitive.ObjectID,
@@ -97,76 +76,27 @@ func CreateDirectHourChange(
 	title string,
 	remark string,
 ) (*models.HourChangeHistory, error) {
-
-	// ใช้ status "manual" สำหรับการเพิ่มชั่วโมงโดยตรงจาก Admin
-	history := models.HourChangeHistory{
-		ID:            primitive.NewObjectID(),
-		SourceType:    sourceType,
-		SourceID:      nil,
-		SkillType:     skillType,
-		Status:        models.HCStatusManual, // เพิ่มชั่วโมงโดยตรงจาก Admin
-		HourChange:    hourChange,
-		Remark:        remark,
-		ChangeAt:      time.Now(),
-		Title:         title,
-		StudentID:     studentID,
-		EnrollmentID:  nil, // ไม่มี enrollment สำหรับ direct entry
-		ProgramItemID: nil, // ไม่มี program item สำหรับ direct entry
-	}
-
-	_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, history)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create direct hour change: %v", err)
-	}
-
-	return &history, nil
+	return CreateHourChangeHistory(
+		ctx,
+		studentID,
+		sourceType,
+		nil, // ไม่มี sourceID สำหรับ manual entry
+		skillType,
+		models.HCStatusManual,
+		hourChange,
+		title,
+		remark,
+		nil, // ไม่มี enrollmentID
+		nil, // ไม่มี programItemID
+	)
 }
 
 // ========================================
 // Program-specific Functions
 // ========================================
 
-// RecordEnrollmentHourChange บันทึกการเปลี่ยนแปลงชั่วโมงตอน Enroll (สร้างใหม่)
-// status: HCStatusUpcoming (กำลังมาถึง - รอเข้าร่วมกิจกรรม)
-func RecordEnrollmentHourChange(
-	ctx context.Context,
-	studentID primitive.ObjectID,
-	enrollmentID primitive.ObjectID,
-	programItemID primitive.ObjectID,
-	programID primitive.ObjectID,
-	programName string,
-	skillType string,
-	expectedHours int,
-) error {
-	// สร้าง record ใหม่ตอน enroll
-	_, err := CreateHourChangeHistory(
-		ctx,
-		studentID,
-		&enrollmentID,
-		&programItemID,
-		"program",
-		programID,
-		skillType,
-		models.HCStatusUpcoming, // กำลังมาถึง - รอเข้าร่วมกิจกรรม
-		expectedHours,
-		programName,
-		"ลงทะเบียนกิจกรรม (กำลังมาถึง)",
-	)
-	return err
-}
-
-// UpdateCheckinHourChange - DEPRECATED: ใช้ RecordCheckinActivity แทน
-// เก็บไว้เพื่อ backward compatibility
-func UpdateCheckinHourChange(
-	ctx context.Context,
-	enrollmentID primitive.ObjectID,
-	checkinDate string,
-) error {
-	return RecordCheckinActivity(ctx, enrollmentID, checkinDate)
-}
-
-// RecordCheckinActivity บันทึกการเช็คอินเข้าร่วมกิจกรรม (แต่ละวัน)
-// เปลี่ยน status: HCStatusUpcoming → HCStatusParticipating (กำลังเข้าร่วม)
+// RecordCheckinActivity บันทึกการเช็คอินเข้าร่วมกิจกรรม
+// อัปเดต status: HCStatusUpcoming → HCStatusParticipating (กำลังเข้าร่วม)
 func RecordCheckinActivity(
 	ctx context.Context,
 	enrollmentID primitive.ObjectID,
@@ -181,7 +111,7 @@ func RecordCheckinActivity(
 	update := bson.M{
 		"$set": bson.M{
 			"status":     models.HCStatusParticipating,
-			"hourChange": 0, // ยังไม่ได้ชั่วโมง
+			"hourChange": 0,
 			"remark":     fmt.Sprintf("กำลังเข้าร่วมกิจกรรม - เช็คอินวันที่ %s", checkinDate),
 			"changeAt":   time.Now(),
 		},
@@ -198,19 +128,6 @@ func RecordCheckinActivity(
 
 	return nil
 }
-
-// UpdateCheckinToVerifying เก็บไว้เพื่อ backward compatibility
-// ⚠️ DEPRECATED: ใช้ RecordCheckinActivity แทน
-func UpdateCheckinToVerifying(
-	ctx context.Context,
-	enrollmentID primitive.ObjectID,
-	checkinDate string,
-) error {
-	return RecordCheckinActivity(ctx, enrollmentID, checkinDate)
-}
-
-// ⚠️ DEPRECATED: Functions ด้านล่างนี้ไม่ใช้แล้ว เนื่องจาก logic ใหม่
-// ตรวจสอบและให้ชั่วโมงตอน program success (complete) แทน (ใน VerifyAndGrantHours)
 
 // VerifyAndGrantHours ตรวจสอบและให้ชั่วโมงเมื่อกิจกรรมเสร็จสิ้น (trigger เมื่อ program success/complete)
 // Logic ใหม่:
@@ -727,25 +644,25 @@ func GetStudentHoursSummary(ctx context.Context, studentID primitive.ObjectID) (
 // Student Status Management
 // ========================================
 
-// UpdateStudentStatus - คำนวณและอัปเดตสถานะของนักศึกษาตามชั่วโมงจาก HourChangeHistory
-// Exported เพื่อให้ packages อื่น (certificates, students) เรียกใช้ได้
+// UpdateStudentStatus คำนวณและอัปเดตสถานะของนักศึกษาตามชั่วโมงจาก HourChangeHistory
+// เรียกใช้โดย packages อื่น (certificates, students, programs)
 func UpdateStudentStatus(ctx context.Context, studentID primitive.ObjectID) error {
-	// 1) ดึงข้อมูล student
+	// ดึงข้อมูล student
 	var student models.Student
 	if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": studentID}).Decode(&student); err != nil {
 		return fmt.Errorf("student not found: %v", err)
 	}
 
-	// 2) คำนวณชั่วโมงจาก HourChangeHistory เท่านั้น
-	softNet, hardNet, err := CalculateNetHours(ctx, studentID, 0, 0)
+	// คำนวณชั่วโมงจาก HourChangeHistory
+	softNet, hardNet, err := CalculateNetHours(ctx, studentID)
 	if err != nil {
 		return err
 	}
 
-	// 3) คำนวณสถานะใหม่
+	// คำนวณสถานะใหม่
 	newStatus := CalculateStatus(softNet, hardNet)
 
-	// 4) อัปเดตสถานะ (ถ้าเปลี่ยนแปลง)
+	// อัปเดตสถานะ (ถ้าเปลี่ยนแปลง)
 	if student.Status != newStatus {
 		update := bson.M{"$set": bson.M{"status": newStatus}}
 		if _, err := DB.StudentCollection.UpdateOne(ctx, bson.M{"_id": studentID}, update); err != nil {
@@ -762,15 +679,14 @@ func UpdateStudentStatus(ctx context.Context, studentID primitive.ObjectID) erro
 	return nil
 }
 
-// updateStudentStatus - internal wrapper (backward compatibility)
+// updateStudentStatus wrapper เดิมเพื่อ backward compatibility
 func updateStudentStatus(ctx context.Context, studentID primitive.ObjectID) error {
 	return UpdateStudentStatus(ctx, studentID)
 }
 
-// CalculateNetHours - คำนวณชั่วโมงจาก hour history เท่านั้น (ไม่ใช้ base hours)
-// baseSoft และ baseHard parameters ยังคงไว้เพื่อ backward compatibility แต่จะไม่ถูกใช้งาน
-// Exported เพื่อให้ packages อื่นเรียกใช้ได้
-func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSoft, baseHard int) (softNet, hardNet int, err error) {
+// CalculateNetHours คำนวณชั่วโมงรวมจาก HourChangeHistory
+// รวมเฉพาะ status: attended (+), approved (+), manual (+), absent (-)
+func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID) (softNet, hardNet int, err error) {
 	pipeline := []bson.M{
 		{"$match": bson.M{
 			"studentId": studentID,
@@ -821,7 +737,7 @@ func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSo
 		return 0, 0, fmt.Errorf("aggregate decode error: %v", aggErr)
 	}
 
-	// คำนวณจาก hour history เท่านั้น (ไม่ใช้ base hours)
+	// รวมชั่วโมงตาม skillType
 	softNet = 0
 	hardNet = 0
 	for _, r := range aggRows {
@@ -836,8 +752,8 @@ func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID, baseSo
 	return softNet, hardNet, nil
 }
 
-// CalculateStatus - คำนวณสถานะของนักศึกษาจากชั่วโมง soft skill และ hard skill
-// Exported เพื่อให้ packages อื่นเรียกใช้ได้
+// CalculateStatus คำนวณสถานะนักศึกษาจากชั่วโมง soft และ hard skill
+// Return: 1 = น้อยมาก, 2 = น้อย, 3 = ครบ
 func CalculateStatus(softSkill, hardSkill int) int {
 	total := softSkill + hardSkill
 

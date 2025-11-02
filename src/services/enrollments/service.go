@@ -390,18 +390,21 @@ func RegisterStudent(programItemID, studentID primitive.ObjectID, food *string) 
 		if program.Name != nil {
 			programName = *program.Name
 		}
-		hours := 0
 
-		if err := hourhistory.RecordEnrollmentHourChange(
+		_, err := hourhistory.CreateHourChangeHistory(
 			ctx,
-			studentID,
-			newEnrollment.ID,
-			programItem.ID,
-			programItem.ProgramID,
-			programName,
-			program.Skill,
-			hours,
-		); err != nil {
+			studentID,               // studentID
+			"program",               // sourceType
+			&programItem.ProgramID,  // sourceID
+			program.Skill,           // skillType
+			models.HCStatusUpcoming, // status
+			0,                       // hourChange (0 ตอน enroll)
+			programName,             // title
+			"ลงทะเบียนกิจกรรม (กำลังมาถึง)", // remark
+			&newEnrollment.ID, // enrollmentID
+			&programItem.ID,   // programItemID
+		)
+		if err != nil {
 			log.Printf("⚠️ Warning: Failed to record enrollment hour change: %v", err)
 			// Don't return error - we don't want to fail enrollment if hour history fails
 		}
@@ -552,18 +555,21 @@ func RegisterStudentByAdmin(programItemID, studentID primitive.ObjectID, food *s
 		if program.Name != nil {
 			programName = *program.Name
 		}
-		hours := 0
 
-		if err := hourhistory.RecordEnrollmentHourChange(
+		_, err := hourhistory.CreateHourChangeHistory(
 			ctx,
-			studentID,
-			newEnrollment.ID,
-			programItem.ID,
-			programItem.ProgramID,
-			programName,
-			program.Skill,
-			hours,
-		); err != nil {
+			studentID,               // studentID
+			"program",               // sourceType
+			&programItem.ProgramID,  // sourceID
+			program.Skill,           // skillType
+			models.HCStatusUpcoming, // status
+			0,                       // hourChange (0 ตอน enroll)
+			programName,             // title
+			"ลงทะเบียนกิจกรรม (กำลังมาถึง)", // remark
+			&newEnrollment.ID, // enrollmentID
+			&programItem.ID,   // programItemID
+		)
+		if err != nil {
 			log.Printf("⚠️ Warning: Failed to record enrollment hour change: %v", err)
 			// Don't return error - we don't want to fail enrollment if hour history fails
 		}

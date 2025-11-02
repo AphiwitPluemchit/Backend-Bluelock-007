@@ -764,7 +764,7 @@ func GetStudentWithCalculatedHours(ctx context.Context, studentID primitive.Obje
 	}
 
 	// 3) คำนวณชั่วโมงจาก hour history เท่านั้น (ไม่ใช้ base hours จาก student collection)
-	softSkillHours, hardSkillHours, err := hourhistory.CalculateNetHours(ctx, studentID, 0, 0)
+	softSkillHours, hardSkillHours, err := hourhistory.CalculateNetHours(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate net hours: %v", err)
 	}
