@@ -129,18 +129,19 @@ func GetEnrollmentSummaryByDate(programID primitive.ObjectID, date string, progr
 	}
 
 	// นับจำนวนการเช็คอิน/เช็คเอาท์
+	participatedCount := 0 // นับคนที่มีการเช็ค checkin หรือ checkout
+
 	for _, enrollment := range enrollments {
+		hasAnyCheckOnDate := false
+
 		if enrollment.CheckinoutRecord == nil || len(*enrollment.CheckinoutRecord) == 0 {
 			continue
 		}
 
-		hasCheckinOnDate := false
-		hasCheckoutOnDate := false
-
 		for _, record := range *enrollment.CheckinoutRecord {
 			// ตรวจสอบว่า record นี้อยู่ในวันที่ที่ต้องการหรือไม่
 			if record.Checkin != nil && record.Checkin.After(startOfDay) && record.Checkin.Before(endOfDay) {
-				hasCheckinOnDate = true
+				hasAnyCheckOnDate = true
 
 				// ตรวจสอบว่าเช็คอินตรงเวลาหรือสาย
 				// สมมติว่าสายถ้าเช็คอินหลังจาก checkInTime + 15 นาที
@@ -159,19 +160,19 @@ func GetEnrollmentSummaryByDate(programID primitive.ObjectID, date string, progr
 
 			// ตรวจสอบ checkout
 			if record.Checkout != nil && record.Checkout.After(startOfDay) && record.Checkout.Before(endOfDay) {
-				hasCheckoutOnDate = true
+				hasAnyCheckOnDate = true
 				summary.Checkout++
 			}
 		}
 
-		// ถ้าไม่มีการเช็คอินเลยในวันนั้น = ไม่มา
-		if !hasCheckinOnDate && !hasCheckoutOnDate {
-			// ไม่นับเพิ่มตัวแปรใด ๆ จะคำนวณจาก registered - (checkin + checkinLate)
+		// นับคนที่มีการเช็คอย่างใดอย่างหนึ่ง
+		if hasAnyCheckOnDate {
+			participatedCount++
 		}
 	}
 
-	// คำนวณ NotParticipating = ลงทะเบียน - (เช็คอิน + เช็คอินสาย)
-	summary.NotParticipating = summary.Registered - (summary.Checkin + summary.CheckinLate)
+	// คำนวณ NotParticipating = ลงทะเบียน - คนที่มีการเช็คอย่างใดอย่างหนึ่ง
+	summary.NotParticipating = summary.Registered - participatedCount
 	if summary.NotParticipating < 0 {
 		summary.NotParticipating = 0
 	}
@@ -403,6 +404,31 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 					"else": 0,
 				},
 			},
+			// เพิ่ม field สำหรับตรวจสอบว่ามีการเช็คอย่างใดอย่างหนึ่งหรือไม่
+			"hasAnyCheck": bson.M{
+				"$cond": bson.M{
+					"if": bson.M{
+						"$or": []interface{}{
+							bson.M{
+								"$and": []interface{}{
+									bson.M{"$ne": []interface{}{"$checkinoutRecord.checkin", nil}},
+									bson.M{"$gte": []interface{}{"$checkinoutRecord.checkin", startOfDay}},
+									bson.M{"$lt": []interface{}{"$checkinoutRecord.checkin", endOfDay}},
+								},
+							},
+							bson.M{
+								"$and": []interface{}{
+									bson.M{"$ne": []interface{}{"$checkinoutRecord.checkout", nil}},
+									bson.M{"$gte": []interface{}{"$checkinoutRecord.checkout", startOfDay}},
+									bson.M{"$lt": []interface{}{"$checkinoutRecord.checkout", endOfDay}},
+								},
+							},
+						},
+					},
+					"then": 1,
+					"else": 0,
+				},
+			},
 		}}},
 
 		// Group by studentId และนับ
@@ -412,15 +438,17 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 			"hasCheckinLate":   bson.M{"$max": "$hasCheckinLate"},
 			"hasCheckinOnTime": bson.M{"$max": "$hasCheckinOnTime"},
 			"hasCheckout":      bson.M{"$max": "$hasCheckout"},
+			"hasAnyCheck":      bson.M{"$max": "$hasAnyCheck"},
 		}}},
 
 		// Group รวมทั้งหมด
 		{{Key: "$group", Value: bson.M{
-			"_id":         nil,
-			"registered":  bson.M{"$sum": 1},
-			"checkin":     bson.M{"$sum": "$hasCheckinOnTime"},
-			"checkinLate": bson.M{"$sum": "$hasCheckinLate"},
-			"checkout":    bson.M{"$sum": "$hasCheckout"},
+			"_id":          nil,
+			"registered":   bson.M{"$sum": 1},
+			"checkin":      bson.M{"$sum": "$hasCheckinOnTime"},
+			"checkinLate":  bson.M{"$sum": "$hasCheckinLate"},
+			"checkout":     bson.M{"$sum": "$hasCheckout"},
+			"participated": bson.M{"$sum": "$hasAnyCheck"},
 		}}},
 	}
 
@@ -445,6 +473,8 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 
 	if len(results) > 0 {
 		result := results[0]
+		participated := 0
+
 		if val, ok := result["registered"].(int32); ok {
 			summary.Registered = int(val)
 		}
@@ -457,8 +487,13 @@ func GetEnrollmentSummaryByDateV2(programID primitive.ObjectID, date string, pro
 		if val, ok := result["checkout"].(int32); ok {
 			summary.Checkout = int(val)
 		}
+		// ใช้ participated จาก aggregation ที่นับคนที่มี checkin หรือ checkout
+		if val, ok := result["participated"].(int32); ok {
+			participated = int(val)
+		}
 
-		summary.NotParticipating = summary.Registered - (summary.Checkin + summary.CheckinLate)
+		// คำนวณ NotParticipating: คนที่ลงทะเบียนแล้วแต่ไม่มี checkin และ checkout เลย
+		summary.NotParticipating = summary.Registered - participated
 		if summary.NotParticipating < 0 {
 			summary.NotParticipating = 0
 		}
