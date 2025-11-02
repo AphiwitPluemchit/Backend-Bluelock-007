@@ -31,6 +31,4 @@ func checkInOutRoutes(router fiber.Router) {
 	checkInOutRoutes.Post("/student/checkout", controllers.StudentCheckout)
 	checkInOutRoutes.Get("/student/program/:programId/form", controllers.GetProgramForm)
 
-	checkInOutRoutes.Get("/addHoursForStudent/:programItemId", controllers.AddHoursForStudent)
-
 }

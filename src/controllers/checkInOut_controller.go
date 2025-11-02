@@ -265,16 +265,3 @@ func GetProgramForm(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"formId": formId})
 }
-func AddHoursForStudent(c *fiber.Ctx) error {
-	programItemId := c.Params("programItemId")
-	if programItemId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ต้องระบุ programItemId"})
-	}
-
-	result, err := checkInOut.AddHoursForStudent(programItemId)
-	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
-	}
-	// ดูผลลัพธ์
-	return c.JSON(fiber.Map{"message": "เพิ่มชั่วโมงให้นิสิตสำเร็จ", "data": result})
-}
