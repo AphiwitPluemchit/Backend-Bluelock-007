@@ -484,7 +484,6 @@ func joinStrings(arr []string, sep string) string {
 // packages (jobs, programs service, admin handlers) can call the same logic
 // used by the background worker.
 func ProcessEnrollmentsForCompletedProgram(ctx context.Context, programID primitive.ObjectID) error {
-	log.Println("📝 Processing enrollments for completed program (hour-history): ++++++++++++++++", programID.Hex())
 
 	// 2) หา ProgramItems ทั้งหมดของ program นี้
 	cursor, err := DB.ProgramItemCollection.Find(ctx, bson.M{"programId": programID})

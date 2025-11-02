@@ -11,10 +11,6 @@ func hourHistoryRoutes(router fiber.Router) {
 	hourHistoryGroup := router.Group("/hour-history")
 	// hourHistoryGroup.Use(middleware.AuthJWT)
 
-	// GET /hour-history - ดึงข้อมูล hour history พร้อม filters
-	// Query params: studentId, sourceType, status (comma-separated), search, limit, page
-	hourHistoryGroup.Get("/", controllers.GetHourHistoryWithFilters)
-
 	// GET /hour-history/details - ดึงข้อมูล hour history พร้อม ProgramItem และ Certificate details
 	// Query params: studentId, sourceType, status (comma-separated), search, limit, page
 	hourHistoryGroup.Get("/details", controllers.GetHourHistoryWithDetails)
