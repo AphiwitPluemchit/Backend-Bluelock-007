@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,11 +16,35 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// Token Configuration
-const (
-	QR_TOKEN_EXPIRY    = 10  // 10 วินาที (QR Token หมดอายุเร็ว)
-	CLAIM_TOKEN_EXPIRY = 600 // 10 นาที (Claim Token ให้เวลา Login)
+// Token Configuration (defaults can be overridden via environment variables)
+var (
+	// QR token expiry in seconds (int64 because it's added to Unix timestamp)
+	QR_TOKEN_EXPIRY int64 = 10 // default: 10 seconds
+
+	// Claim token expiry in seconds (used with time.Duration)
+	CLAIM_TOKEN_EXPIRY int = 600 // default: 600 seconds (10 minutes)
 )
+
+func init() {
+	// Allow overrides from environment variables
+	if v := os.Getenv("QR_TOKEN_EXPIRY"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			QR_TOKEN_EXPIRY = n
+			log.Printf("ℹ️ QR_TOKEN_EXPIRY loaded from env: %d seconds", QR_TOKEN_EXPIRY)
+		} else {
+			log.Printf("⚠️ Failed to parse QR_TOKEN_EXPIRY=%s: %v", v, err)
+		}
+	}
+
+	if v := os.Getenv("CLAIM_TOKEN_EXPIRY"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			CLAIM_TOKEN_EXPIRY = n
+			log.Printf("ℹ️ CLAIM_TOKEN_EXPIRY loaded from env: %d seconds", CLAIM_TOKEN_EXPIRY)
+		} else {
+			log.Printf("⚠️ Failed to parse CLAIM_TOKEN_EXPIRY=%s: %v", v, err)
+		}
+	}
+}
 
 // ============================================
 // QR Token Management (อายุ 10 วินาที)
