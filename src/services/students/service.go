@@ -115,21 +115,21 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 					models.HCStatusAttended, models.HCStatusApproved, models.HCStatusAbsent, models.HCStatusManual,
 				}},
 			}}},
-			// คำนวณ deltaHours (+abs attended/approved/manual, -abs absent)
+			// คำนวณ deltaHours (ใช้ค่า hourChange โดยตรง)
 			bson.D{{Key: "$addFields", Value: bson.M{
 				"deltaHours": bson.M{
 					"$switch": bson.M{
 						"branches": bson.A{
 							bson.M{
 								"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved, models.HCStatusManual}}},
-								"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+								"then": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
 							},
 							bson.M{
 								"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
 								"then": bson.M{
 									"$multiply": bson.A{
 										-1,
-										bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+										bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
 									},
 								},
 							},
@@ -878,21 +878,21 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 		{{Key: "$addFields", Value: bson.M{
 			"skillKey": bson.M{"$toLower": "$skillType"},
 		}}},
-		// compute deltaHours
+		// compute deltaHours (ใช้ค่า hourChange โดยตรง)
 		{{Key: "$addFields", Value: bson.M{
 			"deltaHours": bson.M{
 				"$switch": bson.M{
 					"branches": bson.A{
 						bson.M{
 							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved, models.HCStatusManual}}},
-							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+							"then": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
 						},
 						bson.M{
 							"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
 							"then": bson.M{
 								"$multiply": bson.A{
 									-1,
-									bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+									bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
 								},
 							},
 						},

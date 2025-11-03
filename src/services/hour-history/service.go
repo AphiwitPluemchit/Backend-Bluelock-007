@@ -700,14 +700,14 @@ func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID) (softN
 					"branches": bson.A{
 						bson.M{
 							"case": bson.M{"$in": bson.A{"$status", bson.A{models.HCStatusAttended, models.HCStatusApproved, models.HCStatusManual}}},
-							"then": bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+							"then": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
 						},
 						bson.M{
 							"case": bson.M{"$eq": bson.A{"$status", models.HCStatusAbsent}},
 							"then": bson.M{
 								"$multiply": bson.A{
 									-1,
-									bson.M{"$abs": bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}}},
+									bson.M{"$toInt": bson.M{"$ifNull": bson.A{"$hourChange", 0}}},
 								},
 							},
 						},
