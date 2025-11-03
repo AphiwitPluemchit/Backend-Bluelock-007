@@ -169,14 +169,18 @@ func CreateDirectHourChange(c *fiber.Ctx) error {
 	}
 
 	// Create direct hour change
-	history, err := hourhistory.CreateDirectHourChange(
+	history, err := hourhistory.CreateHourChangeHistory(
 		ctx,
 		studentID,
 		req.SourceType,
+		nil, // ไม่มี sourceID สำหรับ manual entry
 		req.SkillType,
+		models.HCStatusManual,
 		req.HourChange,
 		req.Title,
 		req.Remark,
+		nil, // ไม่มี enrollmentID
+		nil, // ไม่มี programItemID
 	)
 
 	if err != nil {

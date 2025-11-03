@@ -66,31 +66,6 @@ func CreateHourChangeHistory(
 	return &history, nil
 }
 
-// CreateDirectHourChange สร้างการเปลี่ยนแปลงชั่วโมงโดยตรงโดย Admin (wrapper function)
-func CreateDirectHourChange(
-	ctx context.Context,
-	studentID primitive.ObjectID,
-	sourceType string,
-	skillType string,
-	hourChange int,
-	title string,
-	remark string,
-) (*models.HourChangeHistory, error) {
-	return CreateHourChangeHistory(
-		ctx,
-		studentID,
-		sourceType,
-		nil, // ไม่มี sourceID สำหรับ manual entry
-		skillType,
-		models.HCStatusManual,
-		hourChange,
-		title,
-		remark,
-		nil, // ไม่มี enrollmentID
-		nil, // ไม่มี programItemID
-	)
-}
-
 // ========================================
 // Program-specific Functions
 // ========================================
@@ -376,7 +351,7 @@ func VerifyAndGrantHours(
 	}
 
 	// 🔄 Update student status หลังจากมีการเปลี่ยนแปลงชั่วโมง
-	if err := updateStudentStatus(ctx, enrollment.StudentID); err != nil {
+	if err := UpdateStudentStatus(ctx, enrollment.StudentID); err != nil {
 		log.Printf("⚠️ Warning: Failed to update student status for %s: %v", enrollment.StudentID.Hex(), err)
 		// ไม่ return error เพราะการอัปเดตชั่วโมงสำเร็จแล้ว เหลือแค่ status
 	}
@@ -677,11 +652,6 @@ func UpdateStudentStatus(ctx context.Context, studentID primitive.ObjectID) erro
 	}
 
 	return nil
-}
-
-// updateStudentStatus wrapper เดิมเพื่อ backward compatibility
-func updateStudentStatus(ctx context.Context, studentID primitive.ObjectID) error {
-	return UpdateStudentStatus(ctx, studentID)
 }
 
 // CalculateNetHours คำนวณชั่วโมงรวมจาก HourChangeHistory
