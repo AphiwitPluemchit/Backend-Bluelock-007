@@ -15,7 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// เพิ่มพารามิเตอร์ programResolver และ codePrefixFn
 func HandleNotifyOpenProgram(
 	sender MailSender,
 	registerURLBuilder func(programID string) string,
@@ -28,13 +27,11 @@ func HandleNotifyOpenProgram(
 			return err
 		}
 
-		// 1) โหลด Program ด้วย resolver ที่ส่งเข้ามา
 		prog, err := programResolver(p.ProgramID)
 		if err != nil || prog == nil {
 			return fmt.Errorf("program not found: %s", p.ProgramID)
 		}
 
-		// 2) รวม majors + years
 		majorsSet := map[string]struct{}{}
 		yearsSet := map[int]struct{}{}
 		for _, it := range prog.ProgramItems {
@@ -100,6 +97,59 @@ func HandleNotifyOpenProgram(
 		const emailDomain = "@go.buu.ac.th"
 
 		send := func(s models.Student) {
+			// --- สรุปค่าจาก ProgramItems ---
+
+			totalHours := 0
+			maxParticipants := 0
+
+			// เก็บห้อง/สถานที่แบบ unique
+			roomSet := map[string]struct{}{}
+
+			var allDates []models.Dates
+			minStart := "" // HH:MM
+			maxEnd := ""   // HH:MM
+
+			for _, it := range prog.ProgramItems {
+				if it.Hour != nil {
+					totalHours += *it.Hour
+				}
+				if it.MaxParticipants != nil {
+					maxParticipants += *it.MaxParticipants
+				}
+				if it.Rooms != nil {
+					for _, r := range *it.Rooms {
+						if r != "" {
+							roomSet[r] = struct{}{}
+						}
+					}
+				}
+				// ดึงวันที่/เวลา
+				for _, d := range it.Dates {
+					allDates = append(allDates, d)
+
+					// สรุปช่วงเวลา earliest start / latest end
+					if d.Stime != "" && (minStart == "" || d.Stime < minStart) {
+						minStart = d.Stime
+					}
+					if d.Etime != "" && (maxEnd == "" || d.Etime > maxEnd) {
+						maxEnd = d.Etime
+					}
+				}
+			}
+			desc := "-"
+			if len(prog.ProgramItems) > 0 && prog.ProgramItems[0].Description != nil {
+				desc = *prog.ProgramItems[0].Description
+			}
+			// join ห้อง
+			locations := make([]string, 0, len(roomSet))
+			for k := range roomSet {
+				locations = append(locations, k)
+			}
+			location := strings.Join(locations, ", ")
+			if location == "" {
+				location = "-" // กันค่าว่าง
+			}
+
 			html, err := RenderOpenEmailHTML(OpenEmailData{
 				StudentName:   s.Name,
 				Major:         s.Major,
@@ -107,6 +157,16 @@ func HandleNotifyOpenProgram(
 				EndDateEnroll: prog.EndDateEnroll,
 				RegisterLink:  registerURLBuilder(p.ProgramID),
 				ProgramItems:  prog.ProgramItems,
+
+				// ⬇️ field สำหรับ template ใหม่
+				Skill:           prog.Skill,
+				TotalHours:      totalHours,
+				MaxParticipants: maxParticipants,
+				Location:        location,
+				Description:     desc, // 🟢 เพิ่มตรงนี้ (หรือกำหนดค่าจาก field อื่น)
+				Dates:           allDates,
+				StartTime:       minStart,
+				EndTime:         maxEnd,
 			})
 			if err != nil {
 				log.Printf("render email failed: %v", err)

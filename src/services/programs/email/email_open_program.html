@@ -1,26 +1,136 @@
-<div style="font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;line-height:1.6;color:#222;">
-  <h2 style="color:#0056b3;">📢 เปิดลงทะเบียนกิจกรรม: {{.ProgramName}}</h2>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+  style="width:100%;background:#f4f6f9;padding:16px 0;color: black;">
+  <tr>
+    <td align="center">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+        style="background:#e9f5ff;border:1px solid #d6e9ff;border-radius:8px;">
+        <tr>
+          <td style="padding:20px 24px;font-family:Tahoma, Arial, sans-serif; font-weight: 500;">
+            <div style="font-size:20px;line-height:30px;font-weight:700;margin:0 0 4px 0;text-align:left;color: black;">
+              เปิดลงทะเบียนแล้ว {{.ProgramName}}
+            </div>
+            <div style="font-size:15px;line-height:25px;font-weight:700;margin:0 0 4px 0;text-align:left;color:black">
+              {{.ProgramName}} เปิดลงทะเบียนแล้ว มีรายละเอียดดังนี้
+            </div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+              style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;">
+              <tbody>
+                <tr>
+                  <td valign="top" align="left"
+                    style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    ชื่อโครงการ
+                  </td>
+                  <td valign="top" align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td valign="top" style="padding:4px 0 4px 4px;text-align:left;">
+                    {{.ProgramName}}
+                  </td>
+                </tr>
 
-  <p>เรียน {{.StudentName}} (สาขา {{.Major}})</p>
-  <p>กิจกรรมนี้เปิดลงทะเบียนสำหรับนิสิตที่มีสาขาและชั้นปีตรงกับคุณ 🎓</p>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    วันที่จัด
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">
+                    {{- range .ProgramItems -}}{{- range .Dates -}}
+                    {{formatDateThai .Date}}<br />
+                    {{- end -}}{{- end -}}
+                  </td>
+                </tr>
 
-  <p><b>📅 วัน–เวลาโดยสรุป</b><br>
-  {{range .ProgramItems}}
-    {{if .Name}}<b>{{.Name}}</b><br>{{end}}
-    {{range .Dates}}• {{.Date}} {{.Stime}}–{{.Etime}}<br/>{{end}}
-    <br>
-  {{end}}
-  </p>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    เวลา
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">
+                    {{- range .ProgramItems -}}{{- range .Dates -}}
+                    {{.Stime}} - {{.Etime}}<br />
+                    {{- end -}}{{- end -}}
+                  </td>
+                </tr>
 
-  <p><b>⏰ ปิดรับสมัคร:</b> {{.EndDateEnroll}} เวลา 23:59 น.</p>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    ประเภททักษะ
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{.Skill}}</td>
+                </tr>
 
-  <p>
-    <a href="{{.RegisterLink}}" target="_blank"
-       style="display:inline-block;padding:10px 18px;background-color:#007bff;color:white;text-decoration:none;border-radius:6px;">
-      คลิกเพื่อลงทะเบียน
-    </a>
-  </p>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    จำนวนชั่วโมง
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{.TotalHours}} ชั่วโมง</td>
+                </tr>
 
-  <hr style="border:none;border-top:1px solid #ccc;margin:20px 0;">
-  <small style="color:#666;">อีเมลนี้ส่งอัตโนมัติจากระบบกิจกรรมนิสิต กรุณาอย่าตอบกลับ</small>
-</div>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    จำนวนที่รับ
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{.MaxParticipants}} คน</td>
+                </tr>
+
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    สถานที่ / ห้อง
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{.Location}}</td>
+                </tr>
+
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    วันสุดท้ายของการลงทะเบียน
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{formatDateThai .EndDateEnroll}}</td>
+                </tr>
+
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    รายละเอียดอื่นๆ
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{formatDateThai .EndDateEnroll}}</td>
+                </tr>
+
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    คำอธิบายเพิ่มเติม
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">
+                    {{if .Description}}{{.Description}}{{else}}-{{end}}
+                  </td>
+                </tr>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    ลิงก์ลงทะเบียน/ข้อมูลอื่นๆ
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;word-break:break-word;">
+                    <a href="{{.RegisterLink}}" target="_blank"
+                      style="color:#0b66d6;text-decoration:underline;">{{.RegisterLink}}</a>
+                  </td>
+                </tr>
+               
+
+              </tbody>
+            </table>
+             <div style="margin-top:5px;font-size:15px;text-align:left;white-space:normal;">
+                  <span style="font-weight:700;">สอบถามเพิ่มเติม:</span><span style="font-weight:400;">
+                    kamonwans@go.buu.ac.th หรือ โทร 098-8u49-23 ต่อ 1</span>
+                </div>
+            <div style="font-size:12px;color:#6b7a99;margin-top:16px;text-align:left;">
+              อีเมลฉบับนี้จัดส่งโดยระบบอัตโนมัติ กรุณาอย่าตอบกลับ
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
