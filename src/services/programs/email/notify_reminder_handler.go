@@ -74,18 +74,74 @@ func HandleProgramReminder(sender MailSender,
 			if err := DB.StudentCollection.FindOne(ctx, bson.M{"_id": en.StudentID}).Decode(&st); err != nil {
 				continue
 			}
+			// ✅ ดึงข้อมูลกิจกรรมหลักจาก programResolver
+			prog, err := programResolver(p.ProgramID)
+			if err != nil || prog == nil {
+				return fmt.Errorf("program not found: %s", p.ProgramID)
+			}
+
+			// ✅ หา ProgramItem ที่ต้องส่ง reminder
+			var item *models.ProgramItemDto
+			pid, _ := primitive.ObjectIDFromHex(p.ProgramItemID)
+			for i := range prog.ProgramItems {
+				if prog.ProgramItems[i].ID == pid {
+					item = &prog.ProgramItems[i]
+					break
+				}
+			}
+			if item == nil {
+				return fmt.Errorf("program item not found: %s", p.ProgramItemID)
+			}
+
+			// ✅ รวมข้อมูลแบบเดียวกับ notify_open_handler.go
+			totalHours := 0
+			if item.Hour != nil {
+				totalHours = *item.Hour
+			}
+
+			desc := "-"
+			if item.Description != nil && *item.Description != "" {
+				desc = *item.Description
+			}
+
+			location := "-"
+			if item.Rooms != nil && len(*item.Rooms) > 0 {
+				location = strings.Join(*item.Rooms, ", ")
+			}
+
+			var allDates []models.Dates = item.Dates
+			minStart := ""
+			maxEnd := ""
+			for _, d := range allDates {
+				if d.Stime != "" && (minStart == "" || d.Stime < minStart) {
+					minStart = d.Stime
+				}
+				if d.Etime != "" && (maxEnd == "" || d.Etime > maxEnd) {
+					maxEnd = d.Etime
+				}
+			}
 
 			to := st.Code + emailDomain
 			html, err := RenderReminderEmailHTML(ReminderEmailData{
-				StudentName: st.Name,
-				Major:       st.Major,
-				ProgramName: p.ProgramName,
+				StudentName:   st.Name,
+				Major:         st.Major,
+				ProgramName:   p.ProgramName,
+				EndDateEnroll: prog.EndDateEnroll,
+				RegisterLink:  detailURL,
+				ProgramItems:  prog.ProgramItems,
+
+				Skill:       prog.Skill,
+				Description: desc,
+				TotalHours:  totalHours,
+				Location:    location,
 				FirstDate:   first.Date,
 				FirstStime:  first.Stime,
 				FirstEtime:  first.Etime,
-				DetailLink:  detailURL,
-				ProgramItem: *item,
+				Dates:       allDates,
+				StartTime:   minStart,
+				EndTime:     maxEnd,
 			})
+
 			if err != nil {
 				log.Printf("reminder: render failed for %s: %v", to, err)
 				continue
@@ -97,7 +153,7 @@ func HandleProgramReminder(sender MailSender,
 		}
 
 		log.Printf("reminder: sent for program=%s item=%s date=%s %s",
-		 p.ProgramID, p.ProgramItemID, first.Date, time.Now().Format(time.RFC3339))
+			p.ProgramID, p.ProgramItemID, first.Date, time.Now().Format(time.RFC3339))
 		return nil
 	}
 }

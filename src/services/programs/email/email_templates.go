@@ -11,7 +11,7 @@ import (
 	"Backend-Bluelock-007/src/models"
 )
 
-var _ embed.FS 
+var _ embed.FS
 
 type OpenEmailData struct {
 	StudentName     string
@@ -48,7 +48,7 @@ var openEmailTmpl = template.Must(
 				if err != nil {
 					return s
 				}
-				months := []string{"", "มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"}
+				months := []string{"", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"}
 				return fmt.Sprintf("%d %s %d", t.Day(), months[int(t.Month())], t.Year()+543)
 			},
 		}).
@@ -73,28 +73,58 @@ func RenderOpenEmailHTML(data OpenEmailData) (string, error) {
 	return buf.String(), nil
 }
 
-//ส่งเมลก่อน 3 วันก่อนเริ่มกิจกรรม
+// ส่งเมลก่อน 3 วันก่อนเริ่มกิจกรรม
 type ReminderEmailData struct {
-	StudentName string
-	Major       string
-	ProgramName string
-
-	FirstDate  string
-	FirstStime string
-	FirstEtime string
-
-	DetailLink  string
-	ProgramItem models.ProgramItemDto
+	StudentName   string
+	Major         string
+	ProgramName   string
+	Skill         string
+	Description   string
+	TotalHours    int
+	Location      string
+	FirstDate     string
+	FirstStime    string
+	FirstEtime    string
+	RegisterLink  string
+	ProgramItems  []models.ProgramItemDto
+	Dates         []models.Dates
+	EndDateEnroll string
+	StartTime     string
+	EndTime       string
 }
 
 //go:embed email_reminder_program.html
 var reminderEmailHTML string
 
 func RenderReminderEmailHTML(data ReminderEmailData) (string, error) {
-	tmpl, err := template.New("reminder").Parse(reminderEmailHTML)
+	// 🔽 แปลงค่า skill เป็นภาษาไทยก่อนเรนเดอร์
+	switch strings.ToLower(data.Skill) {
+	case "soft":
+		data.Skill = "ชั่วโมงเตรียมความพร้อม"
+	case "hard":
+		data.Skill = "ชั่วโมงทักษะทางวิชาการ"
+	default:
+		data.Skill = "ไม่ระบุประเภททักษะ"
+	}
+
+	tmpl, err := template.New("reminder").
+		Funcs(template.FuncMap{
+			"formatDateThai": func(s string) string {
+				loc, _ := time.LoadLocation("Asia/Bangkok")
+				t, err := time.ParseInLocation("2006-01-02", s, loc)
+				if err != nil {
+					return s
+				}
+				months := []string{"", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+					"กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"}
+				return fmt.Sprintf("%d %s %d", t.Day(), months[int(t.Month())], t.Year()+543)
+			},
+		}).
+		Parse(reminderEmailHTML)
 	if err != nil {
 		return "", err
 	}
+
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
