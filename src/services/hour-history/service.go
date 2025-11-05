@@ -258,7 +258,8 @@ func VerifyAndGrantHours(
 	}
 
 	totalValidDays := daysOnTime + daysLate + daysIncomplete
-	hasAttendedAllDays := (daysOnTime == totalDays) // ต้องมาตรงเวลาครบทุกวัน
+	hasAttendedAllDays := (totalValidDays == totalDays)   // มาครบทุกวัน (เช็คอิน+เช็คเอาท์ครบ)
+	hasAttendedAllDaysOnTime := (daysOnTime == totalDays) // มาครบทุกวัน + ตรงเวลาทุกวัน
 
 	log.Printf("🔍 [DEBUG] Summary:")
 	log.Printf("🔍 [DEBUG]   ├─ Total Days Required: %d", totalDays)
@@ -266,7 +267,8 @@ func VerifyAndGrantHours(
 	log.Printf("🔍 [DEBUG]   ├─ Days Late: %d", daysLate)
 	log.Printf("🔍 [DEBUG]   ├─ Days Incomplete: %d", daysIncomplete)
 	log.Printf("🔍 [DEBUG]   ├─ Days Absent: %d", daysAbsent)
-	log.Printf("🔍 [DEBUG]   └─ Has Attended All Days: %v", hasAttendedAllDays)
+	log.Printf("🔍 [DEBUG]   ├─ Has Attended All Days: %v", hasAttendedAllDays)
+	log.Printf("🔍 [DEBUG]   └─ Has Attended All Days On Time: %v", hasAttendedAllDaysOnTime)
 
 	var newStatus string
 	var newHourChange int
@@ -278,14 +280,9 @@ func VerifyAndGrantHours(
 		newStatus = models.HCStatusAbsent
 		newHourChange = -*programItem.Hour
 		newRemark = fmt.Sprintf("❌ ไม่มาเข้าร่วมกิจกรรมเลย (0/%d วัน)", totalDays)
-	} else if hasAttendedAllDays {
-		// ✅ มาครบทุกวัน และ ตรงเวลาทุกวัน → ได้ชั่วโมงเต็ม
-		newStatus = models.HCStatusAttended
-		newHourChange = *programItem.Hour
-		newRemark = fmt.Sprintf("✅ เข้าร่วมครบถ้วนและตรงเวลาทุกวัน (%d/%d วัน) - ได้รับ %d ชั่วโมง", daysOnTime, totalDays, newHourChange)
-	} else {
-		// ⚠️ มาแต่ไม่ครบ หรือมาสาย หรือเช็คไม่ครบ → attended แต่ไม่ได้ชั่วโมง
-		newStatus = models.HCStatusAttended
+	} else if !hasAttendedAllDays {
+		// ⚠️ มาไม่ครบทุกวัน (ขาดบางวัน หรือ เช็คไม่ครบบางวัน) → late และไม่ได้ชั่วโมง
+		newStatus = models.HCStatusLate
 		newHourChange = 0
 
 		// สร้าง remark ที่ละเอียด
@@ -308,12 +305,48 @@ func VerifyAndGrantHours(
 			detailsStr = " (" + joinStrings(details, ", ") + ")"
 		}
 
-		newRemark = fmt.Sprintf("⚠️ เข้าร่วม %d/%d วัน%s - ไม่ได้รับชั่วโมง", totalValidDays, totalDays, detailsStr)
+		newRemark = fmt.Sprintf("⚠️ เข้าร่วมไม่ครบ %d/%d วัน%s - ไม่ได้รับชั่วโมง", totalValidDays, totalDays, detailsStr)
 
 		// เพิ่มรายละเอียดวันที่มีปัญหา (ถ้ามี)
 		if len(missingDates) > 0 && len(missingDates) <= 3 {
 			newRemark += fmt.Sprintf(" | ขาดวันที่: %s", joinStrings(missingDates, ", "))
 		}
+		if len(lateDates) > 0 && len(lateDates) <= 3 {
+			newRemark += fmt.Sprintf(" | สายวันที่: %s", joinStrings(lateDates, ", "))
+		}
+		if len(incompleteDates) > 0 && len(incompleteDates) <= 3 {
+			newRemark += fmt.Sprintf(" | เช็คไม่ครบวันที่: %s", joinStrings(incompleteDates, ", "))
+		}
+	} else if hasAttendedAllDaysOnTime {
+		// ✅ มาครบทุกวัน + ตรงเวลาทุกวัน → ได้ชั่วโมงเต็ม
+		newStatus = models.HCStatusAttended
+		newHourChange = *programItem.Hour
+		newRemark = fmt.Sprintf("✅ เข้าร่วมครบถ้วนและตรงเวลาทุกวัน (%d/%d วัน) - ได้รับ %d ชั่วโมง", daysOnTime, totalDays, newHourChange)
+	} else {
+		// ⚠️ มาครบทุกวันแล้ว แต่มีบางวันที่สาย/เช็คไม่ครบ → late และไม่ได้ชั่วโมง
+		newStatus = models.HCStatusLate
+		newHourChange = 0
+
+		// สร้าง remark ที่ละเอียด
+		details := []string{}
+		if daysOnTime > 0 {
+			details = append(details, fmt.Sprintf("ตรงเวลา %d วัน", daysOnTime))
+		}
+		if daysLate > 0 {
+			details = append(details, fmt.Sprintf("สาย %d วัน", daysLate))
+		}
+		if daysIncomplete > 0 {
+			details = append(details, fmt.Sprintf("เช็คไม่ครบ %d วัน", daysIncomplete))
+		}
+
+		detailsStr := ""
+		if len(details) > 0 {
+			detailsStr = " (" + joinStrings(details, ", ") + ")"
+		}
+
+		newRemark = fmt.Sprintf("⚠️ เข้าร่วมครบทุกวัน แต่%s - ไม่ได้รับชั่วโมง", detailsStr)
+
+		// เพิ่มรายละเอียดวันที่มีปัญหา (ถ้ามี)
 		if len(lateDates) > 0 && len(lateDates) <= 3 {
 			newRemark += fmt.Sprintf(" | สายวันที่: %s", joinStrings(lateDates, ", "))
 		}
@@ -564,12 +597,13 @@ func GetHistoryWithDetailsAndFilters(
 func GetStudentHoursSummary(ctx context.Context, studentID primitive.ObjectID) (map[string]interface{}, error) {
 	// Aggregate pipeline เพื่อรวมชั่วโมงตาม skillType
 	// รวมทั้ง attended, approved, manual และ absent (absent จะมี hourChange เป็นลบ)
+	// late ไม่นับเพราะไม่ได้ชั่วโมง (hourChange = 0)
 	pipeline := []bson.M{
 		{
 			"$match": bson.M{
 				"studentId": studentID,
 				"status": bson.M{
-					"$in": []string{models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved, models.HCStatusManual}, // รวมทั้ง attended, approved, manual และ absent
+					"$in": []string{models.HCStatusAttended, models.HCStatusAbsent, models.HCStatusApproved, models.HCStatusManual}, // รวมทั้ง attended, approved, manual และ absent (late ไม่รวมเพราะ hourChange = 0)
 				},
 			},
 		},
@@ -656,6 +690,7 @@ func UpdateStudentStatus(ctx context.Context, studentID primitive.ObjectID) erro
 
 // CalculateNetHours คำนวณชั่วโมงรวมจาก HourChangeHistory
 // รวมเฉพาะ status: attended (+), approved (+), manual (+), absent (-)
+// late ไม่รวมเพราะ hourChange = 0
 func CalculateNetHours(ctx context.Context, studentID primitive.ObjectID) (softNet, hardNet int, err error) {
 	pipeline := []bson.M{
 		{"$match": bson.M{

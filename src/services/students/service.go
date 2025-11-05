@@ -108,7 +108,7 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 		"from": "Hour_Change_Histories",
 		"let":  bson.M{"sid": "$_id"},
 		"pipeline": mongo.Pipeline{
-			// match ตาม studentId และสถานะที่นับจริง
+			// match ตาม studentId และสถานะที่นับจริง (late ไม่นับเพราะ hourChange = 0)
 			bson.D{{Key: "$match", Value: bson.M{
 				"$expr": bson.M{"$eq": bson.A{"$studentId", "$$sid"}},
 				"status": bson.M{"$in": bson.A{
@@ -867,6 +867,7 @@ func GetStudentSummary(majors []string, studentYears []string) (StudentSummary, 
 
 	// ---------- Aggregate deltas from Hour_Change_Histories ----------
 	// NOTE: ให้แน่ใจว่า DB.HourChangeHistoryCollection ชี้คอลเลกชันชื่อถูกต้อง
+	// late ไม่นับเพราะ hourChange = 0
 	deltaPipe := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{
 			"studentId": bson.M{"$in": ids},
