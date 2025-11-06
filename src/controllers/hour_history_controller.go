@@ -187,5 +187,10 @@ func CreateDirectHourChange(c *fiber.Ctx) error {
 		return utils.HandleError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
+	// Update student status based on new hours
+	if err := hourhistory.UpdateStudentStatus(ctx, studentID); err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update student status: "+err.Error())
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(history)
 }
