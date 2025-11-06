@@ -140,22 +140,57 @@ type CompletedItem struct {
 }
 
 type CompletedEmailData struct {
-	StudentName string
-	Major       string
-	ProgramName string
-	TotalHours  int
-	Items       []CompletedItem
-	DetailLink  string
+	StudentName   string
+	Major         string
+	ProgramName   string
+	Skill         string
+	Description   string
+	TotalHours    int
+	Location      string
+	FirstDate     string
+	FirstStime    string
+	FirstEtime    string
+	DetailLink    string
+	ProgramItems  []models.ProgramItemDto
+	Dates         []models.Dates
+	EndDateEnroll string
+	StartTime     string
+	EndTime       string
 }
 
 //go:embed email_completed_program.html
 var completedEmailHTML string
 
 func RenderCompletedEmailHTML(data CompletedEmailData) (string, error) {
-	tmpl, err := template.New("completed").Parse(completedEmailHTML)
+	// 🔽 แปลงค่า skill เป็นภาษาไทยก่อนเรนเดอร์
+	switch strings.ToLower(data.Skill) {
+	case "soft":
+		data.Skill = "ชั่วโมงเตรียมความพร้อม"
+	case "hard":
+		data.Skill = "ชั่วโมงทักษะทางวิชาการ"
+	default:
+		data.Skill = "ไม่ระบุประเภททักษะ"
+	}
+
+	// 🔽 ลงทะเบียน formatDateThai เหมือนเมลอื่น ๆ
+	tmpl, err := template.New("completed").
+		Funcs(template.FuncMap{
+			"formatDateThai": func(s string) string {
+				loc, _ := time.LoadLocation("Asia/Bangkok")
+				t, err := time.ParseInLocation("2006-01-02", s, loc)
+				if err != nil {
+					return s
+				}
+				months := []string{"", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+					"กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"}
+				return fmt.Sprintf("%d %s %d", t.Day(), months[int(t.Month())], t.Year()+543)
+			},
+		}).
+		Parse(completedEmailHTML)
 	if err != nil {
 		return "", err
 	}
+
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
