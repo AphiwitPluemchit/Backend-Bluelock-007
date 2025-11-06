@@ -1,26 +1,88 @@
-<div style="font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;line-height:1.6;color:#222;">
-  <h2 style="color:#2f855a;">✅ กิจกรรมเสร็จสิ้น: {{.ProgramName}}</h2>
+<!-- ===== Reminder email (table + inline CSS) ===== -->
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+  style="width:100%;background:#f4f6f9;padding:16px 0;color:#000;">
+  <tr>
+    <td align="center">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+        style="background:#e9f5ff;border:1px solid #d6e9ff;border-radius:8px;">
+        <tr>
+          <td style="padding:20px 24px;font-family:Tahoma, Arial, sans-serif;font-weight:500;color:#081f5c;">
+            <!-- title -->
+            <div style="font-size:20px;line-height:30px;font-weight:700;margin:0 0 6px 0;text-align:left;color:#000;">
+              {{.ProgramName}}
+            </div>
 
-  <p>เรียน {{.StudentName}} (สาขา {{.Major}})</p>
-  <p>ระบบได้บันทึกชั่วโมงการอบรมให้คุณเรียบร้อยแล้ว 🎉</p>
+            <!-- intro -->
+            <div style="font-size:15px;line-height:24px;margin:0 0 12px 0;text-align:left;color:#000;">
+              เรียน {{.StudentName}} คุณได้รับชั่วโมงการอบรมเตรียมความพร้อมก่อนไปสหกิจศึกษาแล้ว โดยมีรายละเอียดดังนี้
+            </div>
 
-  {{if .Items}}
-  <p><b>สรุปรายการที่คุณเข้าร่วม</b><br/>
-    {{range .Items}}
-      • {{.Name}} — {{.Hour}} ชม.<br/>
-    {{end}}
-  </p>
-  {{end}}
+            <!-- details -->
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+              style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;color:#000;">
+              <tbody>
+                <tr>
+                  <td valign="top" align="left"
+                    style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    ชื่อโครงการ
+                  </td>
+                  <td valign="top" align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td valign="top" style="padding:4px 0 4px 4px;text-align:left;">
+                    {{.ProgramName}}
+                  </td>
+                </tr>
 
-  <p><b>รวมชั่วโมงที่ได้รับ:</b> {{.TotalHours}} ชม.</p>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    วันที่จัด
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">
+                    {{- range .ProgramItems -}}{{- range .Dates -}}
+                    {{formatDateThai .Date}}<br />
+                    {{- end -}}{{- end -}}
+                  </td>
+                </tr>
 
-  <p>
-    <a href="{{.DetailLink}}" target="_blank"
-       style="display:inline-block;padding:10px 18px;background:#2f855a;color:#fff;text-decoration:none;border-radius:6px;">
-      เปิดดูบันทึกชั่วโมง / รายละเอียดกิจกรรม
-    </a>
-  </p>
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    ประเภท
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{.Skill}}</td>
+                </tr>
 
-  <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
-  <small style="color:#666;">อีเมลนี้ส่งอัตโนมัติจากระบบกิจกรรมนิสิต กรุณาอย่าตอบกลับ</small>
-</div>
+                <!-- จำนวนชั่วโมง -->
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    จำนวนชั่วโมง
+                  </td>
+                  <td align="center" style="width:8px;padding:4px 0;">:</td>
+                  <td style="padding:4px 0 4px 4px;text-align:left;">{{.TotalHours}} ชั่วโมง</td>
+                </tr>
+
+                <tr>
+                  <td align="left" style="width:140px;padding:4px 0 4px 6px;white-space:normal;font-weight:700;">
+                    <a href="{{.DetailLink}}" target="_blank"
+                      style="color:#000;text-decoration:underline;">ดูชั่วโมงของคุณ</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- contact -->
+            <div style="margin-top:6px;font-size:15px;text-align:left;white-space:normal;color:#000;">
+              <span style="font-weight:700;">สอบถามเพิ่มเติม:</span>
+              <span> kamonwans@go.buu.ac.th หรือ โทร 098-8u49-23 ต่อ 1</span>
+            </div>
+
+            <!-- footnote -->
+            <div style="font-size:12px;color:#6b7a99;margin-top:14px;text-align:left;">
+              อีเมลฉบับนี้จัดส่งโดยระบบอัตโนมัติ กรุณาอย่าตอบกลับ
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
