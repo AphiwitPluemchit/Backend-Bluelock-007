@@ -132,8 +132,6 @@ func RenderReminderEmailHTML(data ReminderEmailData) (string, error) {
 	return buf.String(), nil
 }
 
-// --- Completed Email ---
-
 type CompletedItem struct {
 	Name string
 	Hour int
