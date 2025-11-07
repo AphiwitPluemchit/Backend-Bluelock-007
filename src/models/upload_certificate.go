@@ -7,22 +7,23 @@ import (
 )
 
 type UploadCertificate struct {
-	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty" `
-	StudentId       primitive.ObjectID `bson:"studentId" json:"studentId"`
-	CourseId        primitive.ObjectID `bson:"courseId" json:"courseId"`
-	Student         *Student           `json:"student"`
-	Course          *Course            `json:"course"`
-	Url             string             `bson:"url" json:"url"`
-	NameMatch       int                `bson:"nameMatch" json:"nameMatch"`
-	NameEngMatch    int                `bson:"nameEngMatch" json:"nameEngMatch"`
-	CourseMatch     int                `bson:"courseMatch" json:"courseMatch"`
-	CourseEngMatch  int                `bson:"courseEngMatch" json:"courseEngMatch"`
-	Status          StatusType         `bson:"status" json:"status" default:"pending" enum:"pending,approved,rejected"`
-	Remark          string             `bson:"remark" json:"remark"`
-	IsDuplicate     bool               `bson:"isDuplicate" json:"isDuplicate" default:"false"`
-	UploadAt        time.Time          `bson:"uploadAt" json:"uploadAt" default:"time.Now()"`
-	ChangedStatusAt *time.Time         `bson:"changedStatusAt" json:"changedStatusAt"`
-	UseOcr          *bool              `bson:"useOcr,omitempty" json:"useOcr,omitempty"`
+	ID              primitive.ObjectID  `bson:"_id,omitempty" json:"id,omitempty" `
+	StudentId       primitive.ObjectID  `bson:"studentId" json:"studentId"`
+	CourseId        primitive.ObjectID  `bson:"courseId" json:"courseId"`
+	HourHistoryId   *primitive.ObjectID `bson:"hourHistoryId,omitempty" json:"hourHistoryId,omitempty"`
+	Student         *Student            `json:"student"`
+	Course          *Course             `json:"course"`
+	Url             string              `bson:"url" json:"url"`
+	NameMatch       int                 `bson:"nameMatch" json:"nameMatch"`
+	NameEngMatch    int                 `bson:"nameEngMatch" json:"nameEngMatch"`
+	CourseMatch     int                 `bson:"courseMatch" json:"courseMatch"`
+	CourseEngMatch  int                 `bson:"courseEngMatch" json:"courseEngMatch"`
+	Status          StatusType          `bson:"status" json:"status" default:"pending" enum:"pending,approved,rejected"`
+	Remark          string              `bson:"remark" json:"remark"`
+	IsDuplicate     bool                `bson:"isDuplicate" json:"isDuplicate" default:"false"`
+	UploadAt        time.Time           `bson:"uploadAt" json:"uploadAt" default:"time.Now()"`
+	ChangedStatusAt *time.Time          `bson:"changedStatusAt" json:"changedStatusAt"`
+	UseOcr          *bool               `bson:"useOcr,omitempty" json:"useOcr,omitempty"`
 }
 
 type StatusType string
