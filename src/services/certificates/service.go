@@ -1540,25 +1540,12 @@ func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCe
 		"skillType":  skillType,
 	}}
 
-	res, _ := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
-	if res != nil && res.MatchedCount == 0 {
-		// fallback: insert history
-		_, err := DB.HourChangeHistoryCollection.InsertOne(ctx, models.HourChangeHistory{
-			ID:         primitive.NewObjectID(),
-			StudentID:  upload.StudentId,
-			SkillType:  skillType,
-			Status:     models.HCStatusApproved,
-			HourChange: hoursToAdd, // ใช้ชั่วโมงที่คำนวณแล้ว (อาจถูก cap)
-			Remark:     "อนุมัติใบรับรอง",
-			ChangeAt:   time.Now(),
-			Title:      course.Name,
-			SourceType: "certificate",
-			SourceID:   &upload.ID,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to insert approved history: %v", err)
-		}
+	_, err = DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
+
+	if err != nil {
+		return fmt.Errorf("failed to update hour history: %v", err)
 	}
+
 	return nil
 }
 
