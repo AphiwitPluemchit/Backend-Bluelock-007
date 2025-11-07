@@ -582,9 +582,6 @@ func saveTimeoutRejection(ctx context.Context, publicPageURL string, student mod
 }
 
 func BuuMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
-	studentNameTh := student.Name
-	studentNameEng := student.EngName
-
 	// get html from publicPageURL and log
 	resp, err := http.Get(publicPageURL)
 	if err != nil {
@@ -599,8 +596,8 @@ func BuuMooc(publicPageURL string, student models.Student, course models.Course)
 	response, err := callBUUMoocFastAPI(
 		FastAPIURL(),
 		string(body),             // html ที่ดึงมา
-		studentNameTh,            // student_th
-		studentNameEng,           // student_en
+		student.Name,             // student_th
+		student.EngName,          // student_en
 		course.CertificateName,   // course_name (ใช้ชื่อจาก certificate)
 		course.CertificateNameEN, // course_name_en
 	)
@@ -621,21 +618,18 @@ func CheckStudentCourse(studentId string, courseId string) (models.Student, mode
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
-	fmt.Println("Check Student Course")
 
 	// find student
 	student, err := students.GetStudentById(studentObjectID)
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
-	fmt.Println("studentId", studentId)
 
 	// find course
 	course, err := courses.GetCourseByID(courseObjectID)
 	if err != nil {
 		return models.Student{}, models.Course{}, err
 	}
-	fmt.Println("courseId", courseId)
 
 	return *student, *course, err
 }
@@ -779,15 +773,32 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	// - If both nameMax and courseMax >= NAME_APPROVE & COURSE_APPROVE => Approved
 	// - Else if both nameMax and courseMax >= PENDING => Pending
 	// - Otherwise => Rejected
+	var remark string
 	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
 		uploadCertificate.Status = models.StatusApproved
+		remark = "ใบรับรองได้รับการอนุมัติอัตโนมัติ"
 	} else if nameMax >= pendingThreshold && courseMax >= pendingThreshold {
 		uploadCertificate.Status = models.StatusPending
+		remark = "ใบรับรองรอการตรวจสอบจากเจ้าหน้าที่"
 	} else {
 		uploadCertificate.Status = models.StatusRejected
+		// สร้าง remark ที่อธิบายสาเหตุการปฏิเสธ
+		var reasons []string
+		if nameMax < pendingThreshold {
+			reasons = append(reasons, fmt.Sprintf("ชื่อนักศึกษาไม่ตรงกัน "))
+		}
+		if courseMax < pendingThreshold {
+			reasons = append(reasons, fmt.Sprintf("ชื่อคอร์สไม่ตรงกัน "))
+		}
+		if len(reasons) > 0 {
+			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ: " + strings.Join(reasons, ", ")
+		} else {
+			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ เนื่องจากคะแนนการตรวจสอบไม่ผ่านเกณฑ์"
+		}
 	}
 
 	uploadCertificate.IsDuplicate = false
+	uploadCertificate.Remark = remark
 	uploadCertificate.Url = publicPageURL
 	uploadCertificate.StudentId = studentId
 	uploadCertificate.CourseId = courseId
@@ -817,7 +828,7 @@ func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, c
 	// ถ้าสถานะเป็น rejected ให้บันทึก history record ด้วย
 	if saved.Status == models.StatusRejected {
 		fmt.Println("Auto-rejected certificate, recording rejection history")
-		if err := recordCertificateRejection(context.Background(), saved, "Auto-rejected based on matching scores"); err != nil {
+		if err := recordCertificateRejection(context.Background(), saved, remark); err != nil {
 			fmt.Printf("Warning: Failed to record certificate rejection for auto-rejected certificate %s: %v\n", saved.ID.Hex(), err)
 		}
 	}
@@ -865,20 +876,21 @@ func ProcessPendingUpload(uploadIDHex string) error {
 
 	if isDuplicate {
 		// Update current upload as rejected duplicate
+		duplicateRemark := "ระบบปฏิเสธใบรับรองอัตโนมัติ: URL นี้ถูกใช้งานแล้วในใบรับรองที่ได้รับการอนุมัติก่อนหน้านี้"
 		update := bson.M{"$set": bson.M{
 			"isDuplicate":     true,
 			"status":          models.StatusRejected,
-			"remark":          "ใบรับรองนี้ถูกปฏิเสธโดยอัตโนมัติ เนื่องจากมี URL ซ้ำกับใบรับรองที่มีอยู่แล้ว",
+			"remark":          duplicateRemark,
 			"changedStatusAt": time.Now(),
 		}}
 		if _, err := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
 			return fmt.Errorf("failed to mark duplicate upload: %v", err)
 		}
 		// Finalize pending history as rejected (reuse helper)
-		if err := finalizePendingHistoryRejected(context.Background(), &uc, course, "Certificate URL already exists"); err != nil {
+		if err := finalizePendingHistoryRejected(context.Background(), &uc, course, duplicateRemark); err != nil {
 			// fallback: still attempt to record rejection
 			fmt.Printf("Warning: failed to finalize pending history for duplicate %s: %v\n", uploadIDHex, err)
-			if rerr := recordCertificateRejection(context.Background(), &uc, "Auto-rejected based on matching scores"); rerr != nil {
+			if rerr := recordCertificateRejection(context.Background(), &uc, duplicateRemark); rerr != nil {
 				fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, rerr)
 			}
 		}
@@ -898,7 +910,16 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	}
 	if err != nil {
 		// On timeout or other errors, mark rejected with remark
-		remark := fmt.Sprintf("ระบบปฏิเสธใบรับรองอัตโนมัติ อาจเกิดปัญหาในการเข้าถึง URL: %v", err)
+		var remark string
+		if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "context deadline exceeded") {
+			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ: ไม่สามารถเข้าถึง URL ได้ภายในเวลาที่กำหนด (Timeout)"
+		} else if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "not found") {
+			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ: ไม่พบหน้าเว็บที่ระบุ (404 Not Found)"
+		} else if strings.Contains(err.Error(), "certificate has expired") || strings.Contains(err.Error(), "ssl") {
+			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ: เกิดปัญหาด้านความปลอดภัยของการเชื่อมต่อ (SSL Error)"
+		} else {
+			remark = fmt.Sprintf("ระบบปฏิเสธใบรับรองอัตโนมัติ: เกิดข้อผิดพลาดในการตรวจสอบ (%v)", err)
+		}
 		update := bson.M{"$set": bson.M{"status": models.StatusRejected, "remark": remark, "changedStatusAt": time.Now()}}
 		if _, uerr := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); uerr != nil {
 			return fmt.Errorf("failed to update upload after error: %v (update err: %v)", err, uerr)
@@ -939,13 +960,27 @@ func ProcessPendingUpload(uploadIDHex string) error {
 	)
 
 	newStatus := models.StatusRejected
-	remark := "ระบบปฏิเสธใบรับรองอัตโนมัติ ตามคะแนนการตรวจสอบ"
+	var remark string
 	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
 		newStatus = models.StatusApproved
-		remark = "ใบรับรองได้รับการอนุมัติ"
+		remark = "ใบรับรองได้รับการอนุมัติอัตโนมัติ"
 	} else if nameMax >= pendingThreshold && courseMax >= pendingThreshold {
 		newStatus = models.StatusPending
-		remark = "ใบรับรองรอให้เจ้าหน้าที่ตรวจสอบ"
+		remark = "ใบรับรองรอการตรวจสอบจากเจ้าหน้าที่"
+	} else {
+		// สร้าง remark ที่อธิบายสาเหตุการปฏิเสธ
+		var reasons []string
+		if nameMax < pendingThreshold {
+			reasons = append(reasons, fmt.Sprintf("ชื่อนักศึกษาไม่ตรงกัน "))
+		}
+		if courseMax < pendingThreshold {
+			reasons = append(reasons, fmt.Sprintf("ชื่อคอร์สไม่ตรงกัน "))
+		}
+		if len(reasons) > 0 {
+			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ: " + strings.Join(reasons, ", ")
+		} else {
+			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ เนื่องจากคะแนนการตรวจสอบไม่ผ่านเกณฑ์"
+		}
 	}
 
 	updateFields := bson.M{
@@ -978,7 +1013,7 @@ func ProcessPendingUpload(uploadIDHex string) error {
 			fmt.Printf("Warning: finalize approved history failed for %s: %v\n", uploadIDHex, err)
 		}
 	case models.StatusRejected:
-		if err := finalizePendingHistoryRejected(context.Background(), &updated, course, "Auto-rejected based on matching scores"); err != nil {
+		if err := finalizePendingHistoryRejected(context.Background(), &updated, course, remark); err != nil {
 			fmt.Printf("Warning: finalize rejected history failed for %s: %v\n", uploadIDHex, err)
 		}
 	default:
