@@ -4,38 +4,35 @@ import (
 	DB "Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/models"
 	"Backend-Bluelock-007/src/services/courses"
-	hourhistory "Backend-Bluelock-007/src/services/hour-history"
-	"Backend-Bluelock-007/src/services/students"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"strconv"
 
-	"github.com/chromedp/chromedp"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// ============================================================================
+// CONFIGURATION - Environment variables และ thresholds
+// ============================================================================
+
 // Thresholds controlled by environment variables. Defaults kept for backward compatibility.
 var (
-	nameApproveThreshold   = 80
-	courseApproveThreshold = 80
-	pendingThreshold       = 50
+	nameApproveThreshold   = 80 // เกณฑ์คะแนนชื่อสำหรับอนุมัติอัตโนมัติ
+	courseApproveThreshold = 80 // เกณฑ์คะแนนคอร์สสำหรับอนุมัติอัตโนมัติ
+	pendingThreshold       = 50 // เกณฑ์คะแนนสำหรับสถานะ pending
 )
 
 func init() {
-	// Ensure .env is loaded for this package's init so environment-controlled
-	// thresholds are picked up even if other packages load .env later.
+	// โหลด environment variables จาก .env file
 	if err := godotenv.Load(); err != nil {
-		// Not fatal; if .env not present we'll fall back to system env/defaults
 		fmt.Println("⚠️ services: .env not found or failed to load")
 	}
 	if v := os.Getenv("NAME_APPROVE"); v != "" {
@@ -55,6 +52,11 @@ func init() {
 	}
 }
 
+// ============================================================================
+// CRUD OPERATIONS - Create, Read, Update, Delete
+// ============================================================================
+
+// CreateUploadCertificate สร้าง certificate ใหม่พร้อม hour history
 func CreateUploadCertificate(uploadCertificate *models.UploadCertificate) (*models.UploadCertificate, error) {
 	ctx := context.Background()
 
@@ -114,6 +116,7 @@ func CreateUploadCertificate(uploadCertificate *models.UploadCertificate) (*mode
 	return &insertedDoc, nil
 }
 
+// UpdateUploadCertificate อัพเดทข้อมูล certificate
 func UpdateUploadCertificate(id string, uploadCertificate *models.UploadCertificate) (*mongo.UpdateResult, error) {
 	ctx := context.Background()
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -123,7 +126,11 @@ func UpdateUploadCertificate(id string, uploadCertificate *models.UploadCertific
 	return DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": uploadCertificate})
 }
 
-// UpdateUploadCertificateStatus อัพเดทสถานะของ certificate และจัดการชั่วโมงให้อัตโนมัติ
+// ============================================================================
+// STATUS MANAGEMENT - จัดการสถานะของ certificate
+// ============================================================================
+
+// UpdateUploadCertificateStatus อัพเดทสถานะของ certificate และจัดการชั่วโมงอัตโนมัติ
 // ใช้โดย Admin เพื่อ approve/reject certificate
 func UpdateUploadCertificateStatus(id string, newStatus models.StatusType, remark string) (*models.UploadCertificate, error) {
 	ctx := context.Background()
@@ -317,6 +324,10 @@ func GetUploadCertificate(id string) (*models.UploadCertificate, error) {
 	return &result, nil
 }
 
+// ============================================================================
+// QUERY OPERATIONS - ค้นหาและดึงข้อมูล certificate
+// ============================================================================
+
 func GetUploadCertificates(params models.UploadCertificateQuery, pagination models.PaginationParams) ([]models.UploadCertificate, models.PaginationMeta, error) {
 	ctx := context.Background()
 
@@ -505,378 +516,12 @@ func GetUploadCertificates(params models.UploadCertificateQuery, pagination mode
 	return rows, meta, nil
 }
 
-func ThaiMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
-	// Use a cancellable context with timeout to avoid hanging on bad URLs
-	timeout := 180 * time.Second
-	if v := os.Getenv("THAIMOOC_TIMEOUT"); v != "" {
-		if parsed, err := time.ParseDuration(v); err == nil {
-			timeout = parsed
-		}
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	// สร้าง browser context (headless)
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", true),
-		chromedp.Flag("disable-gpu", true),
-		chromedp.Flag("no-sandbox", true), // ถ้ารันใน container เป็น root ให้เปิดอันนี้
-		chromedp.Flag("disable-dev-shm-usage", true),
-		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
-	)
-	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
-	defer allocCancel()
-
-	// สร้างแท็บใหม่
-	taskCtx, taskCancel := chromedp.NewContext(allocCtx)
-	defer taskCancel()
-
-	var pdfSrc string
-	err := chromedp.Run(taskCtx,
-		chromedp.Navigate(publicPageURL),
-		// รอจน network เงียบลงหน่อย
-		chromedp.Sleep(500*time.Millisecond),
-		// รอให้ <embed type="application/pdf"> โผล่ใน DOM
-		chromedp.WaitVisible(`embed[type="application/pdf"]`, chromedp.ByQuery),
-		// ดึงค่า attribute src
-		chromedp.AttributeValue(`embed[type="application/pdf"]`, "src", &pdfSrc, nil, chromedp.ByQuery),
-	)
-	if err != nil {
-		// If it's a context deadline, persist an auto-rejected certificate and record history
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			fmt.Printf("ThaiMooc timeout after %v for URL %s\n", timeout, publicPageURL)
-			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "ระบบปฏิเสธเนื่องจากหมดเวลาในการเข้าถึง URL"); e != nil {
-				fmt.Printf("Warning: failed to save timeout rejection: %v\n", e)
-			}
-		}
-		return nil, err
-	}
-	if pdfSrc == "" {
-		return nil, errors.New("pdf <embed> not found or empty src")
-	}
-	// ตัดพารามิเตอร์ viewer ออก (#toolbar/navpanes/scrollbar)
-	if i := strings.IndexByte(pdfSrc, '#'); i >= 0 {
-		pdfSrc = pdfSrc[:i]
-	}
-
-	// Download PDF into memory (no disk write)
-	pdfBytes, err := DownloadPDFToBytes(ctx, pdfSrc)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			fmt.Printf("ThaiMooc timeout after %v for URL %s\n", timeout, publicPageURL)
-			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "Auto-rejected due to timeout while downloading PDF"); e != nil {
-				fmt.Printf("Warning: failed to save timeout rejection: %v\n", e)
-			}
-		}
-		return nil, err
-	}
-
-	// Ensure the FastAPI call respects the same context/timeout and send bytes
-	response, err := callThaiMoocFastAPIWithContext(ctx,
-		FastAPIURL(),
-		pdfBytes,                 // pdf bytes
-		student.Name,             // student_th
-		student.EngName,          // student_en
-		course.CertificateName,   // course_name
-		course.CertificateNameEN, // course_name_en
-	)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			fmt.Printf("ThaiMooc timeout after %v for URL %s\n", timeout, publicPageURL)
-			if e := saveTimeoutRejection(context.Background(), publicPageURL, student, course, "Auto-rejected due to timeout while calling FastAPI"); e != nil {
-				fmt.Printf("Warning: failed to save timeout rejection: %v\n", e)
-			}
-		}
-		return nil, err
-	}
-	return response, nil
-}
-
-// saveTimeoutRejection creates an UploadCertificate record marked rejected and records rejection history.
-func saveTimeoutRejection(ctx context.Context, publicPageURL string, student models.Student, course models.Course, reason string) error {
-	uc := models.UploadCertificate{}
-	uc.ID = primitive.NewObjectID()
-	uc.IsDuplicate = false
-	uc.StudentId = student.ID
-	uc.CourseId = course.ID
-	uc.UploadAt = time.Now()
-	uc.NameMatch = 0
-	uc.NameEngMatch = 0
-	uc.CourseMatch = 0
-	uc.CourseEngMatch = 0
-	uc.Status = models.StatusRejected
-	uc.Remark = reason
-	uc.Url = publicPageURL
-
-	saved, err := CreateUploadCertificate(&uc)
-	if err != nil {
-		return fmt.Errorf("failed to save timeout-rejected upload certificate: %v", err)
-	}
-
-	if err := recordCertificateRejection(context.Background(), saved, "URL ไม่พบข้อมูล หรืออาจมีปัญหาทางการเข้าถึง"); err != nil {
-		// log but don't fail
-		fmt.Printf("Warning: Failed to record certificate rejection history for timeout-rejected certificate %s: %v\n", saved.ID.Hex(), err)
-	}
-	fmt.Printf("Saved timeout-rejected certificate %s for URL %s\n", saved.ID.Hex(), publicPageURL)
-	return nil
-}
-
-func BuuMooc(publicPageURL string, student models.Student, course models.Course) (*FastAPIResp, error) {
-	// get html from publicPageURL and log
-	resp, err := http.Get(publicPageURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	response, err := callBUUMoocFastAPI(
-		FastAPIURL(),
-		string(body),             // html ที่ดึงมา
-		student.Name,             // student_th
-		student.EngName,          // student_en
-		course.CertificateName,   // course_name (ใช้ชื่อจาก certificate)
-		course.CertificateNameEN, // course_name_en
-	)
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
-func CheckStudentCourse(studentId string, courseId string) (models.Student, models.Course, error) {
-
-	studentObjectID, err := primitive.ObjectIDFromHex(studentId)
-	if err != nil {
-		return models.Student{}, models.Course{}, err
-	}
-
-	courseObjectID, err := primitive.ObjectIDFromHex(courseId)
-	if err != nil {
-		return models.Student{}, models.Course{}, err
-	}
-
-	// find student
-	student, err := students.GetStudentById(studentObjectID)
-	if err != nil {
-		return models.Student{}, models.Course{}, err
-	}
-
-	// find course
-	course, err := courses.GetCourseByID(courseObjectID)
-	if err != nil {
-		return models.Student{}, models.Course{}, err
-	}
-
-	return *student, *course, err
-}
-
-func FastAPIURL() string {
-	if v := os.Getenv("FASTAPI_URL"); v != "" {
-		return v
-	}
-	return "http://fastapi-ocr:8000"
-}
-
-// callThaiMoocFastAPIWithContext runs callThaiMoocFastAPI but returns early if ctx is done.
-func callThaiMoocFastAPIWithContext(ctx context.Context, url string, pdfBytes []byte, studentTh string, studentEn string, courseName string, courseNameEn string) (*FastAPIResp, error) {
-	type respWrap struct {
-		resp *FastAPIResp
-		err  error
-	}
-	ch := make(chan respWrap, 1)
-
-	go func() {
-		r, e := callThaiMoocFastAPI(url, pdfBytes, studentTh, studentEn, courseName, courseNameEn)
-		ch <- respWrap{resp: r, err: e}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case out := <-ch:
-		return out.resp, out.err
-	}
-}
-
-// DownloadPDFToBytes downloads a PDF from the given URL into memory and returns bytes.
-func DownloadPDFToBytes(ctx context.Context, pdfSrc string) ([]byte, error) {
-	req, err := http.NewRequest("GET", pdfSrc, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req = req.WithContext(ctx)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error downloading PDF: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading PDF body: %v", err)
-	}
-	return b, nil
-}
-
-func checkDuplicateURL(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID, excludeID *primitive.ObjectID) (bool, *models.UploadCertificate, error) {
-	ctx := context.Background()
-
-	var result models.UploadCertificate
-	// Consider approved uploads as duplicates by default. For pending uploads,
-	// allow a short grace window when the pending upload belongs to the same
-	// student and course and was created just now -- this avoids race where a
-	// pending record is created locally then immediately re-checked and treated
-	// as a duplicate.
-	filter := bson.M{"url": publicPageURL, "status": bson.M{"$in": bson.A{models.StatusApproved, models.StatusPending}}}
-	err := DB.UploadCertificateCollection.FindOne(ctx, filter).Decode(&result)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return false, nil, nil // URL is unique (no document found)
-		}
-		return false, nil, err // Some other error occurred
-	}
-	// If the found document is pending, only ignore it when it's the same
-	// upload we're currently processing (excludeID). This avoids race where
-	// the background job finds its own pending record and rejects itself.
-	if result.Status == models.StatusPending {
-		if excludeID != nil && result.ID == *excludeID {
-			return false, nil, nil
-		}
-		// Otherwise treat pending as a duplicate (fall through)
-	}
-
-	// copy result to new object remove _id and mark as duplicate rejection record
-	// newResult := models.UploadCertificate{}
-	// newResult.IsDuplicate = true
-	// newResult.StudentId = studentId
-	// newResult.CourseId = courseId
-	// newResult.UploadAt = time.Now()
-	// newResult.NameMatch = 0
-	// newResult.CourseMatch = 0
-	// newResult.Status = models.StatusRejected
-	// newResult.Remark = "Certificate URL already exists"
-	// newResult.Url = publicPageURL
-	// newResult.ID = primitive.NewObjectID()
-
-	// createDuplicate, err := CreateUploadCertificate(&newResult)
-	// if err != nil {
-	// 	return false, nil, err
-	// }
-
-	// if err := recordCertificateRejection(context.Background(), createDuplicate, "Auto-rejected based on matching scores"); err != nil {
-	// 	fmt.Printf("Warning: Failed to record certificate rejection for auto-rejected certificate %s: %v\n", createDuplicate.ID.Hex(), err)
-	// }
-
-	return true, &result, nil // URL already exists
-}
-
-func saveUploadCertificate(publicPageURL string, studentId primitive.ObjectID, courseId primitive.ObjectID, res *FastAPIResp) (*models.UploadCertificate, error) {
-	var uploadCertificate models.UploadCertificate
-
-	// Helper to dereference nullable scores; treat nil as 0
-	getScore := func(p *int) int {
-		if p == nil {
-			return 0
-		}
-		return *p
-	}
-
-	nameScoreTh := getScore(res.NameScoreTh)
-	nameScoreEn := getScore(res.NameScoreEn)
-	courseScore := getScore(res.CourseScore)
-	courseScoreEn := getScore(res.CourseScoreEn)
-
-	nameMax := max(nameScoreTh, nameScoreEn)
-
-	// Decide status using available course scores: take the max of Thai/EN course score
-	courseMax := max(courseScore, courseScoreEn)
-
-	// log thresholds and scores
-	fmt.Printf("  Thresholds: NAME_APPROVE=%d, COURSE_APPROVE=%d, PENDING=%d\n", nameApproveThreshold, courseApproveThreshold, pendingThreshold)
-	fmt.Printf("  Scores: nameMax=%d (TH=%d, EN=%d), courseMax=%d (TH=%d, EN=%d)\n",
-		nameMax, nameScoreTh, nameScoreEn,
-		courseMax, courseScore, courseScoreEn,
-	)
-
-	// Decide status using centralized thresholds from environment
-	// - If both nameMax and courseMax >= NAME_APPROVE & COURSE_APPROVE => Approved
-	// - Else if both nameMax and courseMax >= PENDING => Pending
-	// - Otherwise => Rejected
-	var remark string
-	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
-		uploadCertificate.Status = models.StatusApproved
-		remark = "ใบรับรองได้รับการอนุมัติอัตโนมัติ"
-	} else if nameMax >= pendingThreshold && courseMax >= pendingThreshold {
-		uploadCertificate.Status = models.StatusPending
-		remark = "ใบรับรองรอการตรวจสอบจากเจ้าหน้าที่"
-	} else {
-		uploadCertificate.Status = models.StatusRejected
-		// สร้าง remark ที่อธิบายสาเหตุการปฏิเสธ
-		var reasons []string
-		if nameMax < pendingThreshold {
-			reasons = append(reasons, fmt.Sprintf("ชื่อนักศึกษาไม่ตรงกัน "))
-		}
-		if courseMax < pendingThreshold {
-			reasons = append(reasons, fmt.Sprintf("ชื่อคอร์สไม่ตรงกัน "))
-		}
-		if len(reasons) > 0 {
-			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ: " + strings.Join(reasons, ", ")
-		} else {
-			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ เนื่องจากคะแนนการตรวจสอบไม่ผ่านเกณฑ์"
-		}
-	}
-
-	uploadCertificate.IsDuplicate = false
-	uploadCertificate.Remark = remark
-	uploadCertificate.Url = publicPageURL
-	uploadCertificate.StudentId = studentId
-	uploadCertificate.CourseId = courseId
-	uploadCertificate.UploadAt = time.Now()
-	uploadCertificate.NameMatch = nameMax
-	uploadCertificate.NameEngMatch = nameScoreEn
-	uploadCertificate.CourseMatch = courseScore
-	uploadCertificate.CourseEngMatch = courseScoreEn
-
-	// If FastAPI explicitly returned usedOcr, persist it. Otherwise leave nil (don't overwrite existing defaults).
-	if res.UsedOCR != nil {
-		uploadCertificate.UseOcr = res.UsedOCR
-	}
-
-	saved, err := CreateUploadCertificate(&uploadCertificate)
-	if err != nil {
-		return nil, err
-	}
-
-	// ถ้าสถานะเป็น approved ให้บันทึกชั่วโมงทันที (auto-approved)
-	if saved.Status == models.StatusApproved {
-		if err := updateCertificateHoursApproved(context.Background(), saved); err != nil {
-			fmt.Printf("Warning: Failed to add certificate hours for auto-approved certificate %s: %v\n", saved.ID.Hex(), err)
-		}
-	}
-
-	// ถ้าสถานะเป็น rejected ให้บันทึก history record ด้วย
-	if saved.Status == models.StatusRejected {
-		fmt.Println("Auto-rejected certificate, recording rejection history")
-		if err := recordCertificateRejection(context.Background(), saved, remark); err != nil {
-			fmt.Printf("Warning: Failed to record certificate rejection for auto-rejected certificate %s: %v\n", saved.ID.Hex(), err)
-		}
-	}
-
-	return saved, nil
-}
-
 // Reference to avoid "unused function" staticcheck when function is kept for future use
-var _ = saveUploadCertificate
+// Note: saveUploadCertificate was removed during refactor; if needed re-add.
+
+// ============================================================================
+// OCR PIPELINE - ระบบประมวลผลและตรวจสอบใบรับรองด้วย OCR และ Auto-classification
+// ============================================================================
 
 // ProcessPendingUpload finds an existing UploadCertificate by its hex ID and performs
 // the full verification (calling fastapi/browser as needed), updates the document with
@@ -926,7 +571,7 @@ func ProcessPendingUpload(uploadIDHex string) error {
 			return fmt.Errorf("failed to mark duplicate upload: %v", err)
 		}
 		// Finalize pending history as rejected (reuse helper)
-		if err := finalizePendingHistoryRejected(context.Background(), &uc, course, duplicateRemark); err != nil {
+		if err := finalizePendingHistoryRejected(context.Background(), &uc, *course, duplicateRemark); err != nil {
 			// fallback: still attempt to record rejection
 			fmt.Printf("Warning: failed to finalize pending history for duplicate %s: %v\n", uploadIDHex, err)
 			if rerr := recordCertificateRejection(context.Background(), &uc, duplicateRemark); rerr != nil {
@@ -964,660 +609,93 @@ func ProcessPendingUpload(uploadIDHex string) error {
 			return fmt.Errorf("failed to update upload after error: %v (update err: %v)", err, uerr)
 		}
 		// finalize pending history as rejected (update existing pending record if any)
-		if ferr := finalizePendingHistoryRejected(context.Background(), &uc, course, remark); ferr != nil {
+		if ferr := finalizePendingHistoryRejected(context.Background(), &uc, *course, remark); ferr != nil {
 			fmt.Printf("Warning: failed to finalize pending rejection history for %s: %v\n", uploadIDHex, ferr)
 			// fallback: insert rejection history
 			if rerr := recordCertificateRejection(context.Background(), &uc, remark); rerr != nil {
 				fmt.Printf("Warning: failed to record rejection history for %s: %v\n", uploadIDHex, rerr)
 			}
 		}
+
 		return nil
 	}
-	if res == nil {
-		return fmt.Errorf("nil response from fastapi for upload %s", uploadIDHex)
+
+	// ------------- Success path: we have a response in res --------------
+	// Update some diagnostic fields returned by the verifier
+	updFields := bson.M{
+		"autoVerified":    res.IsVerified,
+		"isNameMatch":     res.IsNameMatch,
+		"isCourseMatch":   res.IsCourseMatch,
+		"nameScoreTh":     res.NameScoreTh,
+		"nameScoreEn":     res.NameScoreEn,
+		"courseScore":     res.CourseScore,
+		"courseScoreEn":   res.CourseScoreEn,
+		"usedOcr":         res.UsedOCR,
+		"changedStatusAt": time.Now(),
 	}
 
-	// Prepare fields to update on the existing upload record
-	getScore := func(p *int) int {
+	// Decide status based on thresholds
+	// default to rejected
+	chosenStatus := models.StatusRejected
+	remark := "ระบบประมวลผลอัตโนมัติ: ผลการตรวจสอบ"
+
+	// helper to get score value (nil-safe)
+	getInt := func(p *int) int {
 		if p == nil {
 			return 0
 		}
 		return *p
 	}
-	nameScoreTh := getScore(res.NameScoreTh)
-	nameScoreEn := getScore(res.NameScoreEn)
-	courseScore := getScore(res.CourseScore)
-	courseScoreEn := getScore(res.CourseScoreEn)
-	nameMax := max(nameScoreTh, nameScoreEn)
-	courseMax := max(courseScore, courseScoreEn)
 
-	// log thresholds and scores
-	fmt.Printf("  Thresholds: NAME_APPROVE=%d, COURSE_APPROVE=%d, PENDING=%d\n", nameApproveThreshold, courseApproveThreshold, pendingThreshold)
-	fmt.Printf("  Scores: nameMax=%d (TH=%d, EN=%d), courseMax=%d (TH=%d, EN=%d)\n",
-		nameMax, nameScoreTh, nameScoreEn,
-		courseMax, courseScore, courseScoreEn,
-	)
+	nameScore := getInt(res.NameScoreTh)
+	if nameScore == 0 {
+		nameScore = getInt(res.NameScoreEn)
+	}
+	courseScore := getInt(res.CourseScore)
+	if courseScore == 0 {
+		courseScore = getInt(res.CourseScoreEn)
+	}
 
-	newStatus := models.StatusRejected
-	var remark string
-	if nameMax >= nameApproveThreshold && courseMax >= courseApproveThreshold {
-		newStatus = models.StatusApproved
-		remark = "ใบรับรองได้รับการอนุมัติอัตโนมัติ"
-	} else if nameMax >= pendingThreshold && courseMax >= pendingThreshold {
-		newStatus = models.StatusPending
-		remark = "ใบรับรองรอการตรวจสอบจากเจ้าหน้าที่"
+	if res.IsVerified && nameScore >= nameApproveThreshold && courseScore >= courseApproveThreshold {
+		chosenStatus = models.StatusApproved
+		remark = "อนุมัติอัตโนมัติ"
+	} else if res.IsVerified && (nameScore >= pendingThreshold || courseScore >= pendingThreshold) {
+		chosenStatus = models.StatusPending
+		remark = "รอพิจารณา: ผลการตรวจสอบอัตโนมัติไม่ถึงเกณฑ์อนุมัติ"
 	} else {
-		// สร้าง remark ที่อธิบายสาเหตุการปฏิเสธ
-		var reasons []string
-		if nameMax < pendingThreshold {
-			reasons = append(reasons, fmt.Sprintf("ชื่อนักศึกษาไม่ตรงกัน "))
-		}
-		if courseMax < pendingThreshold {
-			reasons = append(reasons, fmt.Sprintf("ชื่อคอร์สไม่ตรงกัน "))
-		}
-		if len(reasons) > 0 {
-			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ: " + strings.Join(reasons, ", ")
-		} else {
-			remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ เนื่องจากคะแนนการตรวจสอบไม่ผ่านเกณฑ์"
-		}
+		chosenStatus = models.StatusRejected
+		remark = "ระบบปฏิเสธใบรับรองอัตโนมัติ"
 	}
 
-	updateFields := bson.M{
-		"nameMatch":       nameMax,
-		"nameEngMatch":    nameScoreEn,
-		"courseMatch":     courseScore,
-		"courseEngMatch":  courseScoreEn,
-		"status":          newStatus,
-		"remark":          remark,
-		"usedOcr":         res.UsedOCR,
-		"changedStatusAt": time.Now(),
+	// Apply update to DB
+	update := bson.M{"$set": updFields}
+	update["$set"].(bson.M)["status"] = chosenStatus
+	update["$set"].(bson.M)["remark"] = remark
+
+	if _, uerr := DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, update); uerr != nil {
+		return fmt.Errorf("failed to update upload after verification: %v", uerr)
 	}
 
-	_, err = DB.UploadCertificateCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": updateFields})
-	if err != nil {
-		return fmt.Errorf("failed to update upload certificate: %v", err)
+	// Reload updated certificate
+	if err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&uc); err != nil {
+		return fmt.Errorf("failed to reload upload certificate after verification: %v", err)
 	}
 
-	// Re-fetch updated doc for history/hours operations
-	var updated models.UploadCertificate
-	if err := DB.UploadCertificateCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&updated); err != nil {
-		return fmt.Errorf("failed to fetch updated upload: %v", err)
-	}
-
-	// Update pending hour-history to final status and update student hours if approved
-	// Finalize hour history and student hours using helper functions for clarity
-	switch updated.Status {
+	// finalize history depending on chosenStatus
+	switch chosenStatus {
 	case models.StatusApproved:
-		if err := finalizePendingHistoryApproved(context.Background(), &updated, course); err != nil {
-			fmt.Printf("Warning: finalize approved history failed for %s: %v\n", uploadIDHex, err)
+		if err := finalizePendingHistoryApproved(context.Background(), &uc, *course); err != nil {
+			fmt.Printf("Warning: failed to finalize pending history approved for %s: %v\n", uploadIDHex, err)
 		}
 	case models.StatusRejected:
-		if err := finalizePendingHistoryRejected(context.Background(), &updated, course, remark); err != nil {
-			fmt.Printf("Warning: finalize rejected history failed for %s: %v\n", uploadIDHex, err)
+		if err := finalizePendingHistoryRejected(context.Background(), &uc, *course, remark); err != nil {
+			fmt.Printf("Warning: failed to finalize pending history rejected for %s: %v\n", uploadIDHex, err)
 		}
-	default:
-		// pending -> leave pending history as-is
-	}
-
-	return nil
-}
-
-// updateCertificateHoursApproved อัพเดท student hours และ hour history เมื่อ certificate ได้รับการอนุมัติ
-func updateCertificateHoursApproved(ctx context.Context, certificate *models.UploadCertificate) error {
-	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
-	if certificate.IsDuplicate {
-		fmt.Printf("Skipping hours addition for duplicate certificate %s\n", certificate.ID.Hex())
-		return nil
-	}
-
-	// ดึงข้อมูล course และ student
-	course, err := courses.GetCourseByID(certificate.CourseId)
-	if err != nil {
-		return fmt.Errorf("course not found: %v", err)
-	}
-
-	if course.Hour <= 0 {
-		fmt.Printf("Warning: Course %s has no hours defined (%d), skipping hours addition\n", course.ID.Hex(), course.Hour)
-		return nil
-	}
-
-	if !course.IsActive {
-		return fmt.Errorf("cannot add hours for inactive course: %s", course.Name)
-	}
-
-	student, err := students.GetStudentById(certificate.StudentId)
-	if err != nil {
-		return fmt.Errorf("student not found: %v", err)
-	}
-
-	// กำหนด skill type
-	skillType := "soft"
-	if course.IsHardSkill {
-		skillType = "hard"
-	}
-
-	// คำนวณชั่วโมงที่สามารถเพิ่มได้
-	currentCertHours, err := calculateCurrentCertificateHours(ctx, certificate.StudentId, skillType)
-	if err != nil {
-		return fmt.Errorf("failed to calculate current certificate hours: %v", err)
-	}
-
-	maxTrainingHours := getMaxTrainingHours(skillType, student.Major)
-	hoursToAdd := calculateHoursToAdd(course.Hour, currentCertHours, maxTrainingHours, student.Code, skillType)
-
-	// บันทึก hour history (ไม่อัพเดท softSkill/hardSkill โดยตรงอีกต่อไป - ใช้ hour history เป็นแหล่งข้อมูลหลัก)
-	if err := saveOrUpdateHourHistory(ctx, certificate, *course, skillType, hoursToAdd, models.HCStatusApproved); err != nil {
-		return err
-	}
-
-	// แสดงผลลัพธ์
-	if hoursToAdd > 0 {
-		fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s (max: %d, current: %d)\n",
-			hoursToAdd, skillType, student.Code, certificate.ID.Hex(), maxTrainingHours, currentCertHours+hoursToAdd)
-	} else {
-		fmt.Printf("ℹ️ No hours added to student %s (already at max %s training hours: %d/%d)\n",
-			student.Code, skillType, currentCertHours, maxTrainingHours)
-	}
-
-	// อัพเดท student status
-	if err := hourhistory.UpdateStudentStatus(ctx, certificate.StudentId); err != nil {
-		fmt.Printf("⚠️ Warning: Failed to update student status for %s: %v\n", student.Code, err)
-	}
-
-	return nil
-}
-
-// calculateCurrentCertificateHours คำนวณชั่วโมงรวมจาก certificate ที่ approved แล้ว (sourceType = "certificate")
-func calculateCurrentCertificateHours(ctx context.Context, studentID primitive.ObjectID, skillType string) (int, error) {
-	// Query: หา HourChangeHistory ที่เป็น certificate และ approved
-	filter := bson.M{
-		"studentId":  studentID,
-		"sourceType": "certificate",
-		"status":     models.HCStatusApproved,
-		"skillType":  skillType,
-	}
-
-	cursor, err := DB.HourChangeHistoryCollection.Find(ctx, filter)
-	if err != nil {
-		return 0, fmt.Errorf("failed to query hour change history: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	totalHours := 0
-	for cursor.Next(ctx) {
-		var record models.HourChangeHistory
-		if err := cursor.Decode(&record); err != nil {
-			continue
-		}
-		totalHours += record.HourChange
-	}
-
-	return totalHours, nil
-}
-
-// getMaxTrainingHours คำนวณชั่วโมงอบรมสูงสุดตามประเภท skill และสาขา
-func getMaxTrainingHours(skillType string, major string) int {
-	if skillType == "soft" {
-		return 15 // soft skill: อบรมไม่เกิน 15 ชั่วโมง (ทุกสาขา)
-	}
-
-	// hard skill: ขึ้นอยู่กับสาขา
-	majorUpper := strings.ToUpper(major)
-	if majorUpper == "SE" || majorUpper == "AAI" {
-		return 9 // SE และ AAI: อบรมไม่เกิน 9 ชั่วโมง
-	}
-
-	// ITDI, CS และสาขาอื่นๆ
-	return 6 // อบรมไม่เกิน 6 ชั่วโมง
-}
-
-// calculateHoursToAdd คำนวณชั่วโมงที่สามารถเพิ่มได้จริง (ไม่เกิน max)
-func calculateHoursToAdd(courseHour, currentHours, maxHours int, studentCode, skillType string) int {
-	hoursToAdd := courseHour
-
-	if currentHours+hoursToAdd > maxHours {
-		hoursToAdd = maxHours - currentHours
-		if hoursToAdd < 0 {
-			hoursToAdd = 0
-		}
-
-		if hoursToAdd > 0 {
-			fmt.Printf("⚠️ Certificate hours capped: Student %s already has %d/%d %s training hours, adding only %d (original: %d)\n",
-				studentCode, currentHours, maxHours, skillType, hoursToAdd, courseHour)
-		} else {
-			fmt.Printf("⚠️ Student %s has reached max %s training hours (%d/%d), no hours added\n",
-				studentCode, skillType, currentHours, maxHours)
+	case models.StatusPending:
+		if err := recordCertificatePending(context.Background(), &uc, remark); err != nil {
+			fmt.Printf("Warning: failed to record pending history for %s: %v\n", uploadIDHex, err)
 		}
 	}
-
-	return hoursToAdd
-}
-
-// saveOrUpdateHourHistory บันทึกหรืออัพเดท hour history record และบันทึก hourHistoryId กลับไปที่ certificate
-// ต้องมี hour history record อยู่แล้ว ไม่งั้น error
-func saveOrUpdateHourHistory(ctx context.Context, certificate *models.UploadCertificate, course models.Course, skillType string, hoursToAdd int, status string) error {
-	now := time.Now()
-
-	// ตรวจสอบว่า certificate มี hourHistoryId หรือไม่
-	if certificate.HourHistoryId == nil {
-		return fmt.Errorf("certificate %s does not have hourHistoryId", certificate.ID.Hex())
-	}
-
-	// ใช้ hourHistoryId จาก certificate เพื่อหา record
-	histFilter := bson.M{
-		"_id":        *certificate.HourHistoryId,
-		"sourceType": "certificate",
-		"sourceId":   certificate.ID,
-		"studentId":  certificate.StudentId,
-	}
-
-	remark := "อนุมัติใบรับรอง"
-	if status == models.HCStatusRejected {
-		remark = "ปฏิเสธใบรับรอง"
-	}
-
-	histUpdate := bson.M{
-		"$set": bson.M{
-			"status":     status,
-			"hourChange": hoursToAdd,
-			"remark":     remark,
-			"changeAt":   now,
-			"title":      course.Name,
-			"skillType":  skillType,
-		},
-	}
-
-	updateResult, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
-	if err != nil {
-		return fmt.Errorf("failed to update hour history: %v", err)
-	}
-
-	// ถ้าไม่เจอ record ให้ error
-	if updateResult.MatchedCount == 0 {
-		return fmt.Errorf("hour history record not found for certificate %s (hourHistoryId: %s)",
-			certificate.ID.Hex(), certificate.HourHistoryId.Hex())
-	}
-
-	fmt.Printf("📝 Updated hour history for certificate %s (ID: %s, status: %s)\n",
-		certificate.ID.Hex(), certificate.HourHistoryId.Hex(), status)
-
-	return nil
-}
-
-// updateCertificateHoursRejected อัพเดท student hours และ hour history เมื่อ certificate ถูกปฏิเสธหรือยกเลิก
-// ต้องมี hour history record อยู่แล้ว ไม่งั้น error
-func updateCertificateHoursRejected(ctx context.Context, certificate *models.UploadCertificate) error {
-	// Validation: ตรวจสอบว่า certificate ไม่ซ้ำ
-	if certificate.IsDuplicate {
-		fmt.Printf("Skipping hours removal for duplicate certificate %s\n", certificate.ID.Hex())
-		return nil // ไม่ต้อง error แค่ไม่ลบชั่วโมง
-	}
-
-	// ตรวจสอบว่ามี hourHistoryId
-	if certificate.HourHistoryId == nil {
-		return fmt.Errorf("certificate %s does not have hourHistoryId", certificate.ID.Hex())
-	}
-
-	// 1. ดึงข้อมูล course
-	course, err := courses.GetCourseByID(certificate.CourseId)
-	if err != nil {
-		return fmt.Errorf("course not found: %v", err)
-	}
-
-	if course.Hour <= 0 {
-		fmt.Printf("Warning: Course %s has no hours defined (%d), skipping hours removal\n", course.ID.Hex(), course.Hour)
-		return nil // ไม่ error แต่ไม่ลบชั่วโมง
-	}
-
-	// 2. ดึงข้อมูล student
-	student, err := students.GetStudentById(certificate.StudentId)
-	if err != nil {
-		return fmt.Errorf("student not found: %v", err)
-	}
-
-	// 3. กำหนด skill type
-	skillType := "soft"
-	if course.IsHardSkill {
-		skillType = "hard"
-	}
-
-	// Log remarks
-	fmt.Printf("▶️ Old Remark: %s\n", certificate.Remark)
-
-	// 5. อัพเดท hour history record โดยใช้ hourHistoryId
-	remark := "ปฏิเสธใบรับรอง"
-	if certificate.Remark != "" {
-		remark = certificate.Remark
-	}
-
-	fmt.Printf("▶️ New Remark for Hour History: %s\n", remark)
-
-	// ใช้ hourHistoryId จาก certificate
-	histFilter := bson.M{
-		"_id":        *certificate.HourHistoryId,
-		"sourceType": "certificate",
-		"sourceId":   certificate.ID,
-		"studentId":  certificate.StudentId,
-	}
-
-	// ตรวจสอบว่า record เดิมเป็นสถานะอะไร
-	var existingHistory models.HourChangeHistory
-	err = DB.HourChangeHistoryCollection.FindOne(ctx, histFilter).Decode(&existingHistory)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return fmt.Errorf("hour history record not found for certificate %s (hourHistoryId: %s)",
-				certificate.ID.Hex(), certificate.HourHistoryId.Hex())
-		}
-		return fmt.Errorf("failed to find hour history: %v", err)
-	}
-
-	// ตรวจสอบว่าเดิมมีชั่วโมงหรือไม่
-	var hourChangeValue int
-	if existingHistory.Status == models.HCStatusApproved {
-		// เดิมเป็น approved (มีชั่วโมง) -> ตั้งชั่วโมงเป็น 0 แทนการลบ (certificate ไม่มีการหักลบ)
-		hourChangeValue = 0
-	} else {
-		// เดิมเป็น pending (ยังไม่มีชั่วโมง) -> ไม่มีการเปลี่ยนแปลง
-		hourChangeValue = 0
-	}
-
-	histUpdate := bson.M{
-		"$set": bson.M{
-			"status":     models.HCStatusRejected,
-			"hourChange": hourChangeValue,
-			"remark":     remark,
-			"changeAt":   time.Now(),
-			"title":      course.Name,
-			"skillType":  skillType,
-		},
-	}
-
-	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
-	if err != nil {
-		return fmt.Errorf("failed to update hour history: %v", err)
-	}
-
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("failed to update hour history - record not found (ID: %s)", certificate.HourHistoryId.Hex())
-	}
-
-	fmt.Printf("📝 Updated hour history (pending/approved -> rejected) for certificate %s (hourChange: %d, ID: %s)\n",
-		certificate.ID.Hex(), hourChangeValue, certificate.HourHistoryId.Hex())
-
-	fmt.Printf("❌ Hours set to 0 (certificate does not use negative hours) from student %s for certificate %s\n",
-		student.Code, certificate.ID.Hex())
-
-	// 🔄 Update student status หลังจากมีการเปลี่ยนแปลงชั่วโมง
-	if err := hourhistory.UpdateStudentStatus(ctx, certificate.StudentId); err != nil {
-		fmt.Printf("⚠️ Warning: Failed to update student status for %s: %v\n", student.Code, err)
-		// ไม่ return error เพราะการอัปเดตชั่วโมงสำเร็จแล้ว เหลือแค่ status
-	}
-
-	return nil
-}
-
-// recordCertificateRejection อัพเดท hour history เมื่อ certificate ถูกปฏิเสธจาก pending
-// ไม่มีการเปลี่ยนแปลงชั่วโมงจริง (hourChange = 0) แต่บันทึกเป็นประวัติ
-// ต้องมี hour history record อยู่แล้ว ไม่งั้น error
-func recordCertificateRejection(ctx context.Context, certificate *models.UploadCertificate, adminRemark string) error {
-	// ตรวจสอบว่ามี hourHistoryId
-	if certificate.HourHistoryId == nil {
-		return fmt.Errorf("certificate %s does not have hourHistoryId", certificate.ID.Hex())
-	}
-
-	// ดึงข้อมูล course เพื่อหาประเภท skill
-	course, err := courses.GetCourseByID(certificate.CourseId)
-	if err != nil {
-		return fmt.Errorf("course not found: %v", err)
-	}
-
-	skillType := "soft"
-	if course.IsHardSkill {
-		skillType = "hard"
-	}
-
-	remark := "ปฏิเสธใบรับรอง"
-	if adminRemark != "" {
-		remark = adminRemark
-	}
-
-	// ใช้ hourHistoryId จาก certificate
-	histFilter := bson.M{
-		"_id":        *certificate.HourHistoryId,
-		"sourceType": "certificate",
-		"sourceId":   certificate.ID,
-		"studentId":  certificate.StudentId,
-	}
-
-	histUpdate := bson.M{
-		"$set": bson.M{
-			"status":     models.HCStatusRejected,
-			"hourChange": 0, // ไม่มีการเปลี่ยนแปลงชั่วโมง
-			"remark":     remark,
-			"changeAt":   time.Now(),
-			"title":      course.Name,
-			"skillType":  skillType,
-		},
-	}
-
-	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
-	if err != nil {
-		return fmt.Errorf("failed to update hour history: %v", err)
-	}
-
-	// ถ้าไม่เจอ record ให้ error
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("hour history record not found for certificate %s (hourHistoryId: %s)",
-			certificate.ID.Hex(), certificate.HourHistoryId.Hex())
-	}
-
-	fmt.Printf("📝 Updated hour history to rejected for certificate %s (ID: %s)\n",
-		certificate.ID.Hex(), certificate.HourHistoryId.Hex())
-
-	return nil
-}
-
-// recordCertificatePending อัพเดท hour history เมื่อ certificate กลับไปสถานะ pending
-// ไม่มีการเปลี่ยนแปลงชั่วโมงจริง (hourChange = 0) แต่บันทึกเป็นประวัติ
-// ต้องมี hour history record อยู่แล้ว ไม่งั้น error
-func recordCertificatePending(ctx context.Context, certificate *models.UploadCertificate, adminRemark string) error {
-	// ไม่ต้องบันทึกถ้าเป็น duplicate
-	if certificate.IsDuplicate {
-		return nil
-	}
-
-	// ตรวจสอบว่ามี hourHistoryId
-	if certificate.HourHistoryId == nil {
-		return fmt.Errorf("certificate %s does not have hourHistoryId", certificate.ID.Hex())
-	}
-
-	// ดึงข้อมูล course เพื่อหาประเภท skill
-	course, err := courses.GetCourseByID(certificate.CourseId)
-	if err != nil {
-		return fmt.Errorf("course not found: %v", err)
-	}
-
-	skillType := "soft"
-	if course.IsHardSkill {
-		skillType = "hard"
-	}
-
-	remark := "รอให้เจ้าหน้าที่ตรวจสอบ"
-	if adminRemark != "" {
-		remark = adminRemark
-	}
-
-	// ใช้ hourHistoryId จาก certificate
-	histFilter := bson.M{
-		"_id":        *certificate.HourHistoryId,
-		"sourceType": "certificate",
-		"sourceId":   certificate.ID,
-		"studentId":  certificate.StudentId,
-	}
-
-	histUpdate := bson.M{
-		"$set": bson.M{
-			"status":     models.HCStatusPending,
-			"hourChange": 0, // ไม่มีการเปลี่ยนแปลงชั่วโมง
-			"remark":     remark,
-			"changeAt":   time.Now(),
-			"title":      course.Name,
-			"skillType":  skillType,
-		},
-	}
-
-	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
-	if err != nil {
-		return fmt.Errorf("failed to update hour history: %v", err)
-	}
-
-	// ถ้าไม่เจอ record ให้ error
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("hour history record not found for certificate %s (hourHistoryId: %s)",
-			certificate.ID.Hex(), certificate.HourHistoryId.Hex())
-	}
-
-	fmt.Printf("📝 Updated hour history to pending for certificate %s (ID: %s)\n",
-		certificate.ID.Hex(), certificate.HourHistoryId.Hex())
-
-	return nil
-}
-
-// RecordUploadPending is an exported helper that controllers can call to record
-// a pending-hour-history entry for a newly created upload certificate.
-// Note: CreateUploadCertificate now creates hour history automatically,
-// so this function is only needed for legacy or special cases.
-func RecordUploadPending(certificate *models.UploadCertificate, remark string) error {
-	// ถ้ามี hourHistoryId แล้ว แสดงว่า hour history ถูกสร้างไปแล้ว ไม่ต้องสร้างอีก
-	if certificate.HourHistoryId != nil {
-		fmt.Printf("Certificate %s already has hourHistoryId: %s, skipping creation\n",
-			certificate.ID.Hex(), certificate.HourHistoryId.Hex())
-		return nil
-	}
-
-	return recordCertificatePending(context.Background(), certificate, remark)
-}
-
-// finalizePendingHistoryApproved applies hours to the student (if applicable)
-// and updates the pending HourChangeHistory for the given upload to approved.
-// ต้องมี hour history record อยู่แล้ว ไม่งั้น error
-func finalizePendingHistoryApproved(ctx context.Context, upload *models.UploadCertificate, course models.Course) error {
-	// ตรวจสอบว่ามี hourHistoryId
-	if upload.HourHistoryId == nil {
-		return fmt.Errorf("upload certificate %s does not have hourHistoryId", upload.ID.Hex())
-	}
-
-	// determine skill type
-	skillType := "soft"
-	if course.IsHardSkill {
-		skillType = "hard"
-	}
-
-	// Get student data for major-based hour limits
-	student, err := students.GetStudentById(upload.StudentId)
-	if err != nil {
-		return fmt.Errorf("student not found: %v", err)
-	}
-
-	// คำนวณชั่วโมงที่สามารถเพิ่มได้
-	currentCertHours, err := calculateCurrentCertificateHours(ctx, upload.StudentId, skillType)
-	if err != nil {
-		return fmt.Errorf("failed to calculate current certificate hours: %v", err)
-	}
-
-	maxTrainingHours := getMaxTrainingHours(skillType, student.Major)
-	hoursToAdd := calculateHoursToAdd(course.Hour, currentCertHours, maxTrainingHours, student.Code, skillType)
-
-	// Log hours information (ไม่อัพเดท softSkill/hardSkill โดยตรงอีกต่อไป - ใช้ hour history เป็นแหล่งข้อมูลหลัก)
-	if !upload.IsDuplicate && course.IsActive {
-		if hoursToAdd > 0 {
-			fmt.Printf("✅ Added %d hours (%s skill) to student %s for certificate %s (max: %d, current: %d)\n",
-				hoursToAdd, skillType, student.Code, upload.ID.Hex(), maxTrainingHours, currentCertHours+hoursToAdd)
-		} else {
-			fmt.Printf("ℹ️ No hours added to student %s (already at max %s training hours: %d/%d)\n",
-				student.Code, skillType, currentCertHours, maxTrainingHours)
-		}
-	}
-
-	// ใช้ hourHistoryId จาก upload certificate
-	histFilter := bson.M{
-		"_id":        *upload.HourHistoryId,
-		"sourceType": "certificate",
-		"sourceId":   upload.ID,
-		"studentId":  upload.StudentId,
-	}
-
-	histUpdate := bson.M{"$set": bson.M{
-		"status":     models.HCStatusApproved,
-		"hourChange": hoursToAdd, // ใช้ชั่วโมงที่คำนวณแล้ว (อาจถูก cap)
-		"remark":     "อนุมัติใบรับรอง",
-		"changeAt":   time.Now(),
-		"title":      course.Name,
-		"studentId":  upload.StudentId,
-		"skillType":  skillType,
-	}}
-
-	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
-	if err != nil {
-		return fmt.Errorf("failed to update hour history: %v", err)
-	}
-
-	// ถ้าไม่เจอ record ให้ error
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("hour history record not found for certificate %s (hourHistoryId: %s)",
-			upload.ID.Hex(), upload.HourHistoryId.Hex())
-	}
-
-	fmt.Printf("📝 Updated hour history to approved for certificate %s (ID: %s)\n",
-		upload.ID.Hex(), upload.HourHistoryId.Hex())
-
-	return nil
-}
-
-// finalizePendingHistoryRejected updates the pending HourChangeHistory to rejected.
-// ต้องมี hour history record อยู่แล้ว ไม่งั้น error
-func finalizePendingHistoryRejected(ctx context.Context, upload *models.UploadCertificate, course models.Course, remark string) error {
-	// ตรวจสอบว่ามี hourHistoryId
-	if upload.HourHistoryId == nil {
-		return fmt.Errorf("upload certificate %s does not have hourHistoryId", upload.ID.Hex())
-	}
-
-	skillType := "soft"
-	if course.IsHardSkill {
-		skillType = "hard"
-	}
-
-	// ใช้ hourHistoryId จาก upload certificate
-	histFilter := bson.M{
-		"_id":        *upload.HourHistoryId,
-		"sourceType": "certificate",
-		"sourceId":   upload.ID,
-		"studentId":  upload.StudentId,
-	}
-
-	histUpdate := bson.M{"$set": bson.M{
-		"status":     models.HCStatusRejected,
-		"hourChange": 0,
-		"remark":     remark,
-		"changeAt":   time.Now(),
-		"title":      course.Name,
-		"studentId":  upload.StudentId,
-		"skillType":  skillType,
-	}}
-
-	result, err := DB.HourChangeHistoryCollection.UpdateOne(ctx, histFilter, histUpdate)
-	if err != nil {
-		return fmt.Errorf("failed to update hour history: %v", err)
-	}
-
-	// ถ้าไม่เจอ record ให้ error
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("hour history record not found for certificate %s (hourHistoryId: %s)",
-			upload.ID.Hex(), upload.HourHistoryId.Hex())
-	}
-
-	fmt.Printf("📝 Updated hour history to rejected for certificate %s (ID: %s)\n",
-		upload.ID.Hex(), upload.HourHistoryId.Hex())
 
 	return nil
 }
