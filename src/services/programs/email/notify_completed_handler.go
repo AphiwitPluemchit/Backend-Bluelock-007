@@ -156,7 +156,7 @@ func HandleNotifyProgramCompleted(
 		if base == "" {
 			base = "http://localhost:9000"
 		}
-		detailURL := base + "/Student/Programs/" + p.ProgramID
+		detailURL := base + "/Student/RecordPage"
 		const emailDomain = "@go.buu.ac.th"
 
 		// ส่งเมลพร้อมข้อมูลครบชุด
