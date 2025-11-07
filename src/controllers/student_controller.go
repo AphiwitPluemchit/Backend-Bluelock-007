@@ -169,7 +169,7 @@ func GetStudents(c *fiber.Ctx) error {
 	log.Println("majors", majors)
 	log.Println("studentYears", studentYears)
 	log.Println("studentCode", studentCode)
-	students, total, totalPages, err := students.GetStudentsWithFilter(params, majors, studentYears, studentStatus)
+	students, total, totalPages, err := students.GetStudentsWithFilter(params, majors, studentYears, studentStatus, studentCode)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching students"})
 	}
