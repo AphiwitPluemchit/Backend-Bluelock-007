@@ -35,7 +35,8 @@ const (
 	HCStatusUpcoming      = "upcoming"      // กำลังมาถึง - ลงทะเบียนแล้ว รอเข้าร่วมกิจกรรม
 	HCStatusParticipating = "participating" // กำลังเข้าร่วมกิจกรรม (เช็คอินแล้ว กำลังเข้าร่วม)
 	HCStatusAttended      = "attended"      // เข้าร่วมแล้ว (อาจได้หรือไม่ได้ชั่วโมง ขึ้นอยู่กับการเข้าร่วมและทำฟอร์ม)
-	HCStatusLate          = "late"          // เข้าร่วมแต่มาสาย หรือเช็คไม่ครบ (ไม่ได้ชั่วโมง)
+	HCStatusLate          = "late"          // เข้าร่วมแต่มาสาย (เช็คอินสาย)
+	HCStatusIncomplete    = "incomplete"    // มาไม่ครบ (ไม่มีการเช็คชื่อเพียงครั้งเดียว ไม่ได้ชั่วโมง)
 	HCStatusAbsent        = "absent"        // ไม่มาเข้าร่วม (ไม่ได้ checkin เลย → จะถูกลบชั่วโมง)
 
 	// Certificate statuses
