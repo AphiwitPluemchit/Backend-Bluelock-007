@@ -24,7 +24,7 @@ import (
 // Collections are now initialized in service.go
 
 // GetStudentsWithFilter - ดึงข้อมูลนิสิตทั้งหมดที่ผ่านการ filter ตามเงื่อนไขที่ระบุ
-func GetStudentsWithFilter(params models.PaginationParams, majors []string, studentYears []string, studentStatus []string) ([]bson.M, int64, int, error) {
+func GetStudentsWithFilter(params models.PaginationParams, majors []string, studentYears []string, studentStatus []string,studentCode []string,) ([]bson.M, int64, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -79,6 +79,28 @@ func GetStudentsWithFilter(params models.PaginationParams, majors []string, stud
 			}
 			pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{
 				"$or": regexFilters,
+			}}})
+		}
+	}
+	// 🔍 Filter: studentCode (ใช้เฉพาะ 2 ตัวหน้า)
+	if len(studentCode) > 0 {
+		var codePrefixes []bson.M
+		for _, raw := range studentCode {
+			// เก็บเฉพาะเลข และตัดให้เหลือ 2 ตัวหน้า
+			clean := strings.Map(func(r rune) rune {
+				if r >= '0' && r <= '9' { return r }
+				return -1
+			}, raw)
+			if len(clean) >= 2 {
+				prefix2 := clean[:2]
+				codePrefixes = append(codePrefixes, bson.M{
+					"code": bson.M{"$regex": "^" + prefix2},
+				})
+			}
+		}
+		if len(codePrefixes) > 0 {
+			pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{
+				"$or": codePrefixes,
 			}}})
 		}
 	}

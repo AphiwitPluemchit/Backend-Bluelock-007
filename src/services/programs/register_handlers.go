@@ -20,9 +20,8 @@ func RegisterProgramHandlers(mux *asynq.ServeMux) error {
 		base = "http://localhost:9000"
 	}
 	registerURL := func(programID string) string {
-		return base + "/Student/Programs/" + programID
+		return base + "/Student/Program/ProgramDetail/" + programID
 	}
-
 	// ✅ แจ้งเปิดลงทะเบียน (open)
 	mux.HandleFunc(
 		emailpkg.TypeNotifyOpenProgram,

@@ -85,7 +85,7 @@ type ReminderEmailData struct {
 	FirstDate     string
 	FirstStime    string
 	FirstEtime    string
-	RegisterLink  string
+	DetailURL  string
 	ProgramItems  []models.ProgramItemDto
 	Dates         []models.Dates
 	EndDateEnroll string
@@ -131,8 +131,6 @@ func RenderReminderEmailHTML(data ReminderEmailData) (string, error) {
 	}
 	return buf.String(), nil
 }
-
-// --- Completed Email ---
 
 type CompletedItem struct {
 	Name string

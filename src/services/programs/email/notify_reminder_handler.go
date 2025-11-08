@@ -55,7 +55,7 @@ func HandleProgramReminder(sender MailSender,
 		if base == "" {
 			base = "http://localhost:9000"
 		}
-		detailURL := base + "/Student/Programs/" + p.ProgramID
+		detailURL := base + "/Student/Program/MyProgramDetail/" + p.ProgramID
 
 		cur, err := DB.EnrollmentCollection.Find(ctx, bson.M{"programItemId": item.ID})
 		if err != nil {
@@ -127,7 +127,7 @@ func HandleProgramReminder(sender MailSender,
 				Major:         st.Major,
 				ProgramName:   p.ProgramName,
 				EndDateEnroll: prog.EndDateEnroll,
-				RegisterLink:  detailURL,
+				DetailURL:  detailURL,
 				ProgramItems:  prog.ProgramItems,
 
 				Skill:       prog.Skill,
