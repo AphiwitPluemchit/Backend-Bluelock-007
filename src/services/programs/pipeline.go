@@ -32,6 +32,7 @@ func getLightweightProgramsPipeline(
 	}
 
 	today := time.Now().In(loc).Format("2006-01-02")
+	fmt.Println("Today's date in Asia/Bangkok timezone:", today)
 
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: filter}},
@@ -79,12 +80,13 @@ func getLightweightProgramsPipeline(
 				{Key: "preserveNullAndEmptyArrays", Value: true},
 			}}})
 
+		// ปิดไว้เพื่อกรองแค่ State ก็พอ ไม่ต้องกรองวัน
 		// Match เฉพาะวันในอนาคต ของ open close program
-		if isSortNearest {
-			pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
-				{Key: "programItems.dates.date", Value: bson.D{{Key: "$gte", Value: today}}},
-			}}})
-		}
+		// if isSortNearest {
+		// 	pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+		// 		{Key: "programItems.dates.date", Value: bson.D{{Key: "$gte", Value: today}}},
+		// 	}}})
+		// }
 		// Group เอาวันที่ใกล้ที่สุดต่อ program
 		pipeline = append(pipeline, bson.D{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: "$_id"},
