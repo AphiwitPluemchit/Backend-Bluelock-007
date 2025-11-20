@@ -171,3 +171,5 @@ volumes:
 # Services by Profile:
 # Development: redis-dev, asynqmon-dev, backend-dev, ocr
 # Production: redis, asynqmon, backend-prod, ocr-prod
+
+# docker compose --profile production exec backend-prod cat /app/user_inits.txt (สำหรับดู user_inits.txt ใน container production)
