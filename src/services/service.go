@@ -5,16 +5,20 @@ import (
 	"log"
 )
 
-var collection = "CTMS_DB"
-
-// var collection = "V2" // หรือ "TestEmail" TestOCR
+// Use the database name provided by the database package (loaded from MONGO_DATABASE)
 func init() {
 	if err := DB.ConnectMongoDB(); err != nil {
 		log.Fatal("MongoDB connection error:", err)
 	}
 
+	// Use the database name loaded by DB.ConnectMongoDB()
+	dbName := DB.DatabaseName
+	if dbName == "" {
+		dbName = "bluelock"
+	}
+
 	// Ensure all collections exist (Mongo will also auto-create on first insert, but this makes it explicit)
-	if err := DB.EnsureCollections(collection, []string{
+	if err := DB.EnsureCollections(dbName, []string{
 		"Programs",
 		"Program_Items",
 		"Admins",
@@ -34,20 +38,20 @@ func init() {
 		log.Fatal("Failed ensuring collections:", err)
 	}
 
-	DB.ProgramCollection = DB.GetCollection(collection, "Programs")
-	DB.ProgramItemCollection = DB.GetCollection(collection, "Program_Items")
-	DB.AdminCollection = DB.GetCollection(collection, "Admins")
-	DB.EnrollmentCollection = DB.GetCollection(collection, "Enrollments")
-	DB.FoodCollection = DB.GetCollection(collection, "Foods")
-	DB.QrTokenCollection = DB.GetCollection(collection, "Qr_Tokens")
-	DB.QrClaimCollection = DB.GetCollection(collection, "Qr_Claims")
-	DB.FormCollection = DB.GetCollection(collection, "Forms")
-	DB.SubmissionCollection = DB.GetCollection(collection, "Submissions")
-	DB.StudentCollection = DB.GetCollection(collection, "Students")
-	DB.UserCollection = DB.GetCollection(collection, "Users")
-	DB.CourseCollection = DB.GetCollection(collection, "Courses")
-	DB.UploadCertificateCollection = DB.GetCollection(collection, "Upload_Certificates")
-	DB.HourChangeHistoryCollection = DB.GetCollection(collection, "Hour_Change_Histories")
+	DB.ProgramCollection = DB.GetDefaultCollection("Programs")
+	DB.ProgramItemCollection = DB.GetDefaultCollection("Program_Items")
+	DB.AdminCollection = DB.GetDefaultCollection("Admins")
+	DB.EnrollmentCollection = DB.GetDefaultCollection("Enrollments")
+	DB.FoodCollection = DB.GetDefaultCollection("Foods")
+	DB.QrTokenCollection = DB.GetDefaultCollection("Qr_Tokens")
+	DB.QrClaimCollection = DB.GetDefaultCollection("Qr_Claims")
+	DB.FormCollection = DB.GetDefaultCollection("Forms")
+	DB.SubmissionCollection = DB.GetDefaultCollection("Submissions")
+	DB.StudentCollection = DB.GetDefaultCollection("Students")
+	DB.UserCollection = DB.GetDefaultCollection("Users")
+	DB.CourseCollection = DB.GetDefaultCollection("Courses")
+	DB.UploadCertificateCollection = DB.GetDefaultCollection("Upload_Certificates")
+	DB.HourChangeHistoryCollection = DB.GetDefaultCollection("Hour_Change_Histories")
 
 	// Note: Asynq initialization is now handled in main.go after Redis connection check
 

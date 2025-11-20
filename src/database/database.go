@@ -19,6 +19,9 @@ var (
 	client     *mongo.Client
 	once       sync.Once // ✅ ป้องกันการรัน ConnectMongoDB() ซ้ำ
 	connectErr error
+	// DatabaseName is the default database name used by helper functions.
+	// It is loaded from the environment variable `MONGO_DATABASE` in ConnectMongoDB().
+	DatabaseName string
 
 	ProgramCollection                  *mongo.Collection
 	ProgramItemCollection              *mongo.Collection
@@ -52,6 +55,15 @@ func ConnectMongoDB() error {
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
 		log.Fatal("❌ MONGO_URI environment variable not set. Please create a .env file and set it.")
+	}
+
+	// Load the default database name from environment (fallback to "bluelock")
+	DatabaseName = os.Getenv("MONGO_DATABASE")
+	if DatabaseName == "" {
+		DatabaseName = "bluelock"
+		log.Println("⚠️ Warning: MONGO_DATABASE not set, using default 'bluelock'")
+	} else {
+		log.Printf("✅ Using database: %s", DatabaseName)
 	}
 
 	once.Do(func() { // ✅ Run only once
@@ -107,8 +119,16 @@ func GetDB() *mongo.Database {
 	if client == nil {
 		log.Fatal("❌ MongoDB client is not initialized")
 	}
-	// Return the default database (you can modify this to return a specific database if needed)
-	return client.Database("bluelock") // Replace "bluelock" with your database name if different
+	// Return the default database loaded from env or fallback
+	return client.Database(DatabaseName)
+}
+
+// GetDefaultCollection returns a collection from the default database (MONGO_DATABASE)
+func GetDefaultCollection(collectionName string) *mongo.Collection {
+	if client == nil {
+		log.Fatal("❌ MongoDB client is nil")
+	}
+	return client.Database(DatabaseName).Collection(collectionName)
 }
 
 // EnsureCollections creates collections if they do not exist yet.

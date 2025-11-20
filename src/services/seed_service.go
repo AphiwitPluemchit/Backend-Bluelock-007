@@ -64,9 +64,9 @@ func SeedInitialUsers() ([]GeneratedPassword, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	usersCollection := DB.GetCollection("TestOCR", "Users")
-	adminsCollection := DB.GetCollection("TestOCR", "Admins")
-	studentsCollection := DB.GetCollection("TestOCR", "Students")
+	usersCollection := DB.GetDefaultCollection("Users")
+	adminsCollection := DB.GetDefaultCollection("Admins")
+	studentsCollection := DB.GetDefaultCollection("Students")
 
 	// กำหนด users ที่ต้องการ seed
 	seedUsers := []SeedUser{
