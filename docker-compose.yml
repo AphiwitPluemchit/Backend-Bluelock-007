@@ -6,6 +6,41 @@ x-common: &common
     - TZ=Asia/Bangkok
 
 services:
+  # === PRODUCTION SERVICES ===
+
+  # Golang backend service for production
+  backend-prod:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: bluelock-backend-prod
+    ports:
+      - "9051:8888"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./.env.prod:/app/.env # ใช้ .env.prod สำหรับ production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["production"]
+
+  # MongoDB service for database
+  mongodb:
+    <<: *common
+    image: mongo:4.4
+    container_name: bluelock-mongodb
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"] # "mongosh" for 5.x version and later, "mongo" for 4.x
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: ["production"]
+
   # Redis service for caching and message queuing
   redis:
     <<: *common
@@ -19,6 +54,40 @@ services:
       timeout: 3s
       retries: 5
     profiles: ["production"]
+
+  # Asynqmon for task queue monitoring
+  asynqmon:
+    <<: *common
+    image: hibiken/asynqmon
+    container_name: bluelock-asynqmon
+    ports:
+      - "9052:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: ["production"]
+
+  # Production OCR (no ports exposed)
+  ocr-prod:
+    <<: *common
+    build:
+      context: ./ocr
+      dockerfile: Dockerfile.prod
+    container_name: bluelock-ocr-prod
+    environment:
+      - MODE=production
+    volumes:
+      - ./uploads:/app/uploads
+    profiles: ["production"]
+
+  # === DEVELOPMENT SERVICES ===
 
   # Development Redis with exposed port
   redis-dev:
@@ -35,25 +104,6 @@ services:
       timeout: 3s
       retries: 5
     profiles: ["development"]
-
-  # Asynqmon for task queue monitoring
-  asynqmon:
-    <<: *common
-    image: hibiken/asynqmon
-    container_name: bluelock-asynqmon
-    ports:
-      - "9078:8080"
-    environment:
-      - REDIS_ADDR=redis:6379
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    depends_on:
-      redis:
-        condition: service_healthy
-    profiles: ["production"]
 
   # Development Asynqmon with different port
   asynqmon-dev:
@@ -77,31 +127,16 @@ services:
       dockerfile: Dockerfile
     container_name: bluelock-backend-dev
     ports:
-      - "8765:8888"
+      - "8888:8888"
     volumes:
       - ./uploads:/app/uploads
       - ./.env.dev:/app/.env # ใช้ .env.dev สำหรับ development
     depends_on:
+      mongodb-dev:
+        condition: service_healthy
       redis-dev:
         condition: service_healthy
     profiles: ["development"]
-
-  # Golang backend service for production
-  backend-prod:
-    <<: *common
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
-    container_name: bluelock-backend-prod
-    ports:
-      - "8765:8888"
-    volumes:
-      - ./uploads:/app/uploads
-      - ./.env.prod:/app/.env # ใช้ .env.prod สำหรับ production
-    depends_on:
-      redis:
-        condition: service_healthy
-    profiles: ["production"]
 
   # OCR service with FastAPI (development only)
   ocr:
@@ -118,44 +153,13 @@ services:
       - ./uploads:/app/uploads
     profiles: ["development"]
 
-  # Production OCR (no ports exposed)
-  ocr-prod:
-    <<: *common
-    build:
-      context: ./ocr
-      dockerfile: Dockerfile.prod
-    container_name: bluelock-ocr-prod
-    environment:
-      - MODE=production
-    volumes:
-      - ./uploads:/app/uploads
-    profiles: ["production"]
-
-  # Nginx as reverse proxy
-  # nginx:
-  #   image: nginx:1.25
-  #   container_name: bluelock-nginx
-  #   ports:
-  #     - "8080:80"
-  #   volumes:
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #     - ./nginx/conf.d:/etc/nginx/conf.d:ro
-  #     - ./uploads:/var/www/uploads:ro
-  #   restart: always
-  #   networks:
-  #     - bluelock-net
-  #   depends_on:
-  #     - backend
-  #     - ocr
-  #     - asynqmon
-  #     - redis
-
 networks:
   bluelock-net:
     driver: bridge
 
 volumes:
   redis-data:
+  mongodb-data:
 # Usage:
 # Development: docker compose --profile development up -d
 # Production:  docker compose --profile production up -d
@@ -163,7 +167,6 @@ volumes:
 # Environment Files:
 # - .env.dev: Development environment variables
 # - .env.prod: Production environment variables
-# - .env.example: Template for environment variables
 #
 # Services by Profile:
 # Development: redis-dev, asynqmon-dev, backend-dev, ocr
