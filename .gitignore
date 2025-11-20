@@ -8,3 +8,4 @@ __pycache__
 uploads
 ocr/pdf_generator/synth_pdfs
 ocr/pdf_generator/fonts
+user_inits.txt

@@ -5,6 +5,7 @@ import (
 	"Backend-Bluelock-007/src/database"
 	"Backend-Bluelock-007/src/jobs"
 	"Backend-Bluelock-007/src/routes"
+	"Backend-Bluelock-007/src/services"
 	"Backend-Bluelock-007/src/services/programs" // 👈 ผูก email handlers ที่นี่
 	"fmt"
 	"log"
@@ -43,6 +44,18 @@ func main() {
 	}
 	log.Println("✅ MongoDB connected")
 
+	// ---- Seed Initial Users ----
+	generatedPasswords, err := services.SeedInitialUsers()
+	if err != nil {
+		log.Printf("⚠️ Warning: Failed to seed users: %v", err)
+	} else {
+		services.PrintGeneratedPasswords(generatedPasswords)
+		// Save to file for convenience (overwrites each run)
+		if err := services.SavePasswordsToFile(generatedPasswords, "user_inits.txt"); err != nil {
+			log.Printf("⚠️ Warning: Failed to save generated passwords to file: %v", err)
+		}
+	}
+
 	// ---- Redis & Asynq ----
 	database.InitRedis() // sets database.RedisURI and database.RedisClient (if ok)
 	database.InitAsynq() // sets database.AsynqClient (if Redis ok)
@@ -70,7 +83,7 @@ func main() {
 
 			// ✅ งานอีเมล: เปิดลงทะเบียน / แจ้งเตือนก่อนเริ่ม 3 วัน
 			// (ภายในจะผูก handler: programs/email.TypeNotifyOpenProgram, programs/email.TypeNotifyProgramReminder)
-			
+
 			if err := programs.RegisterProgramHandlers(mux); err != nil {
 				log.Println("⚠️ RegisterProgramHandlers error:", err)
 			}

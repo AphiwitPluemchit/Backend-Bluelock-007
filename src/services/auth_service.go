@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -291,98 +290,4 @@ func GetUserProfile(userID, role string) (*models.User, error) {
 	enrichUserProfile(ctx, result)
 
 	return result, nil
-}
-
-// CreateGoogleUser creates a new user from Google OAuth information
-func CreateGoogleUser(googleUser *GoogleUserInfo) (*models.User, error) {
-	ctx := context.Background()
-
-	// Check if it's a university email (you can customize this logic)
-	if !strings.HasSuffix(strings.ToLower(googleUser.Email), "@go.buu.ac.th") {
-		return nil, errors.New("only university email addresses are allowed")
-	}
-	// && !strings.HasSuffix(strings.ToLower(googleUser.Email), "@chula.ac.th")
-
-	// Determine role based on email domain
-	// role := "Student"
-	// if strings.HasSuffix(strings.ToLower(googleUser.Email), "@chula.ac.th") {
-	// 	role = "Admin"
-	// }
-
-	// ดึงรหัส
-	local := strings.ToLower(strings.TrimSpace(googleUser.Email))
-	parts := strings.SplitN(local, "@", 2)
-	if len(parts) != 2 {
-		return nil, errors.New("invalid email format")
-	}
-	// เอาแบบเข้ม: เฉพาะตัวเลขนำหน้า
-	re := regexp.MustCompile(`^\d+`)
-	code := re.FindString(parts[0])
-	if code == "" {
-		return nil, errors.New("no numeric student code found in email")
-	}
-
-	// -- เตรียมตัวแปร --
-	var refID primitive.ObjectID
-	var student models.Student
-	err := DB.StudentCollection.FindOne(ctx, bson.M{"code": code}).Decode(&student)
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			// ไม่เจอ => สร้างใหม่
-			student = models.Student{
-				Name:    googleUser.Name,
-				EngName: googleUser.Name,
-				Code:    code,
-				Major:   "ยังไม่ถูกกำหนด",
-			}
-			fmt.Println("create student => :", student)
-
-			insertRes, err := DB.StudentCollection.InsertOne(ctx, student)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create student profile: %v", err)
-			}
-
-			// InsertedID เป็น primitive.ObjectID (ไม่ใช่ pointer)
-			oid, ok := insertRes.InsertedID.(primitive.ObjectID)
-			if !ok {
-				return nil, fmt.Errorf("unexpected InsertedID type %T", insertRes.InsertedID)
-			}
-			refID = oid
-		} else {
-			// เออเรอร์อื่น ๆ
-			return nil, fmt.Errorf("failed to query student: %v", err)
-		}
-	} else {
-		// เจออยู่แล้ว
-		refID = student.ID
-	}
-
-	// Create user account
-	user := models.User{
-		Email:    strings.ToLower(googleUser.Email),
-		Role:     "Student",
-		Code:     code,
-		RefID:    refID,
-		IsActive: true,
-	}
-
-	insertRes, err := DB.UserCollection.InsertOne(ctx, user)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user account: %v", err)
-	}
-
-	// แปลง InsertedID เป็น ObjectID
-	userID, ok := insertRes.InsertedID.(primitive.ObjectID)
-	if !ok {
-		return nil, fmt.Errorf("unexpected InsertedID type %T", insertRes.InsertedID)
-	}
-
-	// Return เฉพาะข้อมูลที่จำเป็นสำหรับสร้าง JWT
-	// Frontend จะดึงข้อมูลเต็มจาก /auth/me อยู่แล้ว
-	return &models.User{
-		ID:    userID,
-		Email: strings.ToLower(googleUser.Email),
-		Role:  "Student",
-		RefID: refID,
-	}, nil
 }

@@ -5,9 +5,9 @@ import (
 	"log"
 )
 
-var collection = "TestEmail"
+var collection = "CTMS_DB"
 
-// var collection = "V2" // หรือ "TestEmail"
+// var collection = "V2" // หรือ "TestEmail" TestOCR
 func init() {
 	if err := DB.ConnectMongoDB(); err != nil {
 		log.Fatal("MongoDB connection error:", err)
@@ -30,7 +30,6 @@ func init() {
 		"Courses",
 		"Upload_Certificates",
 		"Hour_Change_Histories",
-		"View_Summary_Check_In_Out_Reports",
 	}); err != nil {
 		log.Fatal("Failed ensuring collections:", err)
 	}
@@ -49,7 +48,6 @@ func init() {
 	DB.CourseCollection = DB.GetCollection(collection, "Courses")
 	DB.UploadCertificateCollection = DB.GetCollection(collection, "Upload_Certificates")
 	DB.HourChangeHistoryCollection = DB.GetCollection(collection, "Hour_Change_Histories")
-	DB.SummaryCheckInOutReportsCollection = DB.GetCollection(collection, "View_Summary_Check_In_Out_Reports")
 
 	// Note: Asynq initialization is now handled in main.go after Redis connection check
 
