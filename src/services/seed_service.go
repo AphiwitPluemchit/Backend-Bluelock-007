@@ -19,12 +19,13 @@ import (
 
 // SeedUser represents a user to be seeded
 type SeedUser struct {
-	Email string
-	Role  string // "admin" or "student"
-	Name  string
-	Code  string
-	Major string
-	Year  int
+	Email   string
+	Role    string // "admin" or "student"
+	Name    string
+	EngName string
+	Code    string
+	Major   string
+	Year    int
 }
 
 // GeneratedPassword stores email and its generated password
@@ -71,36 +72,89 @@ func SeedInitialUsers() ([]GeneratedPassword, error) {
 	// กำหนด users ที่ต้องการ seed
 	seedUsers := []SeedUser{
 		{
-			Email: "kamonwan@go.buu.ac.th",
+			Email: "kamonwans@go.buu.ac.th",
 			Role:  "Admin",
-			Name:  "Admin Kamonwan",
-			Code:  "ADMIN001",
-			Major: "Computer Science",
-			Year:  0,
+			Name:  "กมลวรรณ แสงระวี",
 		},
 		{
-			Email: "65160000@go.buu.ac.th",
-			Role:  "Student",
-			Name:  "Student 65160000",
-			Code:  "65160000",
-			Major: "Computer Science",
-			Year:  3,
+			Email:   "65160000@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นิสิตจำลอง AAI",
+			EngName: "Student 65160000",
+			Code:    "65160000",
+			Major:   "AAI",
 		},
 		{
-			Email: "65160309@go.buu.ac.th",
-			Role:  "Student",
-			Name:  "Student 65160309",
-			Code:  "65160309",
-			Major: "Computer Science",
-			Year:  3,
+			Email:   "65160001@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นิสิตจำลอง SE",
+			EngName: "Student 65160001",
+			Code:    "65160001",
+			Major:   "SE",
 		},
 		{
-			Email: "65160289@go.buu.ac.th",
-			Role:  "Student",
-			Name:  "Student 65160289",
-			Code:  "65160289",
-			Major: "Computer Science",
-			Year:  3,
+			Email:   "65160002@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นิสิตจำลอง ITDI",
+			EngName: "Student 65160002",
+			Code:    "65160002",
+			Major:   "ITDI",
+		},
+		{
+			Email:   "65160309@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นายสหภาพ ฤทธิ์เนติกุล",
+			EngName: "Sahaphap Ritnetikul",
+			Code:    "65160309",
+			Major:   "CS",
+		},
+		{
+			Email:   "65160289@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นางสาวกรณิสา ทองเอี่ยม",
+			EngName: "Kornnisa Thongiam",
+			Code:    "65160289",
+			Major:   "CS",
+		},
+		{
+			Email:   "65160305@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นายศิวัช รัตนวงศ์",
+			EngName: "SIVAT RATANAWONG",
+			Code:    "65160305",
+			Major:   "CS",
+		},
+		{
+			Email:   "65160205@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นายอภิวิชญ์ ปลื้มจิตร์",
+			EngName: "APHIWIT PLUEMCHIT",
+			Code:    "65160205",
+			Major:   "CS",
+		},
+		{
+			Email:   "65160150@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นางสาวชนากานต์ ผันผิน",
+			EngName: "CHANAKAN PHANPHIN",
+			Code:    "65160150",
+			Major:   "CS",
+		},
+		{
+			Email:   "65160202@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นางสาวสุภาสิตา โพชวัฒน์",
+			EngName: "SUPASITA POCHAWAT",
+			Code:    "65160202",
+			Major:   "CS",
+		},
+		{
+			Email:   "65160178@go.buu.ac.th",
+			Role:    "Student",
+			Name:    "นายนัทธพงศ์ รุ่งเรืองพลางกูร",
+			EngName: "NATTAPONG RUNGRUEANGPHALANGKUL",
+			Code:    "65160178",
+			Major:   "CS",
 		},
 	}
 
@@ -138,8 +192,6 @@ func SeedInitialUsers() ([]GeneratedPassword, error) {
 			// สร้าง Admin record
 			admin := bson.M{
 				"name":      seedUser.Name,
-				"code":      seedUser.Code,
-				"major":     seedUser.Major,
 				"isActive":  true,
 				"createdAt": time.Now(),
 			}
@@ -155,6 +207,7 @@ func SeedInitialUsers() ([]GeneratedPassword, error) {
 			// สร้าง Student record
 			student := bson.M{
 				"name":        seedUser.Name,
+				"engName":     seedUser.EngName,
 				"code":        seedUser.Code,
 				"major":       seedUser.Major,
 				"studentYear": seedUser.Year,
